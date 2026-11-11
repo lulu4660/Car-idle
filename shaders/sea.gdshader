@@ -11,7 +11,7 @@ uniform float world_size = 1024.0;
 uniform int res = 1025;
 uniform float sea_level = 10.0;
 uniform vec3 deep_color : source_color = vec3(0.02, 0.16, 0.23);
-uniform vec3 shallow_color : source_color = vec3(0.10, 0.48, 0.47);
+uniform vec3 shallow_color : source_color = vec3(0.05, 0.55, 0.52);
 uniform vec3 foam_color : source_color = vec3(0.95, 0.93, 0.88);
 uniform float wave_height = 0.25;
 
@@ -98,9 +98,9 @@ void fragment() {
 	float breakup = smoothstep(0.3, 0.7, vnoise(p * vec2(0.05, 0.3) + vec2(0.0, t * 0.1)));
 	foam = max(foam, crest * breakup * clamp(1.0 - d / 4.5, 0.0, 1.0) * clamp(d / 0.4, 0.0, 1.0));
 	ALBEDO = mix(water, foam_color, foam);
-	ROUGHNESS = mix(0.08, 0.6, foam);
+	ROUGHNESS = mix(0.14, 0.7, foam);
 	METALLIC = 0.0;
-	SPECULAR = 0.35;
+	SPECULAR = 0.2;
 	// Eau claire au bord : on voit le sable dessous sur les premiers mètres.
-	ALPHA = clamp(0.12 + d * 0.28 + foam, 0.0, 1.0);
+	ALPHA = clamp(0.08 + d * 0.22 + foam, 0.0, 1.0);
 }
