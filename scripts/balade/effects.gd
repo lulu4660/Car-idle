@@ -147,92 +147,26 @@ const DRAG: Array[float] = [1.6, 0.7, 0.5]
 const GRAVITY: Array[float] = [-0.5, 7.0, 9.8]
 const WIND := Vector3(0.6, 0.0, 0.25)
 
-# Copie côté jeu de l'état de chaque particule, pour que la voiture puisse la souffler.
-var _p_origin := PackedVector3Array()
-var _p_vel := PackedVector3Array()
-var _p_start := PackedFloat32Array()
-var _p_kind := PackedInt32Array()
-var _p_floor := PackedFloat32Array()
-var _p_end := PackedFloat32Array()
-
-
-## Une particule : départ, vitesse, couleur, taille (m), durée (s), type, hauteur du sol.
+## Une particule : départ, vitesse, couleur, taille (m), durée (s), type, hauteur du sol
+## (les grains et les gouttes s'y arrêtent).
 func dust(pos: Vector3, vel: Vector3, color: Color, size: float, life: float, kind := Kind.DUST, floor_y := -1000.0) -> void:
-	if _p_origin.size() != MAX_DUST:
-		_p_origin.resize(MAX_DUST); _p_vel.resize(MAX_DUST); _p_start.resize(MAX_DUST)
-		_p_kind.resize(MAX_DUST); _p_floor.resize(MAX_DUST); _p_end.resize(MAX_DUST)
-	var i := _dust_next
 	var t := _now()
 	if floor_y < -999.0:
 		floor_y = pos.y - 0.3
-	_p_origin[i] = pos; _p_vel[i] = vel; _p_start[i] = t; _p_kind[i] = kind; _p_floor[i] = floor_y; _p_end[i] = t + life
-	_write(i)
-	_dust.set_instance_color(i, color)
-	_dust.set_instance_custom_data(i, Color(t, life, size, randf()))
+	var basis := Basis(vel, Vector3(t, kind, floor_y), Vector3.BACK)
+	_dust.set_instance_transform(_dust_next, Transform3D(basis, pos))
+	_dust.set_instance_color(_dust_next, color)
+	_dust.set_instance_custom_data(_dust_next, Color(t, life, size, randf()))
 	_dust_next = (_dust_next + 1) % MAX_DUST
 
 
-## Écrit la trajectoire de la particule i dans le MultiMesh (vitesse, départ, type, sol).
-func _write(i: int) -> void:
-	var basis := Basis(_p_vel[i], Vector3(_p_start[i], _p_kind[i], _p_floor[i]), Vector3.BACK)
-	_dust.set_instance_transform(i, Transform3D(basis, _p_origin[i]))
-
-
-## Position et vitesse de la particule i maintenant (même calcul que le shader).
-func _state(i: int, t_now: float) -> Array:
-	var k := _p_kind[i]
-	var dr: float = DRAG[k]
-	var g: float = GRAVITY[k]
-	var t := maxf(t_now - _p_start[i], 0.0)
-	var e := exp(-dr * t)
-	var pos := _p_origin[i] + _p_vel[i] * (1.0 - e) / dr - Vector3(0, g, 0) * (t / dr - (1.0 - e) / (dr * dr))
-	var vel := _p_vel[i] * e - Vector3(0, g, 0) * (1.0 - e) / dr
-	if k == Kind.DUST:
-		pos += WIND * t * smoothstep(0.0, 1.5, t)
-	elif pos.y <= _p_floor[i]:
-		pos.y = _p_floor[i]
-		vel = Vector3.ZERO
-	return [pos, vel]
-
-
-## La voiture traverse un nuage : les particules proches sont soufflées (entraînées dans
-## son sens et écartées sur les côtés), les grains posés au sol sont relancés.
-func push_from(center: Vector3, velocity: Vector3, radius: float) -> void:
-	var speed := velocity.length()
-	if speed < 3.0 or _p_origin.size() != MAX_DUST:
-		return
-	var t := _now()
-	var r2 := radius * radius
-	for i in MAX_DUST:
-		if _p_end[i] < t or _p_origin[i].distance_squared_to(center) > (radius + 14.0) * (radius + 14.0):
-			continue
-		var st := _state(i, t)
-		var pos: Vector3 = st[0]
-		var d2 := pos.distance_squared_to(center)
-		if d2 > r2:
-			continue
-		var f := 1.0 - sqrt(d2) / radius
-		var away := pos - center
-		away.y = 0.0
-		var kick := velocity * 0.55 * f + away.normalized() * speed * 0.35 * f + Vector3.UP * speed * 0.12 * f
-		_p_origin[i] = pos
-		_p_vel[i] = st[1] + kick
-		_p_start[i] = t
-		_write(i)
-
-
-## Gerbe de sable à la réception d'un saut, projetée tout autour.
+## Réception d'un saut : un anneau de poussière (ou d'eau) qui s'étale au ras du sol.
 func burst(point: Vector3, surface: int, strength: float) -> void:
 	var c: Color = DUST_COLORS[surface]
-	for k in int(28.0 * strength):
-		var a := randf() * TAU
-		var r := randf_range(1.5, 5.0) * strength
-		var v := Vector3(cos(a) * r, randf_range(1.5, 4.5) * strength, sin(a) * r)
-		var kind := Kind.WATER if surface == WL.Surface.WATER else Kind.DUST
-		dust(point + Vector3.UP * 0.15, v, Color(c.r, c.g, c.b, minf(1.0, c.a * 1.4) * randf_range(0.7, 1.0)), randf_range(0.8, 2.2) * (0.8 + strength * 0.5), randf_range(1.2, 2.8), kind)
-	# Grains de sable projetés, qui retombent.
-	if surface != WL.Surface.WATER and surface != WL.Surface.ASPHALT:
-		for k in int(40.0 * strength):
-			var a := randf() * TAU
-			var r := randf_range(2.0, 6.0) * strength
-			dust(point + Vector3.UP * 0.1, Vector3(cos(a) * r, randf_range(3.0, 7.0) * strength, sin(a) * r), Color(c.r * 0.85, c.g * 0.8, c.b * 0.75, 0.95), randf_range(0.08, 0.16), randf_range(1.5, 2.5), Kind.SAND, point.y - 0.05)
+	var n := int(16.0 * strength)
+	var water := surface == WL.Surface.WATER
+	for k in n:
+		var a := TAU * k / n
+		var dir := Vector3(cos(a), 0.0, sin(a))
+		var v := dir * 2.5 * strength + Vector3.UP * (2.5 if water else 0.6) * strength
+		dust(point + dir * 0.5 + Vector3.UP * 0.15, v, Color(c.r, c.g, c.b, minf(1.0, c.a * 1.3)), (0.4 if water else 1.4) * (0.8 + strength * 0.4), 1.2 if water else 2.2, Kind.WATER if water else Kind.DUST, point.y)

@@ -171,23 +171,24 @@ func _dig_ruts() -> void:
 		ruts.dig(i, w.get_contact_point(), s, TYRE_WIDTH, 1.0, clampf(car.wheel_slip[i] + drift * 0.6, 0.0, 1.0))
 
 
-## Gerbes d'eau : la caisse qui avance dans la mer soulève de l'écume à l'avant et sur les côtés.
+## Gerbes d'eau : deux nappes de gouttes, une de chaque côté de l'avant, qui partent
+## vers l'extérieur et retombent dans l'eau. Plus on va vite, plus il y en a.
 func _splash(delta: float) -> void:
 	if not car.in_water or car.speed_kmh < 6.0:
 		return
-	var rate: float = clampf(car.speed_kmh / 40.0, 0.2, 1.5) * 60.0 * delta
+	var rate: float = clampf(car.speed_kmh / 40.0, 0.2, 1.2) * 40.0 * delta
 	var count := int(rate) + (1 if randf() < fmod(rate, 1.0) else 0)
 	var fwd: Vector3 = car.global_basis.z
 	var side: Vector3 = car.global_basis.x
+	var h: Vector3 = car.body_half
+	var push := clampf(car.speed_kmh / 40.0, 0.4, 1.2)
 	for k in count:
-		var p: Vector3 = car.global_position + fwd * randf_range(0.5, 2.2) + side * randf_range(-1.2, 1.2)
+		var sgn := 1.0 if k % 2 == 0 else -1.0
+		var p: Vector3 = car.global_position + fwd * h.z * 0.7 + side * sgn * h.x
 		var surf: float = Waves.surface(p.x, p.z, 10.0)
-		p.y = surf + 0.1
-		# Gouttes lourdes qui retombent dans l'eau, plus une brume légère.
-		var v: Vector3 = car.linear_velocity * 0.55 + side * signf(side.dot(p - car.global_position)) * randf_range(1.5, 4.5) + Vector3.UP * randf_range(2.5, 6.0)
-		effects.dust(p, v, Color(0.93, 0.98, 1.0, 0.85), randf_range(0.25, 0.6), randf_range(0.9, 1.6), effects.Kind.WATER, surf)
-		if randf() < 0.3:
-			effects.dust(p, v * 0.4, Color(0.92, 0.97, 1.0, 0.35), randf_range(1.2, 2.2), randf_range(0.6, 1.1))
+		p.y = surf + 0.05
+		var v: Vector3 = side * sgn * randf_range(1.5, 2.5) * push + Vector3.UP * randf_range(1.8, 2.8) * push + car.linear_velocity * 0.2
+		effects.dust(p, v, Color(0.93, 0.98, 1.0, 0.8), randf_range(0.3, 0.5), 1.0, effects.Kind.WATER, surf)
 
 
 func _wheel_effects(delta: float) -> void:
@@ -221,24 +222,12 @@ func _wheel_effects(delta: float) -> void:
 		var rate := amount * 55.0 * delta
 		var count := int(rate) + (1 if randf() < fmod(rate, 1.0) else 0)
 		var c: Color = effects.DUST_COLORS[s]
+		# La poussière reste là où la roue l'a soulevée (elle traîne derrière la voiture) et
+		# monte doucement en s'élargissant.
 		for k in count:
-			var back := -heading * randf_range(0.5, 2.5) * clampf(speed / 40.0, 0.0, 1.0)
-			var v := back + Vector3.UP * randf_range(0.6, 4.0 if s == WL.Surface.WATER else 1.6) + Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 1.2
-			var size := randf_range(1.0, 2.0) * (1.6 if s == WL.Surface.SAND else 1.0) * (1.0 + drift * 0.6)
-			effects.dust(p + Vector3.UP * 0.2, v, Color(c.r, c.g, c.b, c.a * randf_range(0.6, 1.0)), size, randf_range(1.6, 3.4) * (0.45 if s == WL.Surface.WATER else 1.0))
-		# Gerbe de sable : les roues qui patinent ou dérapent projettent des grains en arrière,
-		# qui retombent et roulent au sol.
-		if s == WL.Surface.SAND or s == WL.Surface.DIRT:
-			var roost := (clampf(slip - 0.15, 0.0, 1.0) * 1.5 + drift) * clampf(speed / 25.0, 0.2, 1.0)
-			var grains := roost * 90.0 * delta
-			var gn := int(grains) + (1 if randf() < fmod(grains, 1.0) else 0)
-			var gc: Color = effects.DUST_COLORS[s]
-			var spin: Vector3 = -heading
-			for k in gn:
-				var gv: Vector3 = spin * randf_range(3.0, 8.0) + car.linear_velocity * 0.6 + Vector3.UP * randf_range(1.5, 4.5) + car.global_basis.x * randf_range(-1.5, 1.5)
-				effects.dust(p + Vector3.UP * 0.15, gv, Color(gc.r * 0.8, gc.g * 0.74, gc.b * 0.68, 0.95), randf_range(0.07, 0.15), randf_range(1.2, 2.0), effects.Kind.SAND, p.y - 0.03)
-	# La voiture souffle la poussière qu'elle traverse.
-	effects.push_from(car.global_position + Vector3.UP * 0.6, car.linear_velocity, 3.2)
+			var v := Vector3.UP * randf_range(0.3, 0.8) + car.global_basis.x * randf_range(-0.3, 0.3)
+			var size := randf_range(1.0, 1.6) * (1.3 if s == WL.Surface.SAND else 1.0) * (1.0 + drift * 0.5)
+			effects.dust(p + Vector3.UP * 0.2, v, Color(c.r, c.g, c.b, c.a * randf_range(0.7, 1.0)), size, randf_range(1.6, 2.6))
 
 
 func _physics_process(delta: float) -> void:
@@ -324,14 +313,6 @@ func _body_contact(delta: float) -> void:
 		if pen > deepest:
 			deepest = pen
 			_plow_point = q
-		# Gerbe : le sable chassé par la caisse.
-		if speed > 2.0 and randf() < 0.25:
-			var c: Color = effects.DUST_COLORS[s]
-			var side: Vector3 = car.global_basis.x * signf(lp.x if lp.x != 0.0 else randf() - 0.5)
-			var v: Vector3 = car.linear_velocity * 0.7 + side * randf_range(1.5, 3.5) + Vector3.UP * randf_range(1.5, 3.5)
-			effects.dust(q + Vector3.UP * 0.1, v, Color(c.r * 0.82, c.g * 0.76, c.b * 0.7, 0.95), randf_range(0.08, 0.15), randf_range(1.0, 1.8), effects.Kind.SAND, g - 0.03)
-			if randf() < 0.4:
-				effects.dust(q + Vector3.UP * 0.2, v * 0.3, Color(c.r, c.g, c.b, c.a), randf_range(1.0, 1.8), randf_range(1.5, 2.8))
 	if touching == 0:
 		_plow_amount = maxf(0.0, _plow_amount - delta)
 		return
