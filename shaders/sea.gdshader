@@ -14,6 +14,8 @@ uniform vec3 deep_color : source_color = vec3(0.02, 0.16, 0.23);
 uniform vec3 shallow_color : source_color = vec3(0.05, 0.55, 0.52);
 uniform vec3 foam_color : source_color = vec3(0.95, 0.93, 0.88);
 uniform float wave_height = 0.25;
+// Horloge du jeu (waves.gd), la même que celle de la physique de la flottaison.
+uniform float now = 0.0;
 
 varying vec3 wpos;
 
@@ -65,12 +67,12 @@ void vertex() {
 	depth = water_depth(w.xz);
 	// Houle en relief seulement au large : près du bord, la surface reste plane et le rivage
 	// suit exactement le sable (pas de marches dues au maillage).
-	VERTEX.y += swell(w.xz, TIME).x * smoothstep(3.0, 7.0, depth);
+	VERTEX.y += swell(w.xz, now).x * smoothstep(3.0, 7.0, depth);
 	wpos = w;
 }
 
 void fragment() {
-	float t = TIME;
+	float t = now;
 	vec2 p = wpos.xz;
 	float d = water_depth(p);
 	vec3 s = swell(p, t);

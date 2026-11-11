@@ -4,7 +4,7 @@ extends Node3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-const GRASS_COUNT := 9000
+const GRASS_COUNT := 11000
 const GRASS_CELL := 48.0
 const GRASS_SHADOW_RANGE := 70.0
 const GRASS_RANGE := 140.0
@@ -98,52 +98,60 @@ func _build_grass() -> void:
 			add_child(mmi)
 
 
-## Touffe d'oyats : une trentaine de brins fins en vraie 3D, partant du centre, courbés vers
-## l'extérieur ; foncés à la base, paille claire aux pointes (couleur par sommet).
+## Touffe d'herbe low poly : 7 lames larges et pointues, taillées en facettes (chaque
+## triangle a sa propre normale), couleurs unies du vert olive à la paille.
 func _tuft_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 9
-	const SEGS := 3
-	for blade in 16:
-		var ang := rng.randf() * TAU
+	for blade in 7:
+		var ang := blade / 7.0 * TAU + rng.randf_range(-0.3, 0.3)
 		var dir := Vector3(cos(ang), 0, sin(ang))
 		var side := dir.cross(Vector3.UP)
-		var reach := rng.randf_range(0.25, 0.75)
-		var height := rng.randf_range(0.45, 0.95)
-		var width := rng.randf_range(0.035, 0.06)
-		var base := dir * rng.randf_range(0.0, 0.12)
-		var base_col := Color(0.38, 0.30, 0.18).lerp(Color(0.55, 0.44, 0.27), rng.randf())
-		var tip_col := Color(0.84, 0.72, 0.48).lerp(Color(0.96, 0.87, 0.64), rng.randf())
-		var pts: Array[Vector3] = []
-		for k in SEGS + 1:
-			var t := k / float(SEGS)
-			# Monte puis retombe vers l'extérieur.
-			pts.append(base + dir * reach * t * t + Vector3.UP * height * sin(t * PI * 0.62))
-		for k in SEGS:
-			var t0 := k / float(SEGS)
-			var t1 := (k + 1) / float(SEGS)
-			var w0 := width * (1.0 - t0 * 0.85)
-			var w1 := width * (1.0 - t1 * 0.85)
-			var q := [pts[k] - side * w0, pts[k] + side * w0, pts[k + 1] + side * w1, pts[k + 1] - side * w1]
-			var cols := [base_col.lerp(tip_col, t0), base_col.lerp(tip_col, t0), base_col.lerp(tip_col, t1), base_col.lerp(tip_col, t1)]
-			for i in [0, 1, 2, 0, 2, 3]:
-				st.set_color(cols[i])
-				st.set_uv(Vector2(0.5, 1.0 - (t0 if i < 2 else t1)))
-				st.set_normal(Vector3.UP)
-				st.add_vertex(q[i])
+		var reach := rng.randf_range(0.15, 0.45)
+		var height := rng.randf_range(0.55, 1.0)
+		var width := rng.randf_range(0.09, 0.14)
+		var base := dir * 0.05
+		var mid := base + dir * reach * 0.35 + Vector3.UP * height * 0.55
+		var tip := base + dir * reach + Vector3.UP * height
+		var col := Color(0.62, 0.56, 0.27).lerp(Color(0.86, 0.76, 0.42), rng.randf())
+		var dark := col.darkened(0.25)
+		var quad := [base - side * width, base + side * width, mid + side * width * 0.6, mid - side * width * 0.6]
+		var tris := [[quad[0], quad[1], quad[2]], [quad[0], quad[2], quad[3]], [quad[3], quad[2], tip]]
+		var cols := [[dark, dark, col], [dark, col, col], [col, col, col.lightened(0.12)]]
+		for t in 3:
+			for k in 3:
+				st.set_color(cols[t][k])
+				var v: Vector3 = tris[t][k]
+				st.set_uv(Vector2(0.5, 1.0 - clampf(v.y / height, 0.0, 1.0)))
+				st.add_vertex(v)
+	# Normales par triangle : rendu facetté.
+	st.generate_normals()
 	return st.commit()
 
 
 # ------------------------------------------------------------------ objets
 
 const PROP_DIR := "res://assets/props/kenney/"
+const PropBody = preload("res://scripts/balade/prop_body.gd")
+## Objets destructibles : masse (kg), fragile (se brise en morceaux), couleur des morceaux.
+const DESTRUCTIBLE := {
+	"barrel": [45.0, false, Color(0.55, 0.32, 0.20)], "barrel-open": [35.0, true, Color(0.55, 0.32, 0.20)],
+	"box-large": [30.0, true, Color(0.72, 0.55, 0.34)], "box": [12.0, true, Color(0.72, 0.55, 0.34)],
+	"signpost": [20.0, true, Color(0.60, 0.44, 0.28)], "tent-canvas": [25.0, true, Color(0.85, 0.80, 0.68)],
+	"metal-panel": [25.0, false, Color(0.6, 0.62, 0.65)], "cactus_short": [40.0, true, Color(0.36, 0.55, 0.28)],
+	"cactus_tall": [80.0, true, Color(0.36, 0.55, 0.28)], "tree-log": [60.0, false, Color(0.5, 0.36, 0.24)],
+	"log": [40.0, false, Color(0.5, 0.36, 0.24)], "log_large": [90.0, false, Color(0.5, 0.36, 0.24)],
+	"stump_old": [120.0, true, Color(0.48, 0.35, 0.24)],
+}
+var effects: Node3D
 # Hauteur visée (m) de chaque objet du kit, et s'il arrête la voiture.
 const PROPS := {
 	"structure-metal": [3.2, true], "tent-canvas": [2.2, true], "barrel": [1.0, true], "barrel-open": [1.0, true],
-	"box-large": [1.0, true], "box": [0.6, false], "signpost": [2.2, true], "campfire-pit": [0.45, false],
-	"metal-panel": [1.6, false], "tree-log": [0.6, true], "log": [0.45, false], "log_large": [0.8, true],
+	"box-large": [1.0, true], "box": [0.6, true], "signpost": [2.2, true], "campfire-pit": [0.45, false],
+	"metal-panel": [1.6, true], "tree-log": [0.6, true], "log": [0.45, true], "log_large": [0.8, true],
 	"stump_old": [0.8, true], "cactus_short": [1.3, true], "cactus_tall": [3.2, true],
 	"rock-sand-a": [1.1, true], "rock-sand-b": [0.8, true], "rock-sand-c": [1.4, true],
 }
@@ -201,15 +209,40 @@ func _place(body: StaticBody3D, kind: String, at: Vector2, yaw: float, size_k: f
 	if ground < WL.SEA_LEVEL + 0.2:
 		node.free()
 		return
-	node.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * s), Vector3(at.x, ground - b.position.y * s - 0.05, at.y))
-	add_child(node)
-	if spec[1]:
+	var size := b.size * s
+	var foot := Vector3(at.x, ground - 0.05, at.y)
+	if not spec[1]:
+		node.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * s), foot - Vector3(0, b.position.y * s, 0))
+		add_child(node)
+		return
+	if DESTRUCTIBLE.has(kind):
+		# Objet destructible : un corps physique figé, réveillé par la voiture.
+		var info: Array = DESTRUCTIBLE[kind]
+		var prop: RigidBody3D = PropBody.new()
+		prop.mass = info[0]
+		prop.fragile = info[1]
+		prop.debris_color = info[2]
+		prop.effects = effects
+		prop.transform = Transform3D(Basis(Vector3.UP, yaw), foot)
+		node.transform = Transform3D(Basis.from_scale(Vector3.ONE * s), -Vector3(b.get_center().x, b.position.y, b.get_center().z) * s)
+		prop.add_child(node)
 		var cs := CollisionShape3D.new()
 		var box := BoxShape3D.new()
-		box.size = b.size * s * 0.9
+		box.size = size * 0.9
 		cs.shape = box
-		cs.transform = Transform3D(Basis(Vector3.UP, yaw), node.transform * b.get_center())
-		body.add_child(cs)
+		cs.position = Vector3(0, size.y / 2.0, 0)
+		prop.add_child(cs)
+		add_child(prop)
+		prop.setup(size)
+		return
+	node.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * s), foot - Vector3(0, b.position.y * s, 0))
+	add_child(node)
+	var cs2 := CollisionShape3D.new()
+	var box2 := BoxShape3D.new()
+	box2.size = size * 0.9
+	cs2.shape = box2
+	cs2.transform = Transform3D(Basis(Vector3.UP, yaw), node.transform * b.get_center())
+	body.add_child(cs2)
 
 
 static func _bounds(root: Node3D) -> AABB:

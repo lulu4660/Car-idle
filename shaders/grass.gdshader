@@ -1,4 +1,4 @@
-// Oyats : brins en vraie 3D, couleur par sommet, agités par le vent (plus en haut qu'en bas),
+// Herbe low poly : lames facettées en couleurs unies (couleur par sommet), agités par le vent (plus en haut qu'en bas),
 // éclairés en partie par transparence ; ils portent leurs ombres sur le sable.
 shader_type spatial;
 render_mode cull_disabled;
@@ -17,6 +17,5 @@ void fragment() {
 	ALBEDO = COLOR.rgb;
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.25;
-	BACKLIGHT = COLOR.rgb * 0.35;
-	AO = mix(0.55, 1.0, 1.0 - UV.y);
+	BACKLIGHT = COLOR.rgb * 0.25;
 }

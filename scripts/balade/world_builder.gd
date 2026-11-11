@@ -91,7 +91,7 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 
 ## Mer : maillage fin le long de la côte (houle visible, vagues qui lèchent le sable)
 ## entouré de grands panneaux jusqu'à l'horizon.
-static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> void:
+static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> Array[ShaderMaterial]:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/sea.gdshader")
 	mat.set_shader_parameter("height_tex", height_tex)
@@ -106,6 +106,7 @@ static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> 
 	_sea_mesh(parent, far_mat, Rect2(r.end.x, -far, far, far * 2.0), 400.0, 400.0)
 	_sea_mesh(parent, far_mat, Rect2(r.position.x, r.end.y, r.size.x, far - r.end.y), 60.0, 400.0)
 	_sea_mesh(parent, far_mat, Rect2(r.position.x, -far, r.size.x, r.position.y + far), 60.0, 400.0)
+	return [mat, far_mat]
 
 
 static func _sea_mesh(parent: Node, mat: Material, r: Rect2, step_x: float, step_z: float) -> void:
@@ -284,6 +285,7 @@ static func _rock_mesh(seed_value: int) -> ArrayMesh:
 			pts.append(v)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
 	for r in RINGS:
 		for g in SEGS:
 			var a := r * (SEGS + 1) + g

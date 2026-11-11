@@ -96,7 +96,7 @@ func dig(wheel: int, point: Vector3, surface: int, width: float, load_k: float, 
 	var p := Vector2(point.x, point.z)
 	var a: Variant = _last[wheel]
 	_last[wheel] = p
-	if a == null or (a as Vector2).distance_to(p) > 2.0:
+	if a == null or (a as Vector2).distance_to(p) > 4.0:
 		return
 	_stamp_segment(a as Vector2, p, width * 0.5, depth)
 

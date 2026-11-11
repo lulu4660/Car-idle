@@ -13,6 +13,8 @@ const Car = preload("res://scripts/balade/car.gd")
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
 @export var force_quality := -1
 var low_quality := false
+var _sea_materials: Array[ShaderMaterial] = []
+const Waves = preload("res://scripts/balade/waves.gd")
 
 var data: RefCounted
 var terrain: Node3D
@@ -46,7 +48,7 @@ func _ready() -> void:
 	terrain.name = "Terrain"
 	add_child(terrain)
 	terrain.near_range = 130.0 if low_quality else 180.0
-	terrain.cast_shadows = not low_quality
+	terrain.cast_shadows = false
 	terrain.build(data)
 	terrain.material().set_shader_parameter("low_quality", low_quality)
 	ruts = load("res://scripts/balade/ruts.gd").new()
@@ -54,7 +56,7 @@ func _ready() -> void:
 	add_child(ruts)
 	ruts.mesh_step = 0.2 if low_quality else 0.125
 	ruts.build(terrain.material())
-	WorldBuilder.build_sea(self, data, terrain.height_texture())
+	_sea_materials = WorldBuilder.build_sea(self, data, terrain.height_texture())
 	WorldBuilder.build_far_ground(self)
 	WorldBuilder.build_walls(self)
 	WorldBuilder.build_city(self)
@@ -88,13 +90,12 @@ func _ready() -> void:
 	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
 
 
-## Réglages selon l'appareil. iPhone et web : image calculée à 70 % de la résolution (le
-## texte et les boutons restent nets), pas de MSAA (FXAA à la place), ombres sur 90 m
+## Réglages selon l'appareil. iPhone et web : pleine résolution, pas de MSAA (FXAA à la place), ombres sur 90 m
 ## avec une carte plus petite, pas de halo, terrain sans seconde échelle de texture.
 func _apply_quality(sun: DirectionalLight3D) -> void:
 	var vp := get_viewport()
 	if low_quality:
-		vp.scaling_3d_scale = 0.7
+		vp.scaling_3d_scale = 1.0
 		vp.msaa_3d = Viewport.MSAA_DISABLED
 		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 		RenderingServer.directional_shadow_atlas_set_size(2048, true)
@@ -117,6 +118,7 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	camera.snap()
 	if decor.data == null:
 		decor.low_quality = low_quality
+		decor.effects = effects
 		decor.build(data, car)
 	else:
 		decor.target = car
@@ -134,11 +136,42 @@ func _process(delta: float) -> void:
 		car.queue_free()
 		_spawn(pos, yaw)
 		return
+	for m in _sea_materials:
+		m.set_shader_parameter("now", Waves.now())
 	_wheel_effects(delta)
+	_splash(delta)
 	ruts.follow(car.global_position)
 	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
 	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
 	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
+
+
+## Ornières : creusées au rythme fixe de la physique (60 fois par seconde), pour un tracé
+## continu même quand l'affichage ralentit.
+func _dig_ruts() -> void:
+	var drift := clampf((absf(car.slip_angle) - 8.0) / 25.0, 0.0, 1.0)
+	for i in 4:
+		var w: VehicleWheel3D = car.wheels[i]
+		var s: int = car.wheel_surface[i]
+		if not w.is_in_contact() or not WL.is_soft(s):
+			ruts.lift(i)
+			continue
+		ruts.dig(i, w.get_contact_point(), s, TYRE_WIDTH, 1.0, clampf(car.wheel_slip[i] + drift * 0.6, 0.0, 1.0))
+
+
+## Gerbes d'eau : la caisse qui avance dans la mer soulève de l'écume à l'avant et sur les côtés.
+func _splash(delta: float) -> void:
+	if not car.in_water or car.speed_kmh < 6.0:
+		return
+	var rate: float = clampf(car.speed_kmh / 40.0, 0.2, 1.5) * 60.0 * delta
+	var count := int(rate) + (1 if randf() < fmod(rate, 1.0) else 0)
+	var fwd: Vector3 = car.global_basis.z
+	var side: Vector3 = car.global_basis.x
+	for k in count:
+		var p: Vector3 = car.global_position + fwd * randf_range(0.5, 2.2) + side * randf_range(-1.2, 1.2)
+		p.y = WL.SEA_LEVEL + 0.1
+		var v: Vector3 = car.linear_velocity * 0.4 + side * randf_range(-3.0, 3.0) + Vector3.UP * randf_range(2.0, 5.0)
+		effects.dust(p, v, Color(0.92, 0.97, 1.0, 0.75), randf_range(0.8, 1.8), randf_range(0.6, 1.2))
 
 
 func _wheel_effects(delta: float) -> void:
@@ -149,7 +182,6 @@ func _wheel_effects(delta: float) -> void:
 		var w: VehicleWheel3D = car.wheels[i]
 		if not w.is_in_contact():
 			effects.lift(i)
-			ruts.lift(i)
 			continue
 		var p := w.get_contact_point()
 		var n := w.get_contact_normal()
@@ -157,15 +189,10 @@ func _wheel_effects(delta: float) -> void:
 		var slip: float = car.wheel_slip[i]
 		var soft := WL.is_soft(s)
 		# Sable et terre : la roue creuse une vraie ornière. Bitume : trace de gomme si ça glisse.
-		if soft:
-			effects.lift(i)
-			ruts.dig(i, p, s, TYRE_WIDTH, 1.0, clampf(slip + drift * 0.6, 0.0, 1.0))
-		elif s == WL.Surface.ASPHALT and speed > 2.0 and (slip > 0.35 or drift > 0.2):
-			ruts.lift(i)
+		if s == WL.Surface.ASPHALT and speed > 2.0 and (slip > 0.35 or drift > 0.2):
 			effects.track(i, p, n, heading, s, w.wheel_radius * 1.2)
 		else:
 			effects.lift(i)
-			ruts.lift(i)
 		# Poussière : sur le bitume seulement quand ça glisse ; panache en dérapage.
 		var amount := 0.0
 		if s == WL.Surface.ASPHALT:
@@ -188,6 +215,7 @@ func _wheel_effects(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if car == null:
 		return
+	_dig_ruts()
 	var grounded := 0
 	for w in car.wheels:
 		if w.is_in_contact():

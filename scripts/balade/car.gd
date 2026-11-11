@@ -6,6 +6,7 @@
 extends VehicleBody3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
+const Waves = preload("res://scripts/balade/waves.gd")
 
 enum Drivetrain { ALL_WHEEL, REAR_WHEEL, FRONT_WHEEL }
 const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
@@ -91,6 +92,18 @@ var speed_kmh := 0.0
 var forward_speed := 0.0
 var slip_angle := 0.0
 var in_water := false
+## Profondeur de la voiture dans l'eau (0 = au sec, 1 = caisse entièrement sous l'eau).
+var submerged := 0.0
+var _sunk_time := 0.0
+## Flottaison : la voiture flotte un moment, tangue avec la houle, puis prend l'eau et coule.
+@export var buoyancy := 1.25
+@export var water_drag := 1.4
+## Secondes à flotter avant de prendre l'eau, puis durée de la descente.
+@export var float_time := 5.0
+@export var sink_time := 6.0
+var _water_time := 0.0
+var body_half := Vector3(0.9, 0.5, 2.1)
+var body_bottom := 0.35
 var wheel_surface: Array[int] = [WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND]
 var wheel_slip: Array[float] = [0.0, 0.0, 0.0, 0.0]
 
@@ -179,6 +192,8 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	box.size = Vector3(b.size.x * 0.92, b.end.y - bottom, b.size.z * 0.96)
 	shape.shape = box
 	shape.position = Vector3(b.get_center().x, (bottom + b.end.y) / 2.0, b.get_center().z)
+	car.body_half = box.size / 2.0
+	car.body_bottom = bottom
 	car.add_child(shape)
 	var pm := PhysicsMaterial.new()
 	pm.friction = 0.3
@@ -429,10 +444,7 @@ func _physics_process(delta: float) -> void:
 			if signf(yaw_rate) == -signf(slip_angle):
 				apply_torque(-up * yaw_rate * minf(1.0, over / 12.0) * 12.0 * mass * YAW_INERTIA)
 
-	# Mer : la voiture freine fort dans l'eau.
-	in_water = global_position.y < WL.SEA_LEVEL + 0.1
-	linear_damp = 2.5 if in_water else 0.05
-	angular_damp = 3.0 if in_water else 0.5
+	_float(delta)
 
 	_safe_timer += delta
 	if grounded >= 3 and not in_water and up.y > 0.7 and _safe_timer > 1.5:
@@ -441,12 +453,52 @@ func _physics_process(delta: float) -> void:
 		_safe_yaw = rotation.y
 
 	_upside_down = _upside_down + delta if up.y < 0.3 else 0.0
-	var drowned := global_position.y < WL.SEA_LEVEL - 1.5
+	# Au fond depuis longtemps (la voiture a pris l'eau et coulé) : retour au sec.
+	var drowned := _sunk_time > 3.0
 	var requested: bool = controls != null and controls.reset_requested
 	if _upside_down > 2.0 or drowned:
 		respawn(_safe_pos, _safe_yaw)
 	elif requested:
 		respawn(global_position, rotation.y)
+
+
+## Flottaison : quatre points de la caisse sondent la mer. Sous la surface, chacun reçoit une
+## poussée d'Archimède (proportionnelle à l'enfoncement) et un frein (l'eau résiste au
+## mouvement). La poussée faiblit à mesure que la voiture prend l'eau : elle flotte, tangue
+## avec la houle, est poussée vers la plage par les vagues, puis coule.
+func _float(delta: float) -> void:
+	var xf := global_transform
+	var total := 0.0
+	var corners := [Vector3(-body_half.x, body_bottom, -body_half.z), Vector3(body_half.x, body_bottom, -body_half.z),
+		Vector3(-body_half.x, body_bottom, body_half.z), Vector3(body_half.x, body_bottom, body_half.z)]
+	var leak := clampf(1.0 - maxf(0.0, _water_time - float_time) / sink_time, 0.2, 1.0)
+	for c in corners:
+		var p: Vector3 = xf * c
+		var ground: float = world_data.height_at(p.x, p.z) if world_data else WL.height(p.x, p.z)
+		var depth := WL.SEA_LEVEL - ground
+		if depth <= 0.0:
+			continue
+		var ws := Waves.surface(p.x, p.z, depth)
+		var d := ws - p.y
+		if d <= 0.0:
+			continue
+		var k := clampf(d / (body_half.y * 2.0), 0.0, 1.0)
+		total += k / 4.0
+		var lift := mass * 9.8 / 4.0 * buoyancy * leak * k * 1.6
+		var offset := p - global_position
+		var v := linear_velocity + angular_velocity.cross(offset)
+		apply_force(Vector3.UP * lift - v * water_drag * mass / 4.0 * k, offset)
+	submerged = total
+	in_water = total > 0.05
+	if in_water:
+		_water_time += delta
+		# Les vagues poussent doucement vers la plage (elles viennent du large, à l'est).
+		apply_central_force(Vector3(-1.0, 0.0, 0.1) * mass * 0.6 * total)
+	else:
+		_water_time = maxf(0.0, _water_time - delta * 2.0)
+	_sunk_time = _sunk_time + delta if total > 0.9 else 0.0
+	angular_damp = lerpf(0.5, 2.5, total)
+	linear_damp = 0.05
 
 
 func respawn(pos: Vector3, yaw: float) -> void:
@@ -455,3 +507,5 @@ func respawn(pos: Vector3, yaw: float) -> void:
 	angular_velocity = Vector3.ZERO
 	global_transform = Transform3D(Basis(Vector3.UP, yaw), Vector3(pos.x, maxf(ground, WL.SEA_LEVEL) + 1.2, pos.z))
 	_upside_down = 0.0
+	_water_time = 0.0
+	_sunk_time = 0.0

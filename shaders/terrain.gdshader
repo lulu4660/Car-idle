@@ -30,10 +30,8 @@ uniform vec3 dirt_light : source_color = vec3(0.64, 0.46, 0.31);
 uniform vec3 dirt_dark : source_color = vec3(0.54, 0.38, 0.26);
 uniform vec3 asphalt_color : source_color = vec3(0.30, 0.30, 0.33);
 uniform vec3 wet_color : source_color = vec3(0.70, 0.55, 0.39);
-uniform float facet_strength = 0.55;
 
 varying vec3 wpos;
-varying float rut_k;
 
 float hash2(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -52,55 +50,48 @@ float hgt(ivec2 p) {
 	return texelFetch(height_tex, p, 0).r;
 }
 
-// Hauteur interpolée (pour la pièce fine : ses sommets tombent entre les texels).
-float hgt_smooth(vec2 p) {
+// Hauteur et pente du triangle de la grille (1 m) qui contient p, découpé exactement comme
+// le maillage du terrain (diagonale de (1,0) à (0,1)) : la pièce fine des ornières et le
+// terrain normal tombent pile au même endroit, sans marche ni différence de lumière.
+vec3 tri_height_grad(vec2 p) {
 	vec2 g = clamp(p + vec2(world_size * 0.5), vec2(0.0), vec2(float(res) - 1.001));
 	ivec2 i = ivec2(floor(g));
 	vec2 f = g - vec2(i);
-	return mix(mix(hgt(i), hgt(i + ivec2(1, 0)), f.x), mix(hgt(i + ivec2(0, 1)), hgt(i + ivec2(1, 1)), f.x), f.y);
+	float h00 = hgt(i);
+	float h10 = hgt(i + ivec2(1, 0));
+	float h01 = hgt(i + ivec2(0, 1));
+	float h11 = hgt(i + ivec2(1, 1));
+	if (f.x + f.y < 1.0) {
+		vec2 grad = vec2(h10 - h00, h01 - h00);
+		return vec3(h00 + dot(f, grad), grad);
+	}
+	vec2 grad = vec2(h11 - h01, h11 - h10);
+	return vec3(h11 - dot(vec2(1.0) - f, grad), grad);
 }
 
 // Creux (négatif) ou bourrelet (positif) laissé par les roues, en mètres.
 float rut(vec2 p) {
 	vec2 uv = (p - rut_rect.xy) / rut_rect.zw;
+	if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+		return 0.0;
+	}
 	vec4 r = textureLod(rut_tex, uv, 0.0);
 	return r.g * rut_berm - r.r * rut_depth;
 }
 
-float patch_height(vec2 p) {
-	return hgt_smooth(p) + rut(p);
-}
-
 void vertex() {
 	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	rut_k = 0.0;
 	if (is_patch) {
-		float e = 0.2;
-		float h0 = patch_height(w.xz);
-		float hx = patch_height(w.xz + vec2(-e, 0.0)) - patch_height(w.xz + vec2(e, 0.0));
-		float hz = patch_height(w.xz + vec2(0.0, -e)) - patch_height(w.xz + vec2(0.0, e));
-		vec3 pn = normalize(vec3(hx, 2.0 * e, hz));
+		float h0 = tri_height_grad(w.xz).x + rut(w.xz);
 		VERTEX.y = h0;
-		NORMAL = pn;
-		TANGENT = normalize(cross(vec3(0.0, 0.0, 1.0), pn));
-		BINORMAL = normalize(cross(pn, TANGENT));
 		wpos = vec3(w.x, h0, w.z);
-		rut_k = clamp(-rut(w.xz) / 0.08, 0.0, 1.0);
 	} else {
 		ivec2 g = ivec2(round(w.xz + vec2(world_size * 0.5)));
-		float h = hgt(g);
-		float hl = hgt(g + ivec2(-1, 0));
-		float hr = hgt(g + ivec2(1, 0));
-		float hd = hgt(g + ivec2(0, -1));
-		float hu = hgt(g + ivec2(0, 1));
-		vec3 n = normalize(vec3(hl - hr, 2.0, hd - hu));
 		// Jupe : les sommets du bord descendent un peu et cachent les fentes entre niveaux de détail.
-		VERTEX.y = h - UV2.x * skirt;
-		NORMAL = n;
-		TANGENT = normalize(cross(vec3(0.0, 0.0, 1.0), n));
-		BINORMAL = normalize(cross(n, TANGENT));
+		VERTEX.y = hgt(g) - UV2.x * skirt;
 		wpos = vec3(w.x, VERTEX.y, w.z);
 	}
+	NORMAL = vec3(0.0, 1.0, 0.0);
 }
 
 void fragment() {
@@ -122,14 +113,20 @@ void fragment() {
 	// Sable mouillé au bord de l'eau : plus sombre et un peu luisant.
 	float wet_band = smoothstep(sea_level + 0.6, sea_level + 0.05, wpos.y);
 	c *= mix(1.0, 0.72, wet_band);
-	// Fond des ornières : sable tassé, un peu plus sombre.
-	c *= mix(1.0, 0.86, rut_k);
+	// Ornières : relief fin et fond tassé un peu plus sombre (pièce fine seulement).
+	vec3 tg = tri_height_grad(wpos.xz);
+	vec2 grad = tg.yz;
+	if (is_patch) {
+		float e = 0.05;
+		float r0 = rut(wpos.xz);
+		grad += vec2(rut(wpos.xz + vec2(e, 0.0)) - rut(wpos.xz - vec2(e, 0.0)), rut(wpos.xz + vec2(0.0, e)) - rut(wpos.xz - vec2(0.0, e))) / (2.0 * e);
+		c *= mix(1.0, 0.86, clamp(-r0 / 0.08, 0.0, 1.0));
+	}
 	ALBEDO = c;
-	// Facettes : la normale du triangle se mêle à la normale lissée (relief taillé au couteau).
-	vec3 facet = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
-	// Le sens des dérivées change selon le rendu (web ou PC) : on garde la face tournée comme le sol.
-	facet *= sign(dot(facet, NORMAL) + 1e-4);
-	NORMAL = normalize(mix(NORMAL, facet, facet_strength));
+	// Facettes low poly : la normale est celle du triangle de 1 m (calculée, pas dérivée de
+	// l'écran : identique sur le terrain, la pièce des ornières et les niveaux de détail).
+	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));
+	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	ROUGHNESS = mix(0.95, 0.5, wet_band);
 	SPECULAR = 0.25;
 }
