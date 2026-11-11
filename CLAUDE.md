@@ -31,6 +31,7 @@ Le prototype Godot (dépôt lulu4660/garage-spotter) sert de référence : formu
   - `BaladeBootstrap.cs` (point d'entrée + affichage), `WorldBuilder.cs` (terrain, ville, mer, ciel), `VehicleFactory.cs` (voiture du Car Kit : orientation, taille, Rigidbody, WheelCollider), `CarController.cs` (conduite arcade 4 roues motrices, adhérence par sol, frein à main, aides, retour au sec), `DroneCamera.cs`, `CarEffects.cs` (traces, poussière, éclaboussures), `DriveInput.cs` (clavier + boutons tactiles, ancien et nouveau système d'entrées), `Materials.cs` (URP Lit ou Standard).
   - API renommées dans Unity 6 (`linearVelocity`, `linearDamping`, `PhysicsMaterial`) : passer par `Physics2` ou `#if UNITY_6000_0_OR_NEWER`.
 - `Assets/Scripts/Editor/BaladeSceneMenu.cs` : crée `Assets/Scenes/Balade.unity` (menu Car Idle).
+- `Assets/Scripts/Editor/WebBuild.cs` + `.github/workflows/web.yml` : build web (GameCI) mise en ligne sur GitHub Pages (https://lulu4660.github.io/Car-idle/) pour jouer sur iPhone. Secrets UNITY_LICENSE/EMAIL/PASSWORD réglés par l'auteur sur GitHub. Un shader trouvé par `Shader.Find` doit figurer dans `WebBuild.CodeShaders`.
 - `Assets/Resources/CarKit/` : voitures low poly du Car Kit de Kenney (CC0), provisoires pour régler la physique.
 - `Assets/Tests/EditMode/` : tests NUnit. `ReferenceValuesTests.cs` vérifie que le portage redonne les valeurs du prototype Godot (seule différence voulue : 9,96 s'affiche « 10 »).
 - `tools/CoreTests/` : fait tourner les mêmes tests sans Unity (`dotnet test tools/CoreTests/CoreTests.csproj`, C# 9 comme Unity).

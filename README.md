@@ -27,6 +27,26 @@ Game design : https://claude.ai/artifact/WgkvZZaTt9JrZg6hYERz9r
 - Voitures provisoires : [Car Kit de Kenney](https://kenney.nl/assets/car-kit) (CC0, libre de droits), dans `Assets/Resources/CarKit/`. Elles servent à régler la physique ; les belles voitures viendront ensuite.
 - Réglages de conduite : sélectionner la voiture pendant le Play, composant **CarController** (couple, freins, braquage, aides). Les valeurs changées pendant le Play sont perdues à l'arrêt : noter celles qui plaisent.
 
+## Jouer sur iPhone
+
+### Version web (Safari), mise en ligne toute seule
+
+À chaque envoi sur `main`, GitHub construit la version web avec Unity et la met en ligne sur **https://lulu4660.github.io/Car-idle/** (à ouvrir dans Safari ; Partager > « Sur l'écran d'accueil » pour l'avoir en plein écran). Réglages à faire une seule fois :
+
+1. **Licence Unity** (gratuite, Unity Personal) : ouvrir Unity Hub une fois connecté à son compte, puis récupérer le fichier `C:\ProgramData\Unity\Unity_lic.ulf` (dossier caché : taper le chemin dans l'Explorateur).
+2. Sur GitHub, dépôt Car-idle > **Settings > Secrets and variables > Actions > New repository secret**, trois secrets :
+   - `UNITY_LICENSE` : tout le contenu du fichier `Unity_lic.ulf` (l'ouvrir avec le Bloc-notes, copier-coller) ;
+   - `UNITY_EMAIL` : l'e-mail du compte Unity ;
+   - `UNITY_PASSWORD` : son mot de passe.
+3. **Settings > Pages > Build and deployment > Source = GitHub Actions**.
+4. Onglet **Actions > Version web (iPhone) > Run workflow**. La première build prend 20 à 40 min, les suivantes une dizaine.
+
+Ces secrets restent chez GitHub : ils ne sont jamais dans le code ni visibles dans les journaux.
+
+### Unity Remote (le plus rapide pour régler la conduite)
+
+L'appli gratuite **Unity Remote 5** (App Store) affiche le jeu de l'éditeur sur l'iPhone et renvoie les touches de l'écran. iPhone branché en USB au PC (iTunes ou « Appareils Apple » installé), puis dans Unity : Edit > Project Settings > **Editor > Unity Remote > Device = Any iOS Device**, et Play. L'image est compressée, mais les commandes tactiles sont les vraies.
+
 ## Assets de boutique (voitures, décors)
 
 La licence de l'Asset Store interdit de republier ses fichiers dans un dépôt public. Tout ce qui vient d'une boutique va dans **`Assets/Store/`**, que Git ignore :

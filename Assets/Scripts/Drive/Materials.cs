@@ -12,18 +12,12 @@ namespace CarIdle.Drive
         private static Shader _fx;
         private static Texture2D _softDot;
 
-        public static bool IsUrp
-        {
-            get
-            {
-                var lit = LitShader();
-                return lit != null && lit.name.StartsWith("Universal Render Pipeline");
-            }
-        }
+        /// <summary>Vrai si un pipeline URP est réglé dans Graphics (le paquet seul ne suffit pas).</summary>
+        public static bool IsUrp => UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
 
         private static Shader LitShader()
         {
-            if (_lit == null)
+            if (_lit == null && IsUrp)
                 _lit = Shader.Find("Universal Render Pipeline/Lit");
             if (_lit == null)
                 _lit = Shader.Find("Standard");

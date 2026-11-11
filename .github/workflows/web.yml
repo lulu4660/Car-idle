@@ -1,0 +1,68 @@
+name: Version web (iPhone)
+
+# À chaque envoi sur main (ou à la main, onglet Actions > Run workflow) : construit la
+# version web avec Unity (GameCI) et la met en ligne sur GitHub Pages.
+# À régler une fois (voir README) : les secrets UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD,
+# et Settings > Pages > Source = GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Secrets Unity présents ?
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          if [ -z "$UNITY_LICENSE" ]; then
+            echo "::error::Secret UNITY_LICENSE manquant : voir README, section « Jouer sur iPhone »."
+            exit 1
+          fi
+      - name: Place disque
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          large-packages: false
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-WebGL-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: Library-WebGL-
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: WebGL
+          buildMethod: CarIdle.EditorTools.WebBuild.Build
+          allowDirtyBuild: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/WebGL/WebGL
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

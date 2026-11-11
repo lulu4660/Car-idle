@@ -14,10 +14,12 @@ namespace CarIdle.EditorTools
     [InitializeOnLoad]
     public static class BaladeSceneMenu
     {
-        private const string ScenePath = "Assets/Scenes/Balade.unity";
+        public const string ScenePath = "Assets/Scenes/Balade.unity";
 
         static BaladeSceneMenu()
         {
+            if (Application.isBatchMode)
+                return;
             EditorApplication.delayCall += () =>
             {
                 if (!System.IO.File.Exists(ScenePath) && !EditorApplication.isPlayingOrWillChangePlaymode)
@@ -30,6 +32,12 @@ namespace CarIdle.EditorTools
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                 return;
+            WriteScene();
+        }
+
+        /// <summary>Crée la scène sans rien demander (utilisé aussi par la build web).</summary>
+        public static void WriteScene()
+        {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var cam = new GameObject("Camera");
