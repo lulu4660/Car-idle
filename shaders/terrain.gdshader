@@ -23,11 +23,31 @@ uniform sampler2D wet_normal : hint_normal, filter_linear_mipmap_anisotropic, re
 uniform vec4 tile = vec4(4.0, 3.5, 4.0, 3.5);
 uniform vec4 max_smoothness = vec4(0.25, 0.08, 0.05, 0.35);
 uniform vec3 sand_tint : source_color = vec3(1.22, 1.02, 0.78);
+// Sable de dune vu du ciel : deux teintes mêlées à grande échelle, le grain de la photo
+// seulement en léger relief (comme vu d'un drone).
+uniform vec3 sand_light : source_color = vec3(0.86, 0.66, 0.42);
+uniform vec3 sand_dark : source_color = vec3(0.74, 0.53, 0.33);
+uniform float sand_detail = 0.18;
 // Rides du vent sur le sable : hauteur et longueur d'onde (m).
-uniform float ripple_strength = 0.22;
+uniform float ripple_strength = 0.3;
 uniform float ripple_length = 0.55;
 
 varying vec3 wpos;
+
+float hash2(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), f.x), mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+float fbm2(vec2 p) {
+	return vnoise(p) * 0.55 + vnoise(p * 2.07 + 13.1) * 0.3 + vnoise(p * 4.3 - 7.7) * 0.15;
+}
 
 float hgt(ivec2 p) {
 	p = clamp(p, ivec2(0), ivec2(res - 1));
@@ -70,16 +90,21 @@ void fragment() {
 	vec4 c1 = layer(dirt_albedo, dirt_normal, tile.y, wpos.xz, far, n1);
 	vec4 c2 = layer(sand_albedo, sand_normal, tile.z, wpos.xz, far, n2);
 	vec4 c3 = layer(wet_albedo, wet_normal, tile.w, wpos.xz, far, n3);
-	// Sable de dune : grain fin, moins de taches sombres que la photo d'origine.
-	c2.rgb = mix(vec3(0.52, 0.43, 0.31), c2.rgb, 0.6) * sand_tint;
+	// Sable de dune : teinte douce à grande échelle ; la photo ne garde que sa luminosité, atténuée.
+	float macro = fbm2(wpos.xz / 70.0) * 0.7 + fbm2(wpos.xz / 13.0) * 0.3;
+	vec3 sand_base = mix(sand_dark, sand_light, smoothstep(0.25, 0.8, macro));
+	float grain = dot(c2.rgb, vec3(0.333)) / 0.45;
+	c2.rgb = sand_base * mix(1.0, clamp(grain, 0.7, 1.3), sand_detail * (1.0 - far * 0.7));
 	// Rides du vent, perpendiculaires au vent d'ouest, ondulées ; elles s'effacent au loin.
 	vec2 q = wpos.xz;
 	float warp = sin(q.y * 0.21 + sin(q.x * 0.13) * 1.7) * 0.9 + sin(q.y * 0.53 + q.x * 0.07) * 0.35 + sin(q.y * 1.7 + q.x * 0.3) * 0.12;
 	float ph = (q.x + warp) / ripple_length * 6.28318;
 	float ripple = cos(ph) + 0.35 * cos(ph * 2.0 + 0.6);
-	float near_k = 1.0 - smoothstep(6.0, 45.0, dist);
+	float near_k = 1.0 - smoothstep(10.0, 80.0, dist);
 	vec3 rip = vec3(0.5 - ripple * ripple_strength * near_k * 0.5, 0.5, 1.0);
-	n2 = mix(n2, rip, 0.55 * near_k);
+	// Relief de la photo très adouci : le sable de dune est lisse, seules les rides le marquent.
+	n2 = mix(vec3(0.5, 0.5, 1.0), n2, 0.35);
+	n2 = mix(n2, rip, 0.6 * near_k);
 	vec4 c = c0 * w.r + c1 * w.g + c2 * w.b + c3 * w.a;
 	ALBEDO = c.rgb;
 	NORMAL_MAP = n0 * w.r + n1 * w.g + n2 * w.b + n3 * w.a;

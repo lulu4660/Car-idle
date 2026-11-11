@@ -174,6 +174,8 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 
 	if model != "concept":
 		_paint(visual)
+	else:
+		_fix_glass(visual)
 	car.drive = _drivetrain_of(model)
 	if model == "van" or model == "suv":
 		car.drift = 0.4
@@ -199,6 +201,23 @@ static func _paint(visual: Node3D) -> void:
 	mat.clearcoat_roughness = 0.15
 	for m in visual.find_children("*", "MeshInstance3D", true, false):
 		(m as MeshInstance3D).material_override = mat
+
+
+## Vitres : le verre du modèle (réfraction) passe mal sur mobile et sur le web ; on le
+## remplace par un verre fumé simple, transparent et brillant.
+static func _fix_glass(visual: Node3D) -> void:
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(0.05, 0.07, 0.08, 0.55)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.metallic = 0.6
+	glass.roughness = 0.04
+	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for m in visual.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		var n := String(mi.name)
+		var is_glass := n.containsn("Window") or n.containsn("Windshield")
+		if is_glass and not n.containsn("Gasket") and not n.containsn("Wiper"):
+			mi.material_override = glass
 
 
 static func _mesh_bounds(m: MeshInstance3D, ref: Node3D) -> AABB:

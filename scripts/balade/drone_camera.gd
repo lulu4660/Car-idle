@@ -1,5 +1,5 @@
-## Caméra « drone », comme une vidéo filmée au-dessus des dunes. Trois plans (V ou bouton
-## CAMÉRA) : poursuite haute de trois quarts arrière, travelling latéral, vue plongeante.
+## Caméra « drone », comme une vidéo filmée au-dessus des dunes. Quatre plans (V ou bouton
+## CAMÉRA) : drone haut presque vertical, poursuite, travelling latéral, vue plongeante.
 ## Mouvements amortis, léger balancement, recul avec la vitesse ; elle suit la direction
 ## réelle de la voiture (on voit venir le virage en dérapage), ne passe jamais sous le sol
 ## et tremble à la réception des sauts.
@@ -7,11 +7,13 @@ extends Camera3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-enum Mode { CHASE, SIDE, TOP }
-const MODE_NAMES: Array[String] = ["Poursuite", "Travelling", "Plongée"]
+enum Mode { DRONE, CHASE, SIDE, TOP }
+const MODE_NAMES: Array[String] = ["Drone", "Poursuite", "Travelling", "Plongée"]
 
 # Par plan : recul (m), recul à fond, hauteur, hauteur à fond, angle autour de la voiture (°), champ (°).
 const SHOTS := {
+	# Drone : haut et loin, presque à la verticale, comme une vidéo de drone.
+	Mode.DRONE: [22.0, 27.0, 23.0, 28.0, 25.0, 46.0],
 	Mode.CHASE: [10.0, 15.0, 4.6, 6.5, 22.0, 48.0],
 	Mode.SIDE: [13.0, 16.0, 4.0, 5.0, 95.0, 45.0],
 	Mode.TOP: [6.0, 10.0, 26.0, 32.0, 25.0, 50.0],
@@ -19,7 +21,7 @@ const SHOTS := {
 
 var target: VehicleBody3D
 var world_data: RefCounted
-var mode := Mode.CHASE
+var mode := Mode.DRONE
 var speed_for_max := 140.0
 var follow_time := 0.35
 var yaw_sharpness := 2.0
@@ -32,7 +34,7 @@ var _shake := 0.0
 
 
 func next_mode() -> void:
-	mode = (mode + 1) % 3
+	mode = (mode + 1) % MODE_NAMES.size()
 
 
 func snap() -> void:
@@ -80,7 +82,7 @@ func _physics_process(delta: float) -> void:
 		_shake = move_toward(_shake, 0.0, delta * 2.5)
 	global_position = pos
 
-	var look := t.origin + Vector3.UP * 0.8 + flat * (0.25 if mode == Mode.TOP else 0.18)
+	var look := t.origin + Vector3.UP * 0.8 + flat * (0.3 if mode == Mode.TOP or mode == Mode.DRONE else 0.18)
 	if look.distance_to(pos) > 0.1:
 		var want := global_transform.looking_at(look, Vector3.UP)
 		global_basis = global_basis.slerp(want.basis, 1.0 - exp(-8.0 * delta)).orthonormalized()

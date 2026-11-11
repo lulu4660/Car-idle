@@ -110,18 +110,27 @@ func _now() -> float:
 	return _clock
 
 
-## Pose une empreinte si la roue a assez avancé depuis la dernière.
-func track(wheel: int, point: Vector3, normal: Vector3, heading: Vector3, surface: int, width: float) -> void:
+## Prolonge la trace d'une roue : un segment du dernier point au point actuel, posé à plat,
+## orienté selon le vrai trajet de la roue (une bande continue, même en dérapage).
+func track(wheel: int, point: Vector3, normal: Vector3, _heading: Vector3, surface: int, width: float) -> void:
 	var life: float = MARK_LIFE[surface]
 	if life <= 0.0:
 		return
-	if _last_stamp[wheel].distance_to(point) < STAMP_SPACING:
+	var last: Vector3 = _last_stamp[wheel]
+	if last == Vector3.INF:
+		_last_stamp[wheel] = point
+		return
+	var seg := point - last
+	var length := seg.length()
+	if length < STAMP_SPACING:
 		return
 	_last_stamp[wheel] = point
-	var z := (heading - normal * heading.dot(normal)).normalized()
+	if length > 3.0:
+		return  # saut ou téléportation : pas de trait à travers le vide
+	var z := (seg - normal * seg.dot(normal)).normalized()
 	var x := normal.cross(z).normalized()
-	var basis := Basis(x * width, normal, z * STAMP_SPACING * 1.15)
-	_stamps.set_instance_transform(_stamp_next, Transform3D(basis, point + normal * 0.03))
+	var basis := Basis(x * width, normal, z * (length + 0.06))
+	_stamps.set_instance_transform(_stamp_next, Transform3D(basis, (last + point) * 0.5 + normal * 0.03))
 	_stamps.set_instance_color(_stamp_next, MARK_COLORS[surface])
 	_stamps.set_instance_custom_data(_stamp_next, Color(_now(), life, 0, 0))
 	_stamp_next = (_stamp_next + 1) % MAX_STAMPS

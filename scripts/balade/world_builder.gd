@@ -1,76 +1,73 @@
-## Construit le décor de la balade autour du terrain : ciel photographié de fin
-## d'après-midi (HDR) et soleil calé dessus, brume, post-traitement, mer animée, sable à
+## Construit le décor de la balade autour du terrain : ciel et soleil d'après-midi, brume, post-traitement, mer animée, sable à
 ## perte de vue, limites du monde, immeubles de la ville et rochers.
 extends RefCounted
 
 const WL = preload("res://scripts/core/world_layout.gd")
 const WorldData = preload("res://scripts/balade/world_data.gd")
 
-const SKY_TEXTURE := "res://assets/ground/sky_late_afternoon.hdr"
-## Position du soleil dans la photo du ciel : u = 0,6003, hauteur 19,07°.
-const SKY_SUN_U := 0.6003
-const SKY_SUN_ELEVATION := 19.07
-const SUN_COLOR := Color(1.0, 0.84, 0.66)
-## Couleur de l'horizon du ciel : la brume s'y fond.
-const HAZE_COLOR := Color(0.80, 0.75, 0.67)
+## Soleil d'après-midi (34°) au sud-ouest : ombres nettes et assez longues, le sable modelé
+## par la lumière rasante sur les versants, image claire comme une vidéo de drone en plein jour.
+const SUN_ELEVATION := 34.0
+const SUN_AZIMUTH := 225.0  # degrés depuis le nord, dans le sens des aiguilles d'une montre
+const SUN_COLOR := Color(1.0, 0.95, 0.86)
+## Horizon : la brume légère s'y fond.
+const HAZE_COLOR := Color(0.78, 0.84, 0.88)
 
 
-## Direction vers le soleil, telle que Godot projette la photo panoramique
-## (u = atan(x, -z) / 2π, v = hauteur).
+## Direction vers le soleil (repère Godot : nord = -Z, est = +X).
 static func sun_direction() -> Vector3:
-	var a := SKY_SUN_U * TAU
-	var el := deg_to_rad(SKY_SUN_ELEVATION)
-	return Vector3(sin(a) * cos(el), sin(el), -cos(a) * cos(el)).normalized()
+	var az := deg_to_rad(SUN_AZIMUTH)
+	var el := deg_to_rad(SUN_ELEVATION)
+	return Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)).normalized()
 
 
 static func build_environment(parent: Node) -> DirectionalLight3D:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
-	var tex: Texture2D = load(SKY_TEXTURE)
-	if tex:
-		var pano := PanoramaSkyMaterial.new()
-		pano.panorama = tex
-		pano.energy_multiplier = 1.0
-		sky.sky_material = pano
-	else:
-		var proc := ProceduralSkyMaterial.new()
-		proc.sky_top_color = Color(0.35, 0.5, 0.7)
-		proc.sky_horizon_color = HAZE_COLOR
-		sky.sky_material = proc
+	# Ciel calculé : bleu-vert au zénith, clair à l'horizon, disque du soleil à sa place.
+	var proc := ProceduralSkyMaterial.new()
+	proc.sky_top_color = Color(0.22, 0.42, 0.55)
+	proc.sky_horizon_color = Color(0.72, 0.80, 0.84)
+	proc.sky_curve = 0.12
+	proc.sky_energy_multiplier = 1.0
+	proc.ground_horizon_color = Color(0.80, 0.70, 0.55)
+	proc.ground_bottom_color = Color(0.70, 0.58, 0.42)
+	proc.sun_angle_max = 20.0
+	proc.sun_curve = 0.1
+	sky.sky_material = proc
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 1.0
+	env.ambient_light_energy = 0.75
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 
-	# Rendu cinéma : ACES, halo sur le soleil et les reflets, contraste un peu plus franc.
+	# Rendu cinéma : ACES, image claire, halo léger sur les reflets.
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 0.92
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
-	env.glow_intensity = 0.6
-	env.glow_strength = 1.0
-	env.glow_bloom = 0.08
-	env.glow_hdr_threshold = 1.2
+	env.glow_intensity = 0.4
+	env.glow_bloom = 0.04
+	env.glow_hdr_threshold = 1.4
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.08
-	env.adjustment_saturation = 1.05
+	env.adjustment_contrast = 1.06
+	env.adjustment_saturation = 1.08
 
-	# Brume de chaleur : profondeur, et fin du monde invisible.
+	# Brume légère : seulement le lointain se fond dans l'horizon.
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 	env.fog_light_color = HAZE_COLOR
 	env.fog_light_energy = 1.0
-	env.fog_sun_scatter = 0.25
-	env.fog_density = 0.0016
+	env.fog_sun_scatter = 0.1
+	env.fog_density = 0.0007
 	env.fog_sky_affect = 0.0
-	env.fog_aerial_perspective = 0.35
+	env.fog_aerial_perspective = 0.3
 	# Ombres de contact (rendu Forward+ seulement).
 	env.ssao_enabled = true
-	env.ssao_radius = 1.5
-	env.ssao_intensity = 1.6
+	env.ssao_radius = 1.2
+	env.ssao_intensity = 1.4
 
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -79,14 +76,14 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Soleil"
 	sun.light_color = SUN_COLOR
-	sun.light_energy = 2.2
+	sun.light_energy = 2.3
 	sun.shadow_enabled = true
-	sun.shadow_bias = 0.04
-	sun.shadow_normal_bias = 1.2
+	sun.shadow_bias = 0.03
+	sun.shadow_normal_bias = 1.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.directional_shadow_max_distance = 220.0
+	sun.directional_shadow_max_distance = 160.0
 	sun.directional_shadow_blend_splits = true
-	sun.light_angular_distance = 0.6
+	sun.light_angular_distance = 0.4
 	parent.add_child(sun)
 	sun.look_at_from_position(Vector3.ZERO, -sun_direction(), Vector3.UP)
 	return sun
