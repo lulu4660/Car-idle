@@ -22,7 +22,7 @@ Les fichiers de Unity restés dans le dossier (`Assets`, `Library`, `Packages`, 
 - Transmissions : la sportive, la berline et la police sont des propulsions (elles dérapent sous les gaz), le SUV est un 4x4, le taxi et le van des tractions.
 - Réceptions de saut : le sable se creuse sous les roues, gerbe de sable et secousse de caméra.
 - Réglages de conduite : pendant le jeu, onglet **Remote** de l'arbre de scène > `Voiture` : `drift`, `counter_steer`, `tyre_grip`, `engine_force_total`… (les valeurs changées en jeu sont perdues à l'arrêt : noter celles qui plaisent).
-- Voitures : « Free Low Poly Vehicles Pack » de RgsDev (CC-BY 4.0, [Sketchfab](https://sketchfab.com/3d-models/free-low-poly-vehicles-pack-cb7640039e7a40679a53be705ebff50e), crédits dans `assets/cars/rgs/CREDITS.txt`). Textures de sol et ciel : [Poly Haven](https://polyhaven.com) (CC0). Arbres, cactus, rochers : [Nature Kit de Kenney](https://kenney.nl/assets/nature-kit) (CC0).
+- Voitures : « Low Poly Car Set » de BetelgeuseMan (CC-BY 4.0, [Sketchfab](https://sketchfab.com/3d-models/low-poly-car-set-9b8a51478e404a3594e11584b90a0e91), crédits dans `assets/cars/lowpoly/CREDITS.txt`). Textures de sol et ciel : [Poly Haven](https://polyhaven.com) (CC0). Arbres, cactus, rochers : [Nature Kit de Kenney](https://kenney.nl/assets/nature-kit) (CC0). Bâtiments, maisons, parasols, piétons : [City Kit Commercial](https://kenney.nl/assets/city-kit-commercial), [City Kit Suburban](https://kenney.nl/assets/city-kit-suburban), [Mini Characters](https://kenney.nl/assets/mini-characters) de Kenney (CC0).
 
 ## Jouer sur iPhone
 

@@ -11,21 +11,30 @@ const Waves = preload("res://scripts/balade/waves.gd")
 enum Drivetrain { ALL_WHEEL, REAR_WHEEL, FRONT_WHEEL }
 const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
 
-## Voitures low poly du « Free Low Poly Vehicles Pack » (RgsDev, CC-BY 4.0, crédits dans
-## assets/cars/rgs/) : un seul fichier, chaque véhicule = un nœud et ses quatre roues
-## (« <nom> wheel front left »...). Valeur : nom du véhicule dans le pack, longueur réelle (m).
-const PACK := "res://assets/cars/rgs/vehicles.glb"
+## Voitures du « Low Poly Car Set » (BetelgeuseMan, CC-BY 4.0, crédits dans
+## assets/cars/lowpoly/) : un seul fichier, chaque véhicule = un nœud sous « Root » avec ses
+## quatre roues (« ..._WhFL », « _WhFR », « _WhBL », « _WhBR »).
+## Valeur : nom du véhicule dans le pack, longueur réelle (m).
+const PACK := "res://assets/cars/lowpoly/cars.glb"
 const TOON := {
-	"citadine": ["Hatchback", 3.9], "berline": ["Sedan", 4.6], "sportive": ["Sports", 4.4],
-	"muscle": ["Muscle", 4.8], "muscle_gt": ["Muscle 2", 4.8], "roadster": ["Roadster", 4.0],
-	"pickup": ["Pickup", 5.2], "suv": ["SUV", 4.7], "monstre": ["Monster Truck", 5.0],
+	"bolide": ["Car03_1_Racing", 4.6], "bolide_gt": ["Car03_2_Racing", 4.9],
+	"puce": ["Car01_1", 3.6], "puce_carbone": ["Car01_1_Carbon", 3.6], "familiale": ["Car01_2", 3.8],
+	"coupe": ["Car02_1", 4.5], "break": ["Car02_2", 4.7], "fourgon": ["Car02_3", 4.7],
+	"berline": ["Car03_1", 4.7], "berline_longue": ["Car03_2", 5.0],
+	# Circulation seulement (pas jouables) :
+	"taxi": ["Car01_2_Taxi", 3.8], "police": ["Car03_1_Police", 4.8], "police_break": ["Car02_2_Police", 4.7],
+	"police_puce": ["Car01_2_Police", 3.8], "ambulance": ["Car02_3_Ambulance", 4.7],
 }
-const MODELS: Array[String] = ["sportive", "citadine", "berline", "muscle", "muscle_gt", "roadster", "pickup", "suv", "monstre"]
+## Voitures que le joueur peut conduire (bouton VOITURE).
+const MODELS: Array[String] = ["bolide", "bolide_gt", "puce", "puce_carbone", "familiale", "coupe", "break", "fourgon", "berline", "berline_longue"]
 ## Nom affiché de chaque voiture (noms de jeu, jamais de marque réelle).
 const DISPLAY_NAMES := {
-	"citadine": "Citadine", "berline": "Berline", "sportive": "Sportive", "muscle": "Muscle",
-	"muscle_gt": "Muscle GT", "roadster": "Roadster", "pickup": "Pick-up", "suv": "Tout-terrain",
-	"monstre": "Monstre"}
+	"bolide": "Bolide", "bolide_gt": "Bolide GT", "puce": "Puce", "puce_carbone": "Puce Carbone",
+	"familiale": "Familiale", "coupe": "Coupé", "break": "Break", "fourgon": "Fourgon",
+	"berline": "Berline", "berline_longue": "Berline longue", "taxi": "Taxi", "police": "Police",
+	"police_break": "Police", "police_puce": "Police", "ambulance": "Ambulance"}
+## Roues du pack : repère dans le nom du nœud, dans l'ordre AvG, AvD, ArG, ArD.
+const WHEEL_CODES: Array[String] = ["_WhFL", "_WhFR", "_WhBL", "_WhBR"]
 ## Noms possibles des roues, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_NAMES: Array = [
 	["wheel-front-left", "WheelFrontL"], ["wheel-front-right", "WheelFrontR"],
@@ -36,8 +45,6 @@ const HIDDEN_PARTS: Array[String] = ["License Plate", "Numberplate", "Badges", "
 ## Repères des roues dans les noms des maillages : avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_TAGS: Array = [["_FL"], ["_FR"], ["_RL", "_BL", "R L"], ["_RR", "_BR", "R R"]]
 const WHEEL_TAGS_FRONT: Array = [["F L"], ["F R"]]
-## Roues du pack RgsDev : nœud entier (pneu + jante) « <nom> wheel front left »...
-const WHEEL_WORDS: Array[String] = ["wheel front left", "wheel front right", "wheel rear left", "wheel rear right"]
 
 
 static func model_path(_model: String) -> String:
@@ -116,13 +123,15 @@ var _safe_timer := 0.0
 static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	var scene: PackedScene = load(model_path(model))
 	var visual: Node3D = scene.instantiate()
-	# Pack de plusieurs véhicules : on ne garde que le nœud du véhicule demandé et ses roues.
+	# Pack de plusieurs véhicules : on ne garde que le nœud du véhicule demandé.
 	var keep := String(TOON[model][0])
-	var root := visual.find_child("RootNode", true, false)
+	var root := visual.find_child("Root", true, false)
+	var vehicle: Node = null
 	if root:
 		for n in root.get_children():
-			var nm := String(n.name)
-			if nm != keep and not nm.begins_with(keep + " wheel"):
+			if String(n.name) == keep:
+				vehicle = n
+			else:
 				root.remove_child(n)
 				n.queue_free()
 	var car: VehicleBody3D = load("res://scripts/balade/car.gd").new()
@@ -141,7 +150,12 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	var wheel_nodes: Array[Node3D] = []
 	for k in 4:
 		var found: Node3D = null
-		var whole := visual.find_child(keep + " " + WHEEL_WORDS[k], true, false) as Node3D
+		var whole: Node3D = null
+		if vehicle:
+			for c in vehicle.get_children():
+				if String(c.name).contains(WHEEL_CODES[k]):
+					whole = c as Node3D
+					break
 		if whole:
 			wheel_nodes.append(whole)
 			continue
@@ -238,15 +252,15 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		car._wheel_base.append(mesh.position)
 
 	car.drive = _drivetrain_of(model)
-	if model in ["pickup", "suv", "monstre"]:
+	if model in ["fourgon", "berline_longue"]:
 		car.drift = 0.6
 	return car
 
 
 static func _drivetrain_of(model: String) -> int:
 	match model:
-		"citadine": return Drivetrain.FRONT_WHEEL
-		"pickup", "suv", "monstre": return Drivetrain.ALL_WHEEL
+		"puce", "puce_carbone", "familiale", "break": return Drivetrain.FRONT_WHEEL
+		"fourgon", "bolide_gt": return Drivetrain.ALL_WHEEL
 	return Drivetrain.REAR_WHEEL
 
 

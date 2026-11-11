@@ -9,7 +9,7 @@ const WorldData = preload("res://scripts/balade/world_data.gd")
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
 
-@export var start_model := "sportive"
+@export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
 @export var force_quality := -1
 var low_quality := false
@@ -30,6 +30,8 @@ var ruts: Node3D
 const TYRE_WIDTH := 0.28
 var decor: Node3D
 var vegetation: Node3D
+var town: Node3D
+var life: Node3D
 var controls: CanvasLayer
 var camera: Camera3D
 var car: VehicleBody3D
@@ -68,7 +70,14 @@ func _ready() -> void:
 	_build_wake_patch()
 	WorldBuilder.build_far_ground(self)
 	WorldBuilder.build_walls(self)
-	WorldBuilder.build_city(self)
+	town = load("res://scripts/balade/town.gd").new()
+	town.name = "Ville"
+	add_child(town)
+	town.build(data)
+	life = load("res://scripts/balade/life.gd").new()
+	life.name = "Vie"
+	add_child(life)
+	life.build(data, town, null)
 	WorldBuilder.build_rocks(self, data)
 
 	effects = load("res://scripts/balade/effects.gd").new()
@@ -136,6 +145,8 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	add_child(car)
 	car.global_transform = Transform3D(Basis(Vector3.UP, yaw), pos)
 	camera.target = car
+	if life:
+		life.target = car
 	camera.snap()
 	if decor.data == null:
 		decor.low_quality = low_quality

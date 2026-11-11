@@ -10,6 +10,7 @@
 extends Node3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
+const Town = preload("res://scripts/balade/town.gd")
 
 const DIR := "res://assets/props/nature/"
 const CELL := 96.0
@@ -135,8 +136,8 @@ func _add(kind: String, x: float, z: float, rng: RandomNumberGenerator) -> void:
 	var ground: float = data.height_at(x, z)
 	if ground < WL.SEA_LEVEL + 0.6:
 		return
-	# Rien sur la piste ni sur ses bas-côtés.
-	if data.road_distance(x, z) < WL.ROAD_HALF + 3.5:
+	# Rien sur la piste ni sur ses bas-côtés, ni dans les fermes.
+	if data.road_distance(x, z) < WL.ROAD_HALF + 3.5 or Town.in_farm(x, z, 5.0):
 		return
 	var p: Array = _prototype(kind)
 	var spec: Array = KINDS[kind]

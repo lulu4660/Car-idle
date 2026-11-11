@@ -120,6 +120,22 @@ void fragment() {
 	vec3 sand = mix(sand_dark, sand_light, smoothstep(0.2, 0.85, macro));
 	vec3 dirt = mix(dirt_dark, dirt_light, macro);
 	vec3 asphalt = asphalt_color * (0.92 + 0.08 * macro);
+	// Ville : chaussée (avec tirets au milieu des rues) seulement dans les rues ; trottoirs
+	// en béton clair dans le centre, pelouses dans la banlieue (même grille que town.gd).
+	if (w.r > 0.01) {
+		vec2 q = mod(wpos.xz, vec2(60.0));
+		bool street = q.x < 16.0 || q.y < 16.0;
+		if (street) {
+			vec2 mid = abs(q - vec2(8.0));
+			float dash = (q.x < 16.0 && mid.x < 0.18 && mod(wpos.z, 6.0) < 3.0) || (q.y < 16.0 && mid.y < 0.18 && mod(wpos.x, 6.0) < 3.0) ? 1.0 : 0.0;
+			if (q.x < 16.0 && q.y < 16.0) dash = 0.0;
+			asphalt = mix(asphalt, vec3(0.86, 0.80, 0.62), dash);
+		} else {
+			float curb = min(min(q.x - 16.0, 60.0 - q.x), min(q.y - 16.0, 60.0 - q.y));
+			vec3 plot = wpos.x > -240.0 ? mix(vec3(0.42, 0.55, 0.30), vec3(0.47, 0.60, 0.33), macro) : vec3(0.58, 0.56, 0.54) * (0.95 + 0.08 * macro);
+			asphalt = curb < 2.2 ? vec3(0.66, 0.64, 0.61) : plot;
+		}
+	}
 	vec3 c = asphalt * w.r + dirt * w.g + sand * w.b + wet_color * w.a;
 	// Piste : terre tassée plus sombre, bords usés, deux ornières creusées par les passages.
 	float rd = texture(road_tex, (wpos.xz + vec2(world_size * 0.5)) / world_size).r * 12.75;
