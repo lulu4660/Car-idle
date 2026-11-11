@@ -19,6 +19,10 @@ uniform bool is_patch = false;
 // iPhone et web : une seule échelle de texture par sol (deux fois moins de lectures).
 uniform bool low_quality = false; // gardé pour compatibilité, plus utilisé
 uniform sampler2D rut_tex : filter_linear, repeat_disable;
+// Piste de rallye : distance à l'axe (octet, 0,05 m par unité ; 1 = 12,75 m).
+uniform sampler2D road_tex : filter_linear, repeat_disable;
+uniform float road_half = 5.0;
+uniform vec3 road_color : source_color = vec3(0.50, 0.32, 0.25);
 uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
 uniform float rut_depth = 0.3;
 uniform float rut_berm = 0.12;
@@ -115,6 +119,15 @@ void fragment() {
 	vec3 dirt = mix(dirt_dark, dirt_light, macro);
 	vec3 asphalt = asphalt_color * (0.92 + 0.08 * macro);
 	vec3 c = asphalt * w.r + dirt * w.g + sand * w.b + wet_color * w.a;
+	// Piste : terre tassée plus sombre, bords usés, deux ornières creusées par les passages.
+	float rd = texture(road_tex, (wpos.xz + vec2(world_size * 0.5)) / world_size).r * 12.75;
+	float on_road = smoothstep(road_half + 0.6, road_half - 0.8, rd + (vnoise(wpos.xz * 0.7) - 0.5) * 1.2);
+	if (on_road > 0.0) {
+		vec3 rc = road_color * (0.94 + 0.12 * macro);
+		float ruts = smoothstep(0.55, 0.15, abs(rd - 1.1)) + smoothstep(0.35, 0.1, abs(rd - 2.4)) * 0.4;
+		rc *= 1.0 - 0.18 * clamp(ruts, 0.0, 1.0);
+		c = mix(c, rc, on_road);
+	}
 	// Sable mouillé au bord de l'eau : plus sombre et un peu luisant.
 	float wet_band = smoothstep(sea_level + 0.6, sea_level + 0.05, wpos.y);
 	c *= mix(1.0, 0.72, wet_band);

@@ -14,7 +14,7 @@ const MODE_NAMES: Array[String] = ["Rallye", "Drone", "Poursuite", "Travelling",
 const SHOTS := {
 	# Rallye (par défaut) : très haut, regard plongeant (~60°), la voiture dans le tiers bas
 	# de l'écran et le virage suivant bien visible devant elle.
-	Mode.RALLY: [8.0, 11.0, 15.0, 19.0, 0.0, 40.0],
+	Mode.RALLY: [9.0, 10.0, 30.0, 38.0, 0.0, 30.0],
 	# Drone : haut et loin, presque à la verticale, comme une vidéo de drone.
 	Mode.DRONE: [15.0, 19.0, 17.0, 21.0, -40.0, 50.0],
 	Mode.CHASE: [10.0, 15.0, 4.6, 6.5, 22.0, 48.0],
@@ -90,7 +90,7 @@ func _physics_process(delta: float) -> void:
 		ahead = 0.3
 	elif mode == Mode.RALLY:
 		# On regarde devant la voiture : plus loin quand elle va vite.
-		ahead = 0.42
+		ahead = 0.5
 	var look := t.origin + Vector3.UP * 0.8 + flat * ahead
 	if look.distance_to(pos) > 0.1:
 		var want := global_transform.looking_at(look, Vector3.UP)

@@ -37,6 +37,65 @@ static func _low_poly(h: PackedFloat32Array, res: int, step: int) -> void:
 				h[zi * res + xi] = h11 - (1.0 - fx) * (h11 - h01) - (1.0 - fz) * (h11 - h10)
 
 
+var road := PackedByteArray()
+
+
+## Piste de rallye : distance à l'axe pour chaque point de la carte (octet : 0,05 m par
+## unité, 12,75 m au plus) ; le relief est aplani le long de la piste (hauteur de l'axe
+## lissée), comme une piste taillée à travers les dunes, et jamais sous l'eau.
+func _road(heights: PackedFloat32Array, res: int) -> PackedByteArray:
+	var poly := WL.road_polyline()
+	var n := poly.size()
+	var half := WL.SIZE / 2.0
+	var hc := PackedFloat32Array()
+	for p in poly:
+		hc.append(WL.height(p.x, p.y))
+	for pass_i in 3:
+		var sm := PackedFloat32Array()
+		sm.resize(n)
+		for i in n:
+			var acc := 0.0
+			for k in range(-8, 9):
+				acc += hc[(i + k + n) % n]
+			sm[i] = acc / 17.0
+		hc = sm
+	for i in n:
+		hc[i] = maxf(hc[i], WL.SEA_LEVEL + 0.7)
+	var reach := WL.ROAD_HALF + 7.0
+	var dist := PackedFloat32Array()
+	dist.resize(res * res)
+	dist.fill(1e9)
+	var rh := PackedFloat32Array()
+	rh.resize(res * res)
+	for i in n:
+		var a := poly[i]
+		var b := poly[(i + 1) % n]
+		var ab := b - a
+		var len2 := maxf(ab.length_squared(), 1e-6)
+		var x0 := clampi(int(floor(minf(a.x, b.x) - reach + half)), 0, res - 1)
+		var x1 := clampi(int(ceil(maxf(a.x, b.x) + reach + half)), 0, res - 1)
+		var z0 := clampi(int(floor(minf(a.y, b.y) - reach + half)), 0, res - 1)
+		var z1 := clampi(int(ceil(maxf(a.y, b.y) + reach + half)), 0, res - 1)
+		for zi in range(z0, z1 + 1):
+			for xi in range(x0, x1 + 1):
+				var p := Vector2(xi - half, zi - half)
+				var t := clampf((p - a).dot(ab) / len2, 0.0, 1.0)
+				var d := p.distance_to(a + ab * t)
+				var o := zi * res + xi
+				if d < dist[o]:
+					dist[o] = d
+					rh[o] = lerpf(hc[i], hc[(i + 1) % n], t)
+	var out := PackedByteArray()
+	out.resize(res * res)
+	for o in res * res:
+		var d := dist[o]
+		if d < reach:
+			var w := smoothstep(reach, WL.ROAD_HALF * 0.9, d)
+			heights[o] = lerpf(heights[o], rh[o], w)
+		out[o] = mini(255, int(d / 0.05))
+	return out
+
+
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
 	var res := WorldData.HEIGHT_RES
@@ -47,6 +106,8 @@ func _init() -> void:
 		var z := zi * WL.SIZE / (res - 1) - half
 		for xi in res:
 			heights[zi * res + xi] = WL.height(xi * WL.SIZE / (res - 1) - half, z)
+	road = _road(heights, res)
+	print("piste : %d ms" % (Time.get_ticks_msec() - t0))
 	_low_poly(heights, res, LOW_POLY_STEP)
 	print("relief : %d ms" % (Time.get_ticks_msec() - t0))
 
@@ -67,7 +128,7 @@ func _init() -> void:
 
 	DirAccess.make_dir_recursive_absolute("res://assets/balade")
 	var f := FileAccess.open_compressed(WorldData.PATH, FileAccess.WRITE, FileAccess.COMPRESSION_ZSTD)
-	f.store_buffer("CIW1".to_ascii_buffer())
+	f.store_buffer("CIW2".to_ascii_buffer())
 	f.store_32(res)
 	f.store_32(WorldData.SPLAT_RES)
 	f.store_32(sw)
@@ -75,6 +136,7 @@ func _init() -> void:
 	f.store_buffer(heights.to_byte_array())
 	f.store_buffer(splat)
 	f.store_buffer(sea)
+	f.store_buffer(road)
 	f.close()
 	print("écrit %s en %d ms" % [WorldData.PATH, Time.get_ticks_msec() - t0])
 	quit()
@@ -95,6 +157,9 @@ func _splat(heights: PackedFloat32Array, res: int) -> PackedByteArray:
 			var hz := mini(res - 1, int(round((zi + 0.5) / a * (res - 1))))
 			var h := heights[hz * res + hx]
 			var s := WL.surface_at(x, z, h)
+			# La piste : de la terre, partout où elle passe.
+			if road[hz * res + hx] * 0.05 < WL.ROAD_HALF + 1.0 and s != WL.Surface.WATER:
+				s = WL.Surface.DIRT
 			var o := (zi * a + xi) * 4
 			if s == WL.Surface.SAND:
 				var trough := clampf((WL.GROUND_LEVEL + 3.0 - h) / 3.0, 0.0, 1.0)

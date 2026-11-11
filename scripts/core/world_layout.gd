@@ -31,6 +31,34 @@ const SPAWN_Z := 0.0
 
 const SURFACE_NAMES: Array[String] = ["Bitume", "Terre", "Sable", "Sable mouillé", "Eau"]
 
+## Spéciale de rallye : une piste de terre en boucle (points de passage, lissés en courbe),
+## du départ sur la plage, à travers les dunes, la forêt, et retour. Demi-largeur (m).
+const ROAD_HALF := 5.0
+const ROAD_POINTS: Array[Vector2] = [
+	Vector2(360, 0), Vector2(362, -140), Vector2(310, -290), Vector2(215, -385),
+	Vector2(120, -320), Vector2(40, -360), Vector2(-60, -300), Vector2(-125, -170),
+	Vector2(-70, -50), Vector2(15, 50), Vector2(-50, 190), Vector2(-125, 320),
+	Vector2(-10, 415), Vector2(140, 385), Vector2(225, 270), Vector2(170, 140),
+	Vector2(255, 70), Vector2(335, 110)]
+
+
+## La piste en ligne brisée (un point tous les ~3 m), boucle fermée (Catmull-Rom).
+static func road_polyline() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var n := ROAD_POINTS.size()
+	for i in n:
+		var p0 := ROAD_POINTS[(i - 1 + n) % n]
+		var p1 := ROAD_POINTS[i]
+		var p2 := ROAD_POINTS[(i + 1) % n]
+		var p3 := ROAD_POINTS[(i + 2) % n]
+		var steps := maxi(4, int(p1.distance_to(p2) / 3.0))
+		for k in steps:
+			var t := float(k) / steps
+			var t2 := t * t
+			var t3 := t2 * t
+			out.append(0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3))
+	return out
+
 
 static func height(x: float, z: float) -> float:
 	var city := GROUND_LEVEL

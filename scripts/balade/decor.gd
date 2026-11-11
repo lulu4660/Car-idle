@@ -45,7 +45,7 @@ func _build_grass() -> void:
 		var s := WL.surface_at(x, z, h)
 		if s != WL.Surface.SAND and s != WL.Surface.DIRT:
 			continue
-		if h < WL.SEA_LEVEL + 0.8:
+		if h < WL.SEA_LEVEL + 0.8 or data.road_distance(x, z) < WL.ROAD_HALF + 1.5:
 			continue
 		var colony := WL.fbm(x / 22.0 + 40.0, z / 22.0 - 3.0)
 		var near_beach := clampf(1.0 - absf(x - (WL.DUNES_END - 5.0 + WL.shore_offset(z))) / 60.0, 0.0, 1.0)
@@ -207,7 +207,7 @@ func _place(body: StaticBody3D, kind: String, at: Vector2, yaw: float, size_k: f
 	var spec: Array = PROPS[kind]
 	var s := float(spec[0]) * size_k / maxf(b.size.y, 0.01)
 	var ground: float = data.height_at(at.x, at.y)
-	if ground < WL.SEA_LEVEL + 0.2:
+	if ground < WL.SEA_LEVEL + 0.2 or data.road_distance(at.x, at.y) < WL.ROAD_HALF + 2.5:
 		node.free()
 		return
 	var size := b.size * s

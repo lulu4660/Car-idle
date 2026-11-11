@@ -16,12 +16,15 @@ var res := HEIGHT_RES
 var heights := PackedFloat32Array()
 var splat := PackedByteArray()
 var sea_depth := PackedByteArray()
+## Distance à l'axe de la piste de rallye, 0,05 m par unité (255 = loin).
+var road := PackedByteArray()
 
 
 static func load_baked() -> RefCounted:
 	var d = load("res://scripts/balade/world_data.gd").new()
 	var f := FileAccess.open_compressed(PATH, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
-	if f == null or f.get_buffer(4).get_string_from_ascii() != "CIW1":
+	var tag := f.get_buffer(4).get_string_from_ascii() if f else ""
+	if tag != "CIW1" and tag != "CIW2":
 		push_error("Monde absent : lance tools/bake_world.gd")
 		return null
 	d.res = f.get_32()
@@ -31,7 +34,23 @@ static func load_baked() -> RefCounted:
 	d.heights = f.get_buffer(d.res * d.res * 4).to_float32_array()
 	d.splat = f.get_buffer(sres * sres * 4)
 	d.sea_depth = f.get_buffer(sw * sh)
+	if tag == "CIW2":
+		d.road = f.get_buffer(d.res * d.res)
+	else:
+		d.road.resize(d.res * d.res)
+		d.road.fill(255)
 	return d
+
+
+## Distance (m) à l'axe de la piste au point x, z (au plus 12,75 m).
+func road_distance(x: float, z: float) -> float:
+	var gx := clampi(int(round(x + WL.SIZE / 2.0)), 0, res - 1)
+	var gz := clampi(int(round(z + WL.SIZE / 2.0)), 0, res - 1)
+	return road[gz * res + gx] * 0.05
+
+
+func road_image() -> Image:
+	return Image.create_from_data(res, res, false, Image.FORMAT_R8, road)
 
 
 ## Hauteur du terrain (interpolée) au point x, z du monde.

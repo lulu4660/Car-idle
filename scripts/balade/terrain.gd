@@ -31,6 +31,8 @@ func build(world_data: RefCounted) -> void:
 	_material.shader = load("res://shaders/terrain.gdshader")
 	_material.set_shader_parameter("height_tex", _height_tex)
 	_material.set_shader_parameter("splat_tex", splat)
+	_material.set_shader_parameter("road_tex", ImageTexture.create_from_image(data.road_image()))
+	_material.set_shader_parameter("road_half", WL.ROAD_HALF)
 	_material.set_shader_parameter("world_size", WL.SIZE)
 	_material.set_shader_parameter("res", data.res)
 

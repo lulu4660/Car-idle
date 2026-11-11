@@ -40,7 +40,7 @@ static func model_path(model: String) -> String:
 	return TOON[model][0]
 
 @export_group("Moteur et freins")
-@export var engine_force_total := 10000.0
+@export var engine_force_total := 11500.0
 @export var brake_force := 40.0
 @export var handbrake_force := 10.0
 @export var top_speed_kmh := 150.0
@@ -95,7 +95,7 @@ var wheel_slip: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var wheel_sink: Array[float] = [0.0, 0.0, 0.0, 0.0]
 const WHEEL_REST := 0.32
 # Résistance au roulement par sol (part du poids) : bitume, terre, sable, sable mouillé, eau.
-const ROLLING := [0.012, 0.03, 0.055, 0.04, 0.0]
+const ROLLING := [0.012, 0.018, 0.045, 0.035, 0.0]
 
 var world_data: RefCounted
 var _upside_down := 0.0
@@ -377,6 +377,9 @@ func _physics_process(delta: float) -> void:
 			var p := w.get_contact_point()
 			var body := w.get_contact_body()
 			wheel_surface[i] = WL.surface_at(p.x, p.z, p.y) if body and body.is_in_group("terrain") else WL.Surface.ASPHALT
+			# Sur la piste de rallye : terre tassée.
+			if world_data and wheel_surface[i] != WL.Surface.WATER and world_data.road_distance(p.x, p.z) < WL.ROAD_HALF + 0.5:
+				wheel_surface[i] = WL.Surface.DIRT
 			grip = WL.grip(wheel_surface[i])
 			wheel_slip[i] = 1.0 - w.get_skidinfo()
 		else:
@@ -390,7 +393,7 @@ func _physics_process(delta: float) -> void:
 		w.wheel_friction_slip = tyre_grip * grip * loss
 		var share := (1.0 - rear_share) if front else rear_share
 		# Force répartie entre les deux roues de l'essieu ; un peu moins sur sol mou.
-		w.engine_force = drive_in * engine_force_total * share * 0.5 * lerpf(0.75, 1.0, grip)
+		w.engine_force = drive_in * engine_force_total * share * 0.5 * lerpf(0.92, 1.0, grip)
 		var b := braking * brake_force
 		if not front and handbrake:
 			b = maxf(b, handbrake_force)

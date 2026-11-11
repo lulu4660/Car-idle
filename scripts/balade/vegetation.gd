@@ -135,6 +135,9 @@ func _add(kind: String, x: float, z: float, rng: RandomNumberGenerator) -> void:
 	var ground: float = data.height_at(x, z)
 	if ground < WL.SEA_LEVEL + 0.6:
 		return
+	# Rien sur la piste ni sur ses bas-côtés.
+	if data.road_distance(x, z) < WL.ROAD_HALF + 3.5:
+		return
 	var p: Array = _prototype(kind)
 	var spec: Array = KINDS[kind]
 	var s: float = float(spec[0]) / maxf(p[1], 0.01) * (1.0 + rng.randf_range(-1.0, 1.0) * float(spec[2]))
