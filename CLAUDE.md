@@ -5,7 +5,7 @@ Le document de game design (GDD) fait foi : https://claude.ai/artifact/WgkvZZaTt
 Le prototype Godot (dépôt lulu4660/garage-spotter) sert de référence : formules, simulations, map, catalogue. Il n'est plus développé.
 
 ## Stack
-- Unity 6 (C#), rendu URP 3D, pour iPhone d'abord. Dev sur PC Windows ; essais sur iPhone par une build web, puis TestFlight (build iOS depuis un Mac ou un service de build en ligne).
+- Unity 6.6 (6000.6.8f1, C#), rendu URP 3D, pour iPhone d'abord. Dev sur PC Windows ; essais sur iPhone par une build web, puis TestFlight (build iOS depuis un Mac ou un service de build en ligne).
 - Balade : terrain Unity, physique de véhicule, Cinemachine (caméra de drone), VFX Graph.
 - Serveur (plus tard) : Supabase (Auth, Postgres + RLS, Edge Functions). Pubs : AdMob pour Unity. Achats : RevenueCat (SDK Unity).
 - Voitures : modèles 3D de boutiques d'assets (Unity Asset Store, Sketchfab, CGTrader), licence commerciale vérifiée pour chacun.

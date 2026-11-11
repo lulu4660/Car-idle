@@ -5,7 +5,7 @@ Game design : https://claude.ai/artifact/WgkvZZaTt9JrZg6hYERz9r
 
 ## Ouvrir le projet (PC Windows)
 
-1. **Installer** [Unity Hub](https://unity.com/download), puis dans Hub > Installs : **Unity 6 (6000.0 LTS)**, avec les modules **WebGL Build Support** et **iOS Build Support**.
+1. **Installer** [Unity Hub](https://unity.com/download), puis dans Hub > Installs : **Unity 6.6 (6000.6.8f1)** (version du projet : `ProjectSettings/ProjectVersion.txt`), avec les modules **WebGL Build Support** et **iOS Build Support**.
 2. **Récupérer le dépôt** avec [GitHub Desktop](https://desktop.github.com/) : File > Clone repository > `lulu4660/Car-idle`.
 3. **Ouvrir** : Unity Hub > Projects > Add > Add project from disk > choisir le dossier `Car-idle`.
    Si Hub propose une autre version de Unity 6 que celle du projet, accepter celle qui est installée.
