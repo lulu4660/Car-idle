@@ -29,8 +29,8 @@ uniform vec3 sand_light : source_color = vec3(0.86, 0.66, 0.42);
 uniform vec3 sand_dark : source_color = vec3(0.74, 0.53, 0.33);
 uniform float sand_detail = 0.18;
 // Rides du vent sur le sable : hauteur et longueur d'onde (m).
-uniform float ripple_strength = 0.3;
-uniform float ripple_length = 0.55;
+uniform float ripple_strength = 0.16;
+uniform float ripple_length = 0.75;
 
 varying vec3 wpos;
 

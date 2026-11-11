@@ -15,12 +15,13 @@ void vertex() {
 
 void fragment() {
 	vec4 c = texture(tex, UV);
-	if (c.a < 0.5) {
+	if (c.a < 0.4) {
 		discard;
 	}
 	ALBEDO = c.rgb;
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.2;
 	// Un peu de lumière traverse les brins.
-	BACKLIGHT = vec3(0.25, 0.2, 0.1);
+	BACKLIGHT = vec3(0.3, 0.24, 0.12);
+	AO = mix(0.5, 1.0, 1.0 - UV.y);
 }

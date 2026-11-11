@@ -4,7 +4,7 @@ extends Node3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-const GRASS_COUNT := 7000
+const GRASS_COUNT := 4500
 const BIRDS := 9
 
 var data: RefCounted
@@ -48,11 +48,12 @@ func _build_grass() -> void:
 		var near_beach := clampf(1.0 - absf(x - (WL.DUNES_END - 5.0 + WL.shore_offset(z))) / 60.0, 0.0, 1.0)
 		var trough := clampf((WL.GROUND_LEVEL + 4.0 - h) / 4.0, 0.0, 1.0)
 		# Colonies serrées : beaucoup de touffes là où le bruit est haut, presque rien ailleurs.
-		var chance := (colony - 0.58) * 4.0 + near_beach * 0.35 + trough * 0.25
+		var chance := (colony - 0.55) * 2.6 + near_beach * 0.3 + trough * 0.2
 		if rng.randf() > chance:
 			continue
 		var scale := rng.randf_range(0.7, 1.5) * (1.0 + near_beach * 0.4)
-		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(scale, scale * rng.randf_range(0.8, 1.3), scale))
+		var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.25, 0.25))
+		basis = basis.scaled(Vector3(scale, scale * rng.randf_range(0.8, 1.3), scale))
 		xforms.append(Transform3D(basis, Vector3(x, h - 0.05, z)))
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -78,7 +79,7 @@ func _tuft_mesh() -> ArrayMesh:
 	for k in 3:
 		var a := k * PI / 3.0
 		var d := Vector3(cos(a), 0, sin(a)) * w
-		var out := Vector3(cos(a), 0, sin(a)).cross(Vector3.UP) * 0.12
+		var out := Vector3(cos(a), 0, sin(a)).cross(Vector3.UP) * 0.35
 		var p := [-d, d, d + Vector3.UP * hgt + out, -d + Vector3.UP * hgt - out]
 		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
 		for i in [0, 1, 2, 0, 2, 3]:
@@ -88,25 +89,27 @@ func _tuft_mesh() -> ArrayMesh:
 	return st.commit()
 
 
-## Brins d'herbe sèche dessinés : couleur paille, plus sombres en bas.
+## Brins d'herbe sèche dessinés : fins, courbés, sombres en bas et paille claire aux pointes.
 func _grass_texture() -> ImageTexture:
-	var n := 128
+	var n := 256
 	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
-	for b in 220:
-		var x0 := rng.randf_range(0.15, 0.85) * n
-		var lean := rng.randf_range(-0.5, 0.5) * n
-		var top := rng.randf_range(0.05, 0.55) * n
-		var col := Color(0.38, 0.30, 0.18).lerp(Color(0.68, 0.56, 0.36), rng.randf())
+	for b in 160:
+		var x0 := rng.randf_range(0.3, 0.7) * n
+		var lean := rng.randf_range(-0.6, 0.6) * n
+		var top := rng.randf_range(0.02, 0.5) * n
+		var base_col := Color(0.30, 0.24, 0.15).lerp(Color(0.50, 0.40, 0.25), rng.randf())
+		var tip_col := Color(0.78, 0.68, 0.48).lerp(Color(0.90, 0.82, 0.62), rng.randf())
 		for y in range(int(top), n):
 			var t := (n - y) / float(n - top)
 			var x := int(x0 + lean * t * t)
-			var shade := lerpf(0.45, 1.0, t)
-			for dx in [0, 1]:
-				var px := clampi(x + dx, 0, n - 1)
-				img.set_pixel(px, y, Color(col.r * shade, col.g * shade, col.b * shade, 1.0))
+			if x < 0 or x >= n:
+				continue
+			var c := base_col.lerp(tip_col, t)
+			c.a = 1.0 if t < 0.85 else (1.0 - t) / 0.15
+			img.set_pixel(x, y, c)
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 

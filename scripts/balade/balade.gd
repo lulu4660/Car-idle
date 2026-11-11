@@ -67,8 +67,8 @@ func _ready() -> void:
 	_build_hud()
 	model_index = maxi(0, Car.MODELS.find(start_model))
 	var y: float = data.height_at(WL.SPAWN_X, WL.SPAWN_Z) + 1.2
-	# Départ au bord de la plage, vers le nord (-Z) : la mer à droite, les dunes à gauche.
-	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
+	# Départ au bord de la plage, vers le nord-est : la mer devant à droite, les dunes derrière.
+	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), deg_to_rad(150.0))
 
 
 func _spawn(pos: Vector3, yaw: float) -> void:
