@@ -133,8 +133,8 @@ func _build_props() -> void:
 	add_child(body)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 21
-	# Campement de pêcheurs près du départ, entre les dunes et la plage.
-	_camp(body, Vector2(WL.SPAWN_X + 4.0, WL.SPAWN_Z - 70.0), 0.4)
+	# Campement de pêcheurs près du départ, côté dunes (hors de la route le long du rivage).
+	_camp(body, Vector2(WL.SPAWN_X - 26.0, WL.SPAWN_Z - 45.0), 0.4)
 	_camp(body, Vector2(268.0, 160.0), 2.1)
 	_camp(body, Vector2(345.0, 330.0), -0.8)
 	# Bois flotté et cailloux le long du rivage.

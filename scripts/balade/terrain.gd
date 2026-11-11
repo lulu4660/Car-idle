@@ -115,6 +115,10 @@ func _grid_mesh(n: int, step: int) -> ArrayMesh:
 	return mesh
 
 
+func material() -> ShaderMaterial:
+	return _material
+
+
 func height_texture() -> Texture2D:
 	return _height_tex
 

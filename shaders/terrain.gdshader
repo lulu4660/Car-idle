@@ -12,6 +12,15 @@ uniform int res = 1025;
 uniform float skirt = 2.0;
 uniform float sea_level = 10.0;
 
+// Ornières : autour de la voiture, une pièce de terrain fine (20 cm entre sommets) se creuse
+// sous les roues. rut_tex : R = profondeur (× rut_depth), G = bourrelet (× rut_berm), sur la
+// zone rut_rect (x, z, largeur, profondeur en m). Le terrain normal s'efface sous la pièce.
+uniform bool is_patch = false;
+uniform sampler2D rut_tex : filter_linear, repeat_disable;
+uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
+uniform float rut_depth = 0.3;
+uniform float rut_berm = 0.12;
+
 uniform sampler2D asphalt_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D asphalt_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D dirt_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -34,6 +43,7 @@ uniform float ripple_strength = 0.16;
 uniform float ripple_length = 0.75;
 
 varying vec3 wpos;
+varying float rut_k;
 
 float hash2(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -55,21 +65,55 @@ float hgt(ivec2 p) {
 	return texelFetch(height_tex, p, 0).r;
 }
 
+// Hauteur interpolée (pour la pièce fine : ses sommets tombent entre les texels).
+float hgt_smooth(vec2 p) {
+	vec2 g = clamp(p + vec2(world_size * 0.5), vec2(0.0), vec2(float(res) - 1.001));
+	ivec2 i = ivec2(floor(g));
+	vec2 f = g - vec2(i);
+	return mix(mix(hgt(i), hgt(i + ivec2(1, 0)), f.x), mix(hgt(i + ivec2(0, 1)), hgt(i + ivec2(1, 1)), f.x), f.y);
+}
+
+// Creux (négatif) ou bourrelet (positif) laissé par les roues, en mètres.
+float rut(vec2 p) {
+	vec2 uv = (p - rut_rect.xy) / rut_rect.zw;
+	vec4 r = textureLod(rut_tex, uv, 0.0);
+	return r.g * rut_berm - r.r * rut_depth;
+}
+
+float patch_height(vec2 p) {
+	return hgt_smooth(p) + rut(p);
+}
+
 void vertex() {
 	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	ivec2 g = ivec2(round(w.xz + vec2(world_size * 0.5)));
-	float h = hgt(g);
-	float hl = hgt(g + ivec2(-1, 0));
-	float hr = hgt(g + ivec2(1, 0));
-	float hd = hgt(g + ivec2(0, -1));
-	float hu = hgt(g + ivec2(0, 1));
-	vec3 n = normalize(vec3(hl - hr, 2.0, hd - hu));
-	// Jupe : les sommets du bord descendent un peu et cachent les fentes entre niveaux de détail.
-	VERTEX.y = h - UV2.x * skirt;
-	NORMAL = n;
-	TANGENT = normalize(cross(vec3(0.0, 0.0, 1.0), n));
-	BINORMAL = normalize(cross(n, TANGENT));
-	wpos = vec3(w.x, VERTEX.y, w.z);
+	rut_k = 0.0;
+	if (is_patch) {
+		float e = 0.2;
+		float h0 = patch_height(w.xz);
+		float hx = patch_height(w.xz + vec2(-e, 0.0)) - patch_height(w.xz + vec2(e, 0.0));
+		float hz = patch_height(w.xz + vec2(0.0, -e)) - patch_height(w.xz + vec2(0.0, e));
+		vec3 pn = normalize(vec3(hx, 2.0 * e, hz));
+		VERTEX.y = h0;
+		NORMAL = pn;
+		TANGENT = normalize(cross(vec3(0.0, 0.0, 1.0), pn));
+		BINORMAL = normalize(cross(pn, TANGENT));
+		wpos = vec3(w.x, h0, w.z);
+		rut_k = clamp(-rut(w.xz) / 0.08, 0.0, 1.0);
+	} else {
+		ivec2 g = ivec2(round(w.xz + vec2(world_size * 0.5)));
+		float h = hgt(g);
+		float hl = hgt(g + ivec2(-1, 0));
+		float hr = hgt(g + ivec2(1, 0));
+		float hd = hgt(g + ivec2(0, -1));
+		float hu = hgt(g + ivec2(0, 1));
+		vec3 n = normalize(vec3(hl - hr, 2.0, hd - hu));
+		// Jupe : les sommets du bord descendent un peu et cachent les fentes entre niveaux de détail.
+		VERTEX.y = h - UV2.x * skirt;
+		NORMAL = n;
+		TANGENT = normalize(cross(vec3(0.0, 0.0, 1.0), n));
+		BINORMAL = normalize(cross(n, TANGENT));
+		wpos = vec3(w.x, VERTEX.y, w.z);
+	}
 }
 
 vec4 layer(sampler2D alb, sampler2D nor, float size, vec2 p, float far, out vec3 nm) {
@@ -82,6 +126,13 @@ vec4 layer(sampler2D alb, sampler2D nor, float size, vec2 p, float far, out vec3
 }
 
 void fragment() {
+	// Sous la pièce fine des ornières, c'est elle qui dessine le sol.
+	if (!is_patch && rut_rect.z > 0.0) {
+		vec2 inner = (wpos.xz - rut_rect.xy - vec2(0.3)) / (rut_rect.zw - vec2(0.6));
+		if (all(greaterThan(inner, vec2(0.0))) && all(lessThan(inner, vec2(1.0)))) {
+			discard;
+		}
+	}
 	vec4 w = texture(splat_tex, (wpos.xz + vec2(world_size * 0.5)) / world_size);
 	w /= max(w.r + w.g + w.b + w.a, 0.001);
 	float dist = length(VERTEX);
@@ -115,6 +166,8 @@ void fragment() {
 	// Sable mouillé au bord de l'eau : plus sombre et un peu luisant, jusqu'à 60 cm au-dessus de la mer.
 	float wet_band = smoothstep(sea_level + 0.6, sea_level + 0.05, wpos.y);
 	c.rgb *= mix(1.0, 0.68, wet_band);
+	// Fond des ornières : sable tassé, un peu plus sombre.
+	c.rgb *= mix(1.0, 0.86, rut_k);
 	ALBEDO = c.rgb;
 	NORMAL_MAP = n0 * w.r + n1 * w.g + n2 * w.b + n3 * w.a;
 	// Au loin, reliefs fins atténués (pas de scintillement).

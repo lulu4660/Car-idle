@@ -14,6 +14,9 @@ const Car = preload("res://scripts/balade/car.gd")
 var data: RefCounted
 var terrain: Node3D
 var effects: Node3D
+var ruts: Node3D
+## Largeur d'un pneu (m) pour les ornières.
+const TYRE_WIDTH := 0.28
 var decor: Node3D
 var controls: CanvasLayer
 var camera: Camera3D
@@ -38,6 +41,10 @@ func _ready() -> void:
 	terrain.name = "Terrain"
 	add_child(terrain)
 	terrain.build(data)
+	ruts = load("res://scripts/balade/ruts.gd").new()
+	ruts.name = "Ornieres"
+	add_child(ruts)
+	ruts.build(terrain.material())
 	WorldBuilder.build_sea(self, data, terrain.height_texture())
 	WorldBuilder.build_far_ground(self)
 	WorldBuilder.build_walls(self)
@@ -98,6 +105,7 @@ func _process(delta: float) -> void:
 		_spawn(pos, yaw)
 		return
 	_wheel_effects(delta)
+	ruts.follow(car.global_position)
 	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
 	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
 	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s" % [ground, car.model_name, Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode]]
@@ -111,16 +119,23 @@ func _wheel_effects(delta: float) -> void:
 		var w: VehicleWheel3D = car.wheels[i]
 		if not w.is_in_contact():
 			effects.lift(i)
+			ruts.lift(i)
 			continue
 		var p := w.get_contact_point()
 		var n := w.get_contact_normal()
 		var s: int = car.wheel_surface[i]
 		var slip: float = car.wheel_slip[i]
 		var soft := WL.is_soft(s)
-		if speed > 2.0 and s != WL.Surface.WATER and (soft or slip > 0.35 or drift > 0.2):
+		# Sable et terre : la roue creuse une vraie ornière. Bitume : trace de gomme si ça glisse.
+		if soft:
+			effects.lift(i)
+			ruts.dig(i, p, s, TYRE_WIDTH, 1.0, clampf(slip + drift * 0.6, 0.0, 1.0))
+		elif s == WL.Surface.ASPHALT and speed > 2.0 and (slip > 0.35 or drift > 0.2):
+			ruts.lift(i)
 			effects.track(i, p, n, heading, s, w.wheel_radius * 1.2)
 		else:
 			effects.lift(i)
+			ruts.lift(i)
 		# Poussière : sur le bitume seulement quand ça glisse ; panache en dérapage.
 		var amount := 0.0
 		if s == WL.Surface.ASPHALT:
