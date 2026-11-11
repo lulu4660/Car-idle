@@ -46,3 +46,6 @@ Le prototype Godot (dépôt lulu4660/garage-spotter) sert de référence : formu
 2. Prototype de balade 3D : une voiture achetée, dunes et plage, caméra de drone, dérapages, traces et sable ; beau et fluide sur iPhone.
 3. Voitures : 3 à 5 modèles nettoyés, matériaux, lumières, présentation sur plateau, révélation.
 4. Ville et garage. 5. Balade complète et spotting. 6. Progression et rythme. 7. Serveur et monétisation. 8. Plus tard : drag race, clubs, saisons.
+
+## Agents (.claude/agents/)
+unity-dev (code Unity), vehicle-physics (ressenti de conduite, caméra drone), economy-balancer (simulation avant tout équilibrage), asset-scout (modèles 3D et licences), mobile-perf (60 i/s sur iPhone), build-release (build web, plus tard TestFlight), art-director (relecture DA), playtester-qa (tests sur la version web), supabase-backend (serveur, étape 7), store-compliance (conformité).
