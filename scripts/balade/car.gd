@@ -54,14 +54,17 @@ static func model_path(model: String) -> String:
 @export var steer_fade_kmh := 120.0
 @export_group("Adhérence et dérapage")
 ## Adhérence des pneus sur le bitume (friction_slip de Godot) ; multipliée par le sol.
-@export var tyre_grip := 3.2
+@export var tyre_grip := 3.0
 ## 0 = sage, 1 = très joueur : perte d'adhérence de l'arrière sous les gaz et au frein à main.
 @export_range(0.0, 1.0) var drift := 0.6
 ## Les roues avant suivent la glisse : dérapages rattrapables au doigt.
 @export_range(0.0, 1.0) var counter_steer := 0.55
 @export var max_drift_deg := 48.0
 @export var drift_yaw_assist := 1.2
-@export var lateral_assist := 0.9
+@export var lateral_assist := 0.8
+## Glisse qui garde la vitesse : en travers, gaz appuyé, la voiture est poussée dans le sens
+## où elle va (compense le frottement des pneus de côté), comme dans un jeu de rallye.
+@export var slide_keep := 1.0
 @export var downforce := 2.0
 ## Aide à rester sur ses roues : redresse doucement la caisse et amortit le roulis.
 @export var upright_assist := 2.5
@@ -386,6 +389,8 @@ func _physics_process(delta: float) -> void:
 			wheel_slip[i] = 0.0
 		var loss := 1.0
 		if not front:
+			# L'arrière décroche un peu avant l'avant : la voiture pivote et glisse.
+			loss *= 0.97
 			if handbrake:
 				loss = lerpf(0.45, 0.25, drift)
 			loss *= 1.0 - 0.5 * power_oversteer
@@ -411,6 +416,10 @@ func _physics_process(delta: float) -> void:
 			loose += 0.25 if WL.is_soft(ws) else 0.0
 		assist *= lerpf(1.0, 0.6, loose)
 		apply_central_force(-right * lateral * assist * mass)
+		# En travers sous les gaz : on garde l'élan au lieu de le perdre dans le frottement.
+		if slide_keep > 0.0 and drive_in > 0.0 and flat.length() > 5.0:
+			var keep := slide_keep * 9.8 * clampf((absf(slip_angle) - 5.0) / 25.0, 0.0, 1.0) * drive_in
+			apply_central_force(flat.normalized() * keep * mass)
 		# Dérapage : frein à main ou gaz en propulsion font pivoter la voiture.
 		var kick := (1.0 if handbrake else 0.0) + power_oversteer * 0.6
 		if kick > 0.0 and kmh > 15.0:
