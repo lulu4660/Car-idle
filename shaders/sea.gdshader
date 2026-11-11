@@ -6,8 +6,8 @@ render_mode blend_mix, depth_draw_opaque, cull_back;
 
 uniform sampler2D depth_tex : filter_linear, repeat_disable;
 uniform vec4 depth_rect = vec4(290.0, -552.0, 420.0, 1104.0);
-uniform vec3 deep_color : source_color = vec3(0.05, 0.25, 0.30);
-uniform vec3 shallow_color : source_color = vec3(0.22, 0.66, 0.60);
+uniform vec3 deep_color : source_color = vec3(0.02, 0.16, 0.23);
+uniform vec3 shallow_color : source_color = vec3(0.10, 0.48, 0.47);
 uniform vec3 foam_color : source_color = vec3(0.95, 0.93, 0.88);
 uniform float wave_height = 0.25;
 
@@ -75,12 +75,12 @@ void fragment() {
 	vec2 fp = p * vec2(0.09, 0.05) + vec2(t * 0.03, 0.0);
 	float patches = vnoise(fp) * 0.6 + vnoise(fp * 3.1 + 5.0) * 0.4;
 	float specks = vnoise(p * 0.9 + vec2(t * 0.2, 0.0));
-	float sea_foam = smoothstep(0.62, 0.75, patches) * smoothstep(0.45, 0.8, specks) * clamp(d / 1.5, 0.0, 1.0);
-	foam = max(foam, sea_foam * 0.85);
+	float sea_foam = smoothstep(0.70, 0.82, patches) * smoothstep(0.45, 0.8, specks) * clamp(d / 1.5, 0.0, 1.0);
+	foam = max(foam, sea_foam * 0.6);
 	ALBEDO = mix(water, foam_color, foam);
-	ROUGHNESS = mix(0.04, 0.6, foam);
+	ROUGHNESS = mix(0.08, 0.6, foam);
 	METALLIC = 0.0;
-	SPECULAR = 0.6;
+	SPECULAR = 0.35;
 	// Eau claire au bord : on voit le sable dessous sur les premiers mètres.
 	ALPHA = clamp(0.18 + d * 0.32 + foam, 0.0, 1.0);
 }
