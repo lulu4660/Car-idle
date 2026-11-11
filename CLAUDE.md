@@ -9,6 +9,7 @@ Le prototype Godot (dépôt lulu4660/garage-spotter) sert de référence : formu
 - Balade : terrain Unity, physique de véhicule, Cinemachine (caméra de drone), VFX Graph.
 - Serveur (plus tard) : Supabase (Auth, Postgres + RLS, Edge Functions). Pubs : AdMob pour Unity. Achats : RevenueCat (SDK Unity).
 - Voitures : modèles 3D de boutiques d'assets (Unity Asset Store, Sketchfab, CGTrader), licence commerciale vérifiée pour chacun.
+- Le dépôt est public : tout contenu de boutique va dans `Assets/Store/`, ignoré par Git (la licence de l'Asset Store interdit de le republier). Le code ne doit jamais dépendre d'un chemin précis dans ce dossier : il passe par des références sérialisées ou un catalogue.
 
 ## Règles non négociables
 - L'appli affiche, le serveur décide : tout calcul d'argent qui fait foi se fera côté serveur.

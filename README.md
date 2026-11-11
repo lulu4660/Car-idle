@@ -17,6 +17,16 @@ Game design : https://claude.ai/artifact/WgkvZZaTt9JrZg6hYERz9r
 5. **Lancer les tests** : Window > General > Test Runner > EditMode > **Run All**. Tout doit être vert.
 6. **Enregistrer** : GitHub Desktop montre les fichiers créés par Unity (`.meta`, `ProjectSettings/`, `Packages/packages-lock.json`) : les envoyer (Commit, puis Push).
 
+## Assets de boutique (voitures, décors)
+
+La licence de l'Asset Store interdit de republier ses fichiers dans un dépôt public. Tout ce qui vient d'une boutique va dans **`Assets/Store/`**, que Git ignore :
+
+1. Sur la page de l'asset, **Add to My Assets** (compte Unity gratuit).
+2. Dans Unity : Window > **Package Manager** > My Assets > l'asset > **Download**, puis **Import**.
+3. Dans la fenêtre Project, **glisser le dossier importé dans `Assets/Store/`** (créer le dossier la première fois).
+
+Première voiture du prototype : [Realistic Mobile Car #26 (Demo)](https://assetstore.unity.com/packages/3d/vehicles/land/realistic-mobile-car-26-demo-305319) (gratuite, design sans marque réelle).
+
 ## Tests sans Unity
 
 ```

@@ -28,3 +28,8 @@ crashlytics-build.properties
 # Outils .NET hors Unity
 tools/**/bin/
 tools/**/obj/
+
+# Contenus de l'Asset Store et autres boutiques : la licence interdit de les republier
+# dans un dépôt public. Ils restent sur le PC, dans ce dossier (voir README).
+/[Aa]ssets/[Ss]tore/
+/[Aa]ssets/[Ss]tore.meta
