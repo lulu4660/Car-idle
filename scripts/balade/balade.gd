@@ -9,7 +9,7 @@ const WorldData = preload("res://scripts/balade/world_data.gd")
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
 
-@export var start_model := "concept"
+@export var start_model := "tiara"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
 @export var force_quality := -1
 var low_quality := false
@@ -137,7 +137,7 @@ func _process(delta: float) -> void:
 	ruts.follow(car.global_position)
 	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
 	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
-	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, car.model_name, Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
+	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
 
 
 func _wheel_effects(delta: float) -> void:

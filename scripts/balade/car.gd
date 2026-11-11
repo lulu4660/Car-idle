@@ -12,7 +12,15 @@ const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
 
 ## Modèles jouables : la « Car Concept » de Khronos (CC-BY 4.0, voiture réaliste sans marque)
 ## et le Car Kit de Kenney (CC0, low poly), provisoires.
-const MODELS: Array[String] = ["concept", "hatchback-sports", "sedan", "suv", "police", "taxi", "van"]
+## Voitures « street » (Sketchfab, Daniel Zhabotinsky, CC-BY 4.0) : détaillées et légères
+## (18 000 à 28 000 triangles, textures 512 px), noms inventés, plaques et badges masqués.
+const STREET: Array[String] = ["tiara", "phoenix", "kiri", "lasley", "lightbody", "bokaroo"]
+const MODELS: Array[String] = ["tiara", "phoenix", "kiri", "lasley", "lightbody", "bokaroo", "concept", "hatchback-sports", "suv", "van"]
+## Nom affiché de chaque voiture (noms de jeu, jamais de marque réelle).
+const DISPLAY_NAMES := {
+	"tiara": "Tiara GT '83", "phoenix": "Phoenix 455 '71", "kiri": "Kiri '86", "lasley": "Lasley '67",
+	"lightbody": "Lightbody '85", "bokaroo": "Bokaroo '67", "concept": "Concept",
+	"hatchback-sports": "Kit Sport", "suv": "Kit SUV", "van": "Kit Van"}
 const CAR_LENGTH := 4.4
 ## Noms possibles des roues, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_NAMES: Array = [
@@ -20,12 +28,16 @@ const WHEEL_NAMES: Array = [
 	["wheel-back-left", "WheelRearL"], ["wheel-back-right", "WheelRearR"]]
 ## Pièces masquées : plaques et logos (aucune marque à l'écran), et l'intérieur, invisible
 ## vu du drone (deux fois moins d'objets à dessiner).
-const HIDDEN_PARTS: Array[String] = ["License Plate", "Emblem", "Logo", "Interior", "Engine", "Pedal"]
+const HIDDEN_PARTS: Array[String] = ["License Plate", "Numberplate", "Badges", "Emblem", "Logo", "Interior", "Engine", "Pedal", "Steering"]
+## Repères des roues dans les noms des modèles « street » : avant gauche, avant droite, arrière gauche, arrière droite.
+const WHEEL_TAGS: Array[String] = ["_FL_", "_FR_", "_RL_", "_RR_"]
 
 
 static func model_path(model: String) -> String:
 	if model == "concept":
 		return "res://assets/cars/concept/CarConcept.glb"
+	if model in STREET:
+		return "res://assets/cars/street/%s.glb" % model
 	return "res://assets/cars/kenney/%s.glb" % model
 
 @export_group("Moteur et freins")
@@ -96,12 +108,20 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 				part.get_parent().remove_child(part)
 				break
 	var wheel_nodes: Array[Node3D] = []
-	for names in WHEEL_NAMES:
-		for n in names:
-			var found := visual.find_child(n, true, false) as Node3D
+	for k in 4:
+		var found: Node3D = null
+		for n in WHEEL_NAMES[k]:
+			found = visual.find_child(n, true, false) as Node3D
 			if found:
-				wheel_nodes.append(found)
 				break
+		if found == null:
+			# Modèles « street » : maillage dont le nom contient « Wheel » et le repère de la roue.
+			for m in visual.find_children("*", "MeshInstance3D", true, false):
+				var nm := String(m.name)
+				if nm.containsn("Wheel") and nm.contains(WHEEL_TAGS[k]):
+					found = m
+					break
+		wheel_nodes.append(found)
 
 	# 1. Sens : l'avant est du côté des roues avant.
 	var front := (_center(wheel_nodes[0], car) + _center(wheel_nodes[1], car)) / 2.0
@@ -173,19 +193,23 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		var c := _node_bounds(mesh, car.wheels[i])
 		mesh.position -= c.get_center()
 
-	if model != "concept":
-		_paint(visual)
-	else:
+	if model == "concept":
 		_fix_glass(visual)
+	elif not model in STREET:
+		_paint(visual)
 	car.drive = _drivetrain_of(model)
-	if model == "van" or model == "suv":
+	if model in ["van", "suv", "lightbody", "bokaroo"]:
 		car.drift = 0.4
+	elif model == "tiara":
+		car.drift = 0.8
 	return car
 
 
 static func _drivetrain_of(model: String) -> int:
 	match model:
-		"concept": return Drivetrain.REAR_WHEEL
+		"concept", "tiara", "phoenix": return Drivetrain.REAR_WHEEL
+		"kiri", "lasley": return Drivetrain.FRONT_WHEEL
+		"lightbody", "bokaroo": return Drivetrain.ALL_WHEEL
 		"suv": return Drivetrain.ALL_WHEEL
 		"taxi", "van": return Drivetrain.FRONT_WHEEL
 	return Drivetrain.REAR_WHEEL

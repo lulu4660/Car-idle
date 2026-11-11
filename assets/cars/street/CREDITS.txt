@@ -1,0 +1,16 @@
+Voitures « street » — modèles de Daniel Zhabotinsky (Sketchfab), licence CC-BY 4.0
+https://creativecommons.org/licenses/by/4.0/ — crédit obligatoire (écran des crédits du jeu).
+Textures réduites à 512 px (WebP) ; plaques, badges et intérieur masqués par le jeu.
+
+- tiara.glb : « Tiara GT '83 Tuned - Low poly model »
+  https://sketchfab.com/3d-models/tiara-gt-83-tuned-low-poly-model-59a0eaaa2af144b2956957e7032d0221
+- phoenix.glb : « Phoenix 455 '71 - Low poly model »
+  https://sketchfab.com/3d-models/phoenix-455-71-low-poly-model-955edc733c6d44fabc0ad7c246a15896
+- kiri.glb : « Kiri '86 - Low poly model »
+  https://sketchfab.com/3d-models/kiri-86-low-poly-model-5c17c582ef9549798f694b660feea42a
+- lasley.glb : « Lasley '67 - Low poly model »
+  https://sketchfab.com/3d-models/lasley-67-low-poly-model-1269720ec7b84c899eac77c1d325141e
+- lightbody.glb : « Lightbody Lifted '85 - Low poly model »
+  https://sketchfab.com/3d-models/lightbody-lifted-85-low-poly-model-67beae18c3d24be68f9c8f0ec382d8e3
+- bokaroo.glb : « Bokaroo '67 - Low poly model »
+  https://sketchfab.com/3d-models/bokaroo-67-low-poly-model-22015d1863d6455aa31cfd738b972c50
