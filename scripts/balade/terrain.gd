@@ -34,7 +34,8 @@ func build(world_data: RefCounted) -> void:
 	_material.set_shader_parameter("world_size", WL.SIZE)
 	_material.set_shader_parameter("res", data.res)
 
-	var near_mesh := _grid_mesh(CHUNK, 1)
+	# Facettes de 2 m (voir tools/bake_world.gd) : 2 m entre sommets suffit, sans perte.
+	var near_mesh := _grid_mesh(CHUNK / 2, 2)
 	var far_mesh := _grid_mesh(CHUNK / 4, 4)
 	var count := int(WL.SIZE) / CHUNK
 	var aabb := AABB(Vector3(0, -5, 0), Vector3(CHUNK, WL.MAX_HEIGHT + 5.0, CHUNK))

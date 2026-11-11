@@ -21,7 +21,8 @@ static func now() -> float:
 static func surface(x: float, z: float, depth: float) -> float:
 	var h := 0.0
 	var t := now()
-	for i in 4:
+	# Les deux grandes vagues, celles qui ont du relief à l'image.
+	for i in 2:
 		var d := DIRS[i].normalized()
 		var k := TAU / LENS[i]
 		var c := sqrt(9.8 / k)

@@ -63,7 +63,7 @@ func _ready() -> void:
 	ruts = load("res://scripts/balade/ruts.gd").new()
 	ruts.name = "Ornieres"
 	add_child(ruts)
-	ruts.mesh_step = 0.2 if low_quality else 0.125
+	ruts.mesh_step = 0.2
 	ruts.build(terrain.material())
 	_sea_materials = WorldBuilder.build_sea(self, data, terrain.height_texture())
 	_build_wake_patch()
@@ -167,8 +167,12 @@ func _dig_ruts() -> void:
 		var s: int = car.wheel_surface[i]
 		if not w.is_in_contact() or not WL.is_soft(s):
 			ruts.lift(i)
+			car.wheel_sink[i] = 0.0
 			continue
-		ruts.dig(i, w.get_contact_point(), s, TYRE_WIDTH, 1.0, clampf(car.wheel_slip[i] + drift * 0.6, 0.0, 1.0))
+		var p := w.get_contact_point()
+		ruts.dig(i, p, s, TYRE_WIDTH, 1.0, clampf(car.wheel_slip[i] + drift * 0.6, 0.0, 1.0))
+		# La roue roule dans le creux qu'elle vient de faire.
+		car.wheel_sink[i] = ruts.depth_at(p)
 
 
 ## Gerbes d'eau : deux nappes de gouttes, une de chaque côté de l'avant, qui partent
@@ -335,7 +339,7 @@ func _build_wake_patch() -> void:
 	_sea_materials.append(mat)
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(WAKE_PATCH, WAKE_PATCH)
-	var n := int(WAKE_PATCH / (0.6 if low_quality else 0.4))
+	var n := int(WAKE_PATCH / 0.6)
 	pm.subdivide_width = n - 1
 	pm.subdivide_depth = n - 1
 	_wake_patch = MeshInstance3D.new()

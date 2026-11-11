@@ -9,6 +9,34 @@ const WL = preload("res://scripts/core/world_layout.gd")
 const WorldData = preload("res://scripts/balade/world_data.gd")
 
 
+## Relief en facettes de 2 m : seuls les points pairs gardent leur hauteur, les autres
+## sont posés sur les triangles de 2 m (même diagonale que shaders/terrain.gdshader). La
+## carte reste à 1 m, mais l'image, la collision et la physique voient les mêmes grandes
+## facettes, et le terrain se dessine avec 4 fois moins de triangles.
+const LOW_POLY_STEP := 2
+
+
+static func _low_poly(h: PackedFloat32Array, res: int, step: int) -> void:
+	var src := h.duplicate()
+	var cells := (res - 1) / step
+	for zi in res:
+		var cz := mini(zi / step, cells - 1)
+		var fz := float(zi - cz * step) / step
+		for xi in res:
+			var cx := mini(xi / step, cells - 1)
+			var fx := float(xi - cx * step) / step
+			var x0 := cx * step
+			var z0 := cz * step
+			var h00 := src[z0 * res + x0]
+			var h10 := src[z0 * res + x0 + step]
+			var h01 := src[(z0 + step) * res + x0]
+			var h11 := src[(z0 + step) * res + x0 + step]
+			if fx + fz < 1.0:
+				h[zi * res + xi] = h00 + fx * (h10 - h00) + fz * (h01 - h00)
+			else:
+				h[zi * res + xi] = h11 - (1.0 - fx) * (h11 - h01) - (1.0 - fz) * (h11 - h10)
+
+
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
 	var res := WorldData.HEIGHT_RES
@@ -19,6 +47,7 @@ func _init() -> void:
 		var z := zi * WL.SIZE / (res - 1) - half
 		for xi in res:
 			heights[zi * res + xi] = WL.height(xi * WL.SIZE / (res - 1) - half, z)
+	_low_poly(heights, res, LOW_POLY_STEP)
 	print("relief : %d ms" % (Time.get_ticks_msec() - t0))
 
 	var splat := _splat(heights, res)

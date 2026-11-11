@@ -106,6 +106,17 @@ func plow(a: Vector3, b: Vector3, radius: float, depth: float) -> void:
 	_stamp_segment(Vector2(a.x, a.z), Vector2(b.x, b.z), radius, depth)
 
 
+## Profondeur de l'ornière en (x, z) (m, positif = creux).
+func depth_at(point: Vector3) -> float:
+	var q := (Vector2(point.x, point.z) - _origin) / TEXEL
+	var x := int(q.x)
+	var y := int(q.y)
+	if x < 0 or y < 0 or x >= TEX or y >= TEX:
+		return 0.0
+	var c := _image.get_pixel(x, y)
+	return c.r * RUT_DEPTH - c.g * RUT_BERM
+
+
 func lift(wheel: int) -> void:
 	_last[wheel] = null
 

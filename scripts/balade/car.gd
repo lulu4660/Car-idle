@@ -106,6 +106,13 @@ var body_half := Vector3(0.9, 0.5, 2.1)
 var body_bottom := 0.35
 var wheel_surface: Array[int] = [WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND]
 var wheel_slip: Array[float] = [0.0, 0.0, 0.0, 0.0]
+## Enfoncement de chaque roue dans le sol meuble (m), donné par balade.gd d'après les
+## ornières : la roue descend dans son ornière et la voiture avec.
+var wheel_sink: Array[float] = [0.0, 0.0, 0.0, 0.0]
+const WHEEL_REST := 0.32
+# Résistance au roulement par sol (part du poids) : bitume, terre, sable, sable mouillé, eau.
+const ROLLING := [0.012, 0.03, 0.055, 0.04, 0.0]
+var _wheel_mesh_y: Array[float] = [0.0, 0.0, 0.0, 0.0]
 
 var world_data: RefCounted
 var _upside_down := 0.0
@@ -204,14 +211,13 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	car.center_of_mass = Vector3(0.0, axle * 0.6, 0.1)
 	car.continuous_cd = true
 
-	const REST := 0.32
 	for i in 4:
 		var c := _center(wheel_nodes[i], car)
 		var w := VehicleWheel3D.new()
 		w.name = WHEEL_NAMES[i][0]
-		w.position = c + Vector3.UP * REST * 0.6
+		w.position = c + Vector3.UP * WHEEL_REST * 0.6
 		w.wheel_radius = radius
-		w.wheel_rest_length = REST
+		w.wheel_rest_length = WHEEL_REST
 		w.suspension_travel = 0.28
 		w.suspension_stiffness = 38.0
 		w.suspension_max_force = 80000.0
@@ -233,6 +239,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		var mesh := car.wheels[i].get_child(0) as Node3D
 		var c := _node_bounds(mesh, car.wheels[i])
 		mesh.position -= c.get_center()
+		car._wheel_mesh_y[i] = mesh.position.y
 
 	if model == "concept":
 		_fix_glass(visual)
@@ -444,6 +451,7 @@ func _physics_process(delta: float) -> void:
 			if signf(yaw_rate) == -signf(slip_angle):
 				apply_torque(-up * yaw_rate * minf(1.0, over / 12.0) * 12.0 * mass * YAW_INERTIA)
 
+	_ground_resistance(delta)
 	_float(delta)
 
 	_safe_timer += delta
@@ -499,6 +507,44 @@ func _float(delta: float) -> void:
 	_sunk_time = _sunk_time + delta if total > 0.9 else 0.0
 	angular_damp = lerpf(0.5, 2.5, total)
 	linear_damp = 0.05
+
+
+## Sol meuble et eau peu profonde :
+## - la roue s'enfonce dans son ornière (suspension raccourcie d'autant, dessin de la roue
+##   abaissé) : la voiture roule vraiment dans ses traces ;
+## - résistance au roulement selon le sol, plus forte quand la roue est enfoncée ;
+## - dans l'eau, chaque roue pousse l'eau devant elle (frein qui croît avec la vitesse au
+##   carré et la hauteur d'eau).
+func _ground_resistance(delta: float) -> void:
+	var g := mass * 9.8 / 4.0
+	for i in 4:
+		var w := wheels[i]
+		var sink := 0.0
+		if w.is_in_contact():
+			sink = clampf(wheel_sink[i], 0.0, 0.22)
+		var cur := WHEEL_REST - w.wheel_rest_length
+		cur = move_toward(cur, sink, delta * 0.6)
+		w.wheel_rest_length = WHEEL_REST - cur
+		var mesh := w.get_child(0) as Node3D
+		if mesh:
+			mesh.position.y = _wheel_mesh_y[i] - cur
+		if not w.is_in_contact():
+			continue
+		var p := w.get_contact_point()
+		var offset := p - global_position
+		var v := linear_velocity + angular_velocity.cross(offset)
+		v.y = 0.0
+		var speed := v.length()
+		if speed < 0.05:
+			continue
+		var dir := v / speed
+		var coef: float = ROLLING[wheel_surface[i]] + cur * 1.2
+		apply_force(-dir * coef * g * minf(1.0, speed), offset)
+		if p.y < WL.SEA_LEVEL + 0.6:
+			var depth: float = WL.SEA_LEVEL - (world_data.height_at(p.x, p.z) if world_data else WL.height(p.x, p.z))
+			var water := clampf(Waves.surface(p.x, p.z, depth) - p.y, 0.0, 0.8)
+			if water > 0.0:
+				apply_force(-dir * speed * speed * 260.0 * water, offset)
 
 
 func respawn(pos: Vector3, yaw: float) -> void:

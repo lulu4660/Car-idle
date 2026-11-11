@@ -85,12 +85,12 @@ float water_depth(vec2 p) {
 }
 
 // Houle : hauteur, pente x, pente z.
-vec3 swell(vec2 p, float t) {
+vec3 swell(vec2 p, float t, int n) {
 	vec3 r = vec3(0.0);
 	vec2 dirs[4] = vec2[](vec2(-1.0, 0.15), vec2(-0.8, -0.55), vec2(-0.95, 0.35), vec2(-0.4, 0.9));
 	float lens[4] = float[](38.0, 21.0, 11.0, 6.5);
 	float amps[4] = float[](1.0, 0.5, 0.25, 0.12);
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < n; i++) {
 		vec2 d = normalize(dirs[i]);
 		float k = 6.28318 / lens[i];
 		float c = sqrt(9.8 / k);
@@ -107,7 +107,9 @@ void vertex() {
 	depth = water_depth(w.xz);
 	// Houle en relief seulement au large : près du bord, la surface reste plane et le rivage
 	// suit exactement le sable (pas de marches dues au maillage).
-	VERTEX.y += swell(w.xz, now).x * smoothstep(3.0, 7.0, depth);
+	// Relief : les deux grandes vagues seulement (les mêmes que la flottaison) ; les petites
+	// ne sont que dans la lumière (maillage de 8 m).
+	VERTEX.y += swell(w.xz, now, 2).x * smoothstep(3.0, 7.0, depth);
 	if (is_patch) {
 		vec2 q = (w.xz - patch_rect.xy) / patch_rect.zw;
 		float edge = smoothstep(0.0, 0.1, min(min(q.x, 1.0 - q.x), min(q.y, 1.0 - q.y)));
@@ -124,7 +126,7 @@ void fragment() {
 		discard;
 	}
 	float d = water_depth(p);
-	vec3 s = swell(p, t);
+	vec3 s = swell(p, t, 4);
 	vec2 ripple = vec2(sin(p.x * 1.7 + t * 2.1 + sin(p.y * 0.9)), sin(p.y * 1.9 - t * 1.7 + sin(p.x * 1.1))) * 0.06;
 	ripple += vec2(sin(p.x * 4.3 - t * 3.3 + p.y * 2.0), sin(p.y * 3.7 + t * 2.9 - p.x * 1.6)) * 0.03;
 	vec4 wk = is_patch ? wake(p, t) : vec4(0.0);
