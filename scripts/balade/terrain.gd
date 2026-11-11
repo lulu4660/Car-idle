@@ -16,6 +16,9 @@ var _shape: HeightMapShape3D
 var _material: ShaderMaterial
 
 
+var near_range := NEAR_RANGE
+
+
 func build(world_data: RefCounted) -> void:
 	data = world_data
 	_height_image = data.height_image()
@@ -46,9 +49,9 @@ func build(world_data: RefCounted) -> void:
 				mi.custom_aabb = aabb
 				mi.position = origin
 				if lod == 0:
-					mi.visibility_range_end = NEAR_RANGE
+					mi.visibility_range_end = near_range
 				else:
-					mi.visibility_range_begin = NEAR_RANGE
+					mi.visibility_range_begin = near_range
 				add_child(mi)
 
 	var body := StaticBody3D.new()

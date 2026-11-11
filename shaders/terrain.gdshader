@@ -16,6 +16,8 @@ uniform float sea_level = 10.0;
 // sous les roues. rut_tex : R = profondeur (× rut_depth), G = bourrelet (× rut_berm), sur la
 // zone rut_rect (x, z, largeur, profondeur en m). Le terrain normal s'efface sous la pièce.
 uniform bool is_patch = false;
+// iPhone et web : une seule échelle de texture par sol (deux fois moins de lectures).
+uniform bool low_quality = false;
 uniform sampler2D rut_tex : filter_linear, repeat_disable;
 uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
 uniform float rut_depth = 0.3;
@@ -118,6 +120,10 @@ void vertex() {
 
 vec4 layer(sampler2D alb, sampler2D nor, float size, vec2 p, float far, out vec3 nm) {
 	vec4 a = texture(alb, p / size);
+	if (low_quality) {
+		nm = texture(nor, p / size).rgb;
+		return a;
+	}
 	vec4 b = texture(alb, p / (size * 5.3) + vec2(0.37, 0.71));
 	vec3 n1 = texture(nor, p / size).rgb;
 	vec3 n2 = texture(nor, p / (size * 5.3) + vec2(0.37, 0.71)).rgb;
@@ -137,11 +143,14 @@ void fragment() {
 	w /= max(w.r + w.g + w.b + w.a, 0.001);
 	float dist = length(VERTEX);
 	float far = smoothstep(15.0, 90.0, dist);
-	vec3 n0, n1, n2, n3;
-	vec4 c0 = layer(asphalt_albedo, asphalt_normal, tile.x, wpos.xz, far, n0);
-	vec4 c1 = layer(dirt_albedo, dirt_normal, tile.y, wpos.xz, far, n1);
-	vec4 c2 = layer(sand_albedo, sand_normal, tile.z, wpos.xz, far, n2);
-	vec4 c3 = layer(wet_albedo, wet_normal, tile.w, wpos.xz, far, n3);
+	// Un sol absent de ce point n'est pas lu du tout (la plupart des points n'en ont qu'un).
+	vec3 flat_n = vec3(0.5, 0.5, 1.0);
+	vec3 n0 = flat_n, n1 = flat_n, n2 = flat_n, n3 = flat_n;
+	vec4 c0 = vec4(0.0), c1 = vec4(0.0), c2 = vec4(0.0), c3 = vec4(0.0);
+	if (w.r > 0.004) { c0 = layer(asphalt_albedo, asphalt_normal, tile.x, wpos.xz, far, n0); }
+	if (w.g > 0.004) { c1 = layer(dirt_albedo, dirt_normal, tile.y, wpos.xz, far, n1); }
+	if (w.b > 0.004) { c2 = layer(sand_albedo, sand_normal, tile.z, wpos.xz, far, n2); }
+	if (w.a > 0.004) { c3 = layer(wet_albedo, wet_normal, tile.w, wpos.xz, far, n3); }
 	// Sable de dune : teinte douce à grande échelle ; la photo ne garde que sa luminosité, atténuée.
 	float macro = fbm2(wpos.xz / 70.0) * 0.7 + fbm2(wpos.xz / 13.0) * 0.3;
 	vec3 sand_base = mix(sand_dark, sand_light, smoothstep(0.25, 0.8, macro));

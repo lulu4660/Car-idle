@@ -18,8 +18,9 @@ const CAR_LENGTH := 4.4
 const WHEEL_NAMES: Array = [
 	["wheel-front-left", "WheelFrontL"], ["wheel-front-right", "WheelFrontR"],
 	["wheel-back-left", "WheelRearL"], ["wheel-back-right", "WheelRearR"]]
-## Pièces masquées : plaques et logos (aucune marque à l'écran).
-const HIDDEN_PARTS: Array[String] = ["License Plate", "Emblem", "Logo"]
+## Pièces masquées : plaques et logos (aucune marque à l'écran), et l'intérieur, invisible
+## vu du drone (deux fois moins d'objets à dessiner).
+const HIDDEN_PARTS: Array[String] = ["License Plate", "Emblem", "Logo", "Interior", "Engine", "Pedal"]
 
 
 static func model_path(model: String) -> String:
@@ -207,7 +208,7 @@ static func _paint(visual: Node3D) -> void:
 ## remplace par un verre fumé simple, transparent et brillant.
 static func _fix_glass(visual: Node3D) -> void:
 	var glass := StandardMaterial3D.new()
-	glass.albedo_color = Color(0.05, 0.07, 0.08, 0.55)
+	glass.albedo_color = Color(0.04, 0.05, 0.06, 0.88)
 	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass.metallic = 0.6
 	glass.roughness = 0.04

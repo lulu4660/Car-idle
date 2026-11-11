@@ -1,5 +1,5 @@
 ## Capture rapide d'un plan fixe de la balade (pour relire le rendu) :
-##   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-method gl_compatibility --resolution 960x540 -s tools/pose.gd -- sortie.png [plan_caméra] [x z cap°]
+##   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-method gl_compatibility --resolution 960x540 -s tools/pose.gd -- sortie.png [plan_caméra] [x z cap°] [low]
 extends SceneTree
 
 var frames := 0
@@ -13,8 +13,10 @@ func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0: out = args[0]
 	if args.size() > 1: cam_mode = int(args[1])
-	if args.size() > 4: place = [float(args[2]), float(args[3]), float(args[4])]
+	if args.size() > 4 and args[2] != "low": place = [float(args[2]), float(args[3]), float(args[4])]
 	balade = load("res://scenes/balade.tscn").instantiate()
+	if "low" in args:
+		balade.set("force_quality", 0)
 	root.add_child(balade)
 	process_frame.connect(_tick)
 

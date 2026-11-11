@@ -1,5 +1,5 @@
 ## Ornières : les roues creusent vraiment le sable et la terre. Autour de la voiture, une
-## pièce de terrain fine (12,5 cm entre sommets) suit la voiture ; une carte des creux
+## pièce de terrain fine (12,5 cm entre sommets, 20 cm sur iPhone) suit la voiture ; une carte des creux
 ## (8 cm par texel, 41 m de côté) garde la profondeur des ornières et leurs bourrelets.
 ## Le creux dépend du sol (sable profond, terre moins), de la charge et de la glisse ; il
 ## s'accumule quand on repasse. La carte glisse avec la voiture : au-delà de ~20 m derrière,
@@ -11,7 +11,7 @@ const WL = preload("res://scripts/core/world_layout.gd")
 const TEX := 512
 const TEXEL := 0.08
 const SPAN := TEX * TEXEL           # 40,96 m
-const MESH_STEP := 0.125
+var mesh_step := 0.125
 const RUT_DEPTH := 0.3              # profondeur codée par R = 1 (m)
 const RUT_BERM := 0.12              # bourrelet codé par G = 1 (m)
 const UPDATE_EVERY := 1.0 / 20.0    # envoi de la carte à la carte graphique (20 fois/s)
@@ -43,7 +43,7 @@ func build(terrain_material: ShaderMaterial) -> void:
 		m.set_shader_parameter("rut_depth", RUT_DEPTH)
 		m.set_shader_parameter("rut_berm", RUT_BERM)
 
-	var n := int(SPAN / MESH_STEP)
+	var n := int(SPAN / mesh_step)
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(SPAN, SPAN)
 	pm.subdivide_width = n - 1

@@ -10,6 +10,9 @@ const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
 
 @export var start_model := "concept"
+## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
+@export var force_quality := -1
+var low_quality := false
 
 var data: RefCounted
 var terrain: Node3D
@@ -36,14 +39,19 @@ func _ready() -> void:
 	data = WorldData.load_baked()
 	if data == null:
 		return
+	low_quality = force_quality == 0 or (force_quality < 0 and (OS.has_feature("web") or OS.has_feature("mobile")))
 	var sun := WorldBuilder.build_environment(self)
+	_apply_quality(sun)
 	terrain = load("res://scripts/balade/terrain.gd").new()
 	terrain.name = "Terrain"
 	add_child(terrain)
+	terrain.near_range = 130.0 if low_quality else 180.0
 	terrain.build(data)
+	terrain.material().set_shader_parameter("low_quality", low_quality)
 	ruts = load("res://scripts/balade/ruts.gd").new()
 	ruts.name = "Ornieres"
 	add_child(ruts)
+	ruts.mesh_step = 0.2 if low_quality else 0.125
 	ruts.build(terrain.material())
 	WorldBuilder.build_sea(self, data, terrain.height_texture())
 	WorldBuilder.build_far_ground(self)
@@ -79,6 +87,26 @@ func _ready() -> void:
 	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
 
 
+## Réglages selon l'appareil. iPhone et web : image calculée à 70 % de la résolution (le
+## texte et les boutons restent nets), pas de MSAA (FXAA à la place), ombres sur 90 m
+## avec une carte plus petite, pas de halo, terrain sans seconde échelle de texture.
+func _apply_quality(sun: DirectionalLight3D) -> void:
+	var vp := get_viewport()
+	if low_quality:
+		vp.scaling_3d_scale = 0.7
+		vp.msaa_3d = Viewport.MSAA_DISABLED
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+		RenderingServer.directional_shadow_atlas_set_size(2048, true)
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		sun.directional_shadow_max_distance = 90.0
+		for n in get_children():
+			if n is WorldEnvironment:
+				(n as WorldEnvironment).environment.glow_enabled = false
+				(n as WorldEnvironment).environment.ssao_enabled = false
+	else:
+		vp.msaa_3d = Viewport.MSAA_2X
+
+
 func _spawn(pos: Vector3, yaw: float) -> void:
 	car = Car.create(Car.MODELS[model_index], controls)
 	car.world_data = data
@@ -87,6 +115,7 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	camera.target = car
 	camera.snap()
 	if decor.data == null:
+		decor.low_quality = low_quality
 		decor.build(data, car)
 	else:
 		decor.target = car
@@ -108,7 +137,7 @@ func _process(delta: float) -> void:
 	ruts.follow(car.global_position)
 	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
 	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
-	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s" % [ground, car.model_name, Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode]]
+	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, car.model_name, Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
 
 
 func _wheel_effects(delta: float) -> void:

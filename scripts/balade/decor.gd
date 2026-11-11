@@ -5,9 +5,13 @@ extends Node3D
 const WL = preload("res://scripts/core/world_layout.gd")
 
 const GRASS_COUNT := 9000
+const GRASS_CELL := 48.0
+const GRASS_SHADOW_RANGE := 70.0
+const GRASS_RANGE := 140.0
 const BIRDS := 9
 
 var data: RefCounted
+var low_quality := false
 var target: Node3D
 var _birds: Array[Dictionary] = []
 var _bird_mat: ShaderMaterial
@@ -59,19 +63,39 @@ func _build_grass() -> void:
 			var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.2, 0.2))
 			basis = basis.scaled(Vector3(scale, scale * rng.randf_range(0.8, 1.3), scale))
 			xforms.append(Transform3D(basis, Vector3(px, ph - 0.05, pz)))
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = xforms.size()
-	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
-	var mmi := MultiMeshInstance3D.new()
-	mmi.name = "Herbes"
-	mmi.multimesh = mm
-	mmi.material_override = mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	mmi.visibility_range_end = 220.0
-	add_child(mmi)
+	# Rangées par cases de 48 m : seules les cases proches sont dessinées (et ombrées de près).
+	var cells := {}
+	for xf in xforms:
+		var key := Vector2i(floori(xf.origin.x / GRASS_CELL), floori(xf.origin.z / GRASS_CELL))
+		if not cells.has(key):
+			cells[key] = []
+		cells[key].append(xf)
+	for key in cells:
+		var list: Array = cells[key]
+		var center := Vector3((key.x + 0.5) * GRASS_CELL, 0.0, (key.y + 0.5) * GRASS_CELL)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = list.size()
+		var aabb := AABB(list[0].origin - center, Vector3.ZERO)
+		for i in list.size():
+			mm.set_instance_transform(i, Transform3D(list[i].basis, list[i].origin - center))
+			aabb = aabb.expand(list[i].origin - center)
+		mm.custom_aabb = aabb.grow(2.0)
+		# Deux copies : ombrée près de la caméra, sans ombre plus loin.
+		for near in [true, false]:
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.material_override = mat
+			mmi.position = center
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if near else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var shadow_range := GRASS_SHADOW_RANGE
+			if near:
+				mmi.visibility_range_end = shadow_range
+			else:
+				mmi.visibility_range_begin = shadow_range
+				mmi.visibility_range_end = GRASS_RANGE * (0.75 if low_quality else 1.0)
+			add_child(mmi)
 
 
 ## Touffe d'oyats : une trentaine de brins fins en vraie 3D, partant du centre, courbés vers
@@ -81,14 +105,14 @@ func _tuft_mesh() -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 9
-	const SEGS := 4
-	for blade in 34:
+	const SEGS := 3
+	for blade in 16:
 		var ang := rng.randf() * TAU
 		var dir := Vector3(cos(ang), 0, sin(ang))
 		var side := dir.cross(Vector3.UP)
 		var reach := rng.randf_range(0.25, 0.75)
 		var height := rng.randf_range(0.45, 0.95)
-		var width := rng.randf_range(0.025, 0.045)
+		var width := rng.randf_range(0.035, 0.06)
 		var base := dir * rng.randf_range(0.0, 0.12)
 		var base_col := Color(0.38, 0.30, 0.18).lerp(Color(0.55, 0.44, 0.27), rng.randf())
 		var tip_col := Color(0.84, 0.72, 0.48).lerp(Color(0.96, 0.87, 0.64), rng.randf())

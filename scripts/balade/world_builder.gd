@@ -101,7 +101,7 @@ static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> 
 	var r := WorldData.SEA_RECT
 	var far_mat := mat.duplicate() as ShaderMaterial
 	far_mat.set_shader_parameter("wave_height", 0.0)
-	_sea_mesh(parent, mat, r, 2.0, 4.0)
+	_sea_mesh(parent, mat, r, 3.0, 5.0)
 	var far := 4000.0
 	_sea_mesh(parent, far_mat, Rect2(r.end.x, -far, far, far * 2.0), 400.0, 400.0)
 	_sea_mesh(parent, far_mat, Rect2(r.position.x, r.end.y, r.size.x, far - r.end.y), 60.0, 400.0)
