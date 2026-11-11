@@ -26,8 +26,8 @@ uniform vec4 max_smoothness = vec4(0.25, 0.08, 0.05, 0.35);
 uniform vec3 sand_tint : source_color = vec3(1.22, 1.02, 0.78);
 // Sable de dune vu du ciel : deux teintes mêlées à grande échelle, le grain de la photo
 // seulement en léger relief (comme vu d'un drone).
-uniform vec3 sand_light : source_color = vec3(0.92, 0.75, 0.50);
-uniform vec3 sand_dark : source_color = vec3(0.82, 0.62, 0.40);
+uniform vec3 sand_light : source_color = vec3(0.88, 0.68, 0.42);
+uniform vec3 sand_dark : source_color = vec3(0.76, 0.55, 0.33);
 uniform float sand_detail = 0.18;
 // Rides du vent sur le sable : hauteur et longueur d'onde (m).
 uniform float ripple_strength = 0.16;
@@ -98,7 +98,9 @@ void fragment() {
 	float streak = fbm2(vec2(wpos.x / 9.0, wpos.z / 55.0) + vec2(wpos.z / 140.0, 0.0));
 	sand_base *= mix(0.94, 1.05, streak);
 	float grain = dot(c2.rgb, vec3(0.333)) / 0.45;
-	c2.rgb = sand_base * mix(1.0, clamp(grain, 0.7, 1.3), sand_detail * (1.0 - far * 0.7));
+	// Le grain de la photo disparaît vite avec la distance (sinon moiré vu du drone).
+	float detail_k = 1.0 - smoothstep(6.0, 26.0, dist);
+	c2.rgb = sand_base * mix(1.0, clamp(grain, 0.7, 1.3), sand_detail * detail_k);
 	// Rides du vent, perpendiculaires au vent d'ouest, ondulées ; elles s'effacent au loin.
 	vec2 q = wpos.xz;
 	float warp = sin(q.y * 0.21 + sin(q.x * 0.13) * 1.7) * 0.9 + sin(q.y * 0.53 + q.x * 0.07) * 0.35 + sin(q.y * 1.7 + q.x * 0.3) * 0.12;
@@ -107,7 +109,7 @@ void fragment() {
 	float near_k = 1.0 - smoothstep(3.0, 20.0, dist);
 	vec3 rip = vec3(0.5 - ripple * ripple_strength * near_k * 0.5, 0.5, 1.0);
 	// Relief de la photo très adouci : le sable de dune est lisse, seules les rides le marquent.
-	n2 = mix(vec3(0.5, 0.5, 1.0), n2, 0.35);
+	n2 = mix(vec3(0.5, 0.5, 1.0), n2, 0.35 * detail_k);
 	n2 = mix(n2, rip, 0.6 * near_k);
 	vec4 c = c0 * w.r + c1 * w.g + c2 * w.b + c3 * w.a;
 	// Sable mouillé au bord de l'eau : plus sombre et un peu luisant, jusqu'à 60 cm au-dessus de la mer.

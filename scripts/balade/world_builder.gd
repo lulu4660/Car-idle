@@ -44,7 +44,7 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 
 	# Rendu cinéma : ACES, image claire, halo léger sur les reflets.
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 0.95
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
@@ -53,7 +53,7 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 1.08
+	env.adjustment_saturation = 1.15
 
 	# Brume légère : seulement le lointain se fond dans l'horizon.
 	env.fog_enabled = true
@@ -78,8 +78,8 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	sun.light_color = SUN_COLOR
 	sun.light_energy = 2.3
 	sun.shadow_enabled = true
-	sun.shadow_bias = 0.03
-	sun.shadow_normal_bias = 1.0
+	sun.shadow_bias = 0.08
+	sun.shadow_normal_bias = 1.8
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = 160.0
 	sun.directional_shadow_blend_splits = true

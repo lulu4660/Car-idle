@@ -4,7 +4,7 @@ extends Node3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-const GRASS_COUNT := 3200
+const GRASS_COUNT := 9000
 const BIRDS := 9
 
 var data: RefCounted
@@ -27,7 +27,6 @@ func build(world_data: RefCounted, follow: Node3D) -> void:
 func _build_grass() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/grass.gdshader")
-	mat.set_shader_parameter("tex", _grass_texture())
 	var mesh := _tuft_mesh()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
@@ -51,10 +50,15 @@ func _build_grass() -> void:
 		var chance := (colony - 0.55) * 2.6 + near_beach * 0.3 + trough * 0.2
 		if rng.randf() > chance:
 			continue
-		var scale := rng.randf_range(1.2, 2.4) * (1.0 + near_beach * 0.3)
-		var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.25, 0.25))
-		basis = basis.scaled(Vector3(scale, scale * rng.randf_range(0.8, 1.3), scale))
-		xforms.append(Transform3D(basis, Vector3(x, h - 0.05, z)))
+		# Une touffe en appelle d'autres : petit massif de 3 à 7 touffes serrées.
+		for k in rng.randi_range(3, 7):
+			var px := x + rng.randf_range(-1.6, 1.6)
+			var pz := z + rng.randf_range(-1.6, 1.6)
+			var ph: float = data.height_at(px, pz)
+			var scale := rng.randf_range(0.9, 1.9) * (1.0 + near_beach * 0.3)
+			var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.2, 0.2))
+			basis = basis.scaled(Vector3(scale, scale * rng.randf_range(0.8, 1.3), scale))
+			xforms.append(Transform3D(basis, Vector3(px, ph - 0.05, pz)))
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -70,48 +74,42 @@ func _build_grass() -> void:
 	add_child(mmi)
 
 
-## Touffe : trois panneaux croisés de 1,2 m, ouverts vers le haut.
+## Touffe d'oyats : une trentaine de brins fins en vraie 3D, partant du centre, courbés vers
+## l'extérieur ; foncés à la base, paille claire aux pointes (couleur par sommet).
 func _tuft_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var w := 0.6
-	var hgt := 1.0
-	for k in 3:
-		var a := k * PI / 3.0
-		var d := Vector3(cos(a), 0, sin(a)) * w
-		var out := Vector3(cos(a), 0, sin(a)).cross(Vector3.UP) * 0.35
-		var p := [-d, d, d + Vector3.UP * hgt + out, -d + Vector3.UP * hgt - out]
-		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
-		for i in [0, 1, 2, 0, 2, 3]:
-			st.set_normal(Vector3.UP)
-			st.set_uv(uv[i])
-			st.add_vertex(p[i])
-	return st.commit()
-
-
-## Brins d'herbe sèche dessinés : fins, courbés, sombres en bas et paille claire aux pointes.
-func _grass_texture() -> ImageTexture:
-	var n := 256
-	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 5
-	for b in 260:
-		var x0 := rng.randf_range(0.3, 0.7) * n
-		var lean := rng.randf_range(-0.6, 0.6) * n
-		var top := rng.randf_range(0.02, 0.5) * n
-		var base_col := Color(0.36, 0.28, 0.17).lerp(Color(0.55, 0.43, 0.27), rng.randf())
-		var tip_col := Color(0.82, 0.69, 0.46).lerp(Color(0.95, 0.85, 0.62), rng.randf())
-		for y in range(int(top), n):
-			var t := (n - y) / float(n - top)
-			var x := int(x0 + lean * t * t)
-			if x < 0 or x >= n:
-				continue
-			var c := base_col.lerp(tip_col, t)
-			c.a = 1.0 if t < 0.85 else (1.0 - t) / 0.15
-			img.set_pixel(x, y, c)
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+	rng.seed = 9
+	const SEGS := 4
+	for blade in 34:
+		var ang := rng.randf() * TAU
+		var dir := Vector3(cos(ang), 0, sin(ang))
+		var side := dir.cross(Vector3.UP)
+		var reach := rng.randf_range(0.25, 0.75)
+		var height := rng.randf_range(0.45, 0.95)
+		var width := rng.randf_range(0.025, 0.045)
+		var base := dir * rng.randf_range(0.0, 0.12)
+		var base_col := Color(0.38, 0.30, 0.18).lerp(Color(0.55, 0.44, 0.27), rng.randf())
+		var tip_col := Color(0.84, 0.72, 0.48).lerp(Color(0.96, 0.87, 0.64), rng.randf())
+		var pts: Array[Vector3] = []
+		for k in SEGS + 1:
+			var t := k / float(SEGS)
+			# Monte puis retombe vers l'extérieur.
+			pts.append(base + dir * reach * t * t + Vector3.UP * height * sin(t * PI * 0.62))
+		for k in SEGS:
+			var t0 := k / float(SEGS)
+			var t1 := (k + 1) / float(SEGS)
+			var w0 := width * (1.0 - t0 * 0.85)
+			var w1 := width * (1.0 - t1 * 0.85)
+			var q := [pts[k] - side * w0, pts[k] + side * w0, pts[k + 1] + side * w1, pts[k + 1] - side * w1]
+			var cols := [base_col.lerp(tip_col, t0), base_col.lerp(tip_col, t0), base_col.lerp(tip_col, t1), base_col.lerp(tip_col, t1)]
+			for i in [0, 1, 2, 0, 2, 3]:
+				st.set_color(cols[i])
+				st.set_uv(Vector2(0.5, 1.0 - (t0 if i < 2 else t1)))
+				st.set_normal(Vector3.UP)
+				st.add_vertex(q[i])
+	return st.commit()
 
 
 # ------------------------------------------------------------------ objets
@@ -158,7 +156,7 @@ func _build_props() -> void:
 
 func _camp(body: StaticBody3D, at: Vector2, yaw: float) -> void:
 	var r := Basis(Vector3.UP, yaw)
-	var items := [["structure-metal", Vector3(0, 0, 0), 0.0], ["tent-canvas", Vector3(7, 0, 3), 0.6],
+	var items := [["tent-canvas", Vector3(0, 0, 0), 0.0], ["tent-canvas", Vector3(6.5, 0, 2.5), 0.6],
 		["barrel", Vector3(-2.6, 0, 1.5), 0.0], ["barrel", Vector3(-2.5, 0, 2.6), 0.0], ["barrel-open", Vector3(-3.6, 0, 2.1), 0.0],
 		["box-large", Vector3(3.0, 0, -2.0), 0.3], ["box", Vector3(3.6, 0, -0.9), 1.0], ["campfire-pit", Vector3(4.5, 0, 4.5), 0.0],
 		["signpost", Vector3(-5.0, 0, -4.0), 2.4], ["metal-panel", Vector3(1.5, 0, 3.6), 1.2]]
