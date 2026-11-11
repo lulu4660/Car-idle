@@ -63,5 +63,4 @@ Rules:
 
 ## Skills (.claude/skills/)
 - `ui-ux-pro-max` (MIT, nextlevelbuilder) : règles et données d'interface (accessibilité, tactile, couleurs, typo). Pensé pour le web : en garder les règles mobiles pour l'interface Unity, en respectant la DA ci-dessus.
-- `design-taste-frontend` (taste-skill, MIT, Leonxlnx) : pages web soignées (site vitrine, page de présentation du jeu). Son hook de fin ne fait rien hors d'une page en cours ; il demande Node 22+.
 - `graphify` (Apache-2.0) : graphe du code dans `graphify-out/` ; il faut la commande `graphify` (`uv tool install graphifyy`), sinon ses hooks ne font rien. `.graphifyignore` limite le graphe au jeu.

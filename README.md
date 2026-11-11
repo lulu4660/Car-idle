@@ -66,8 +66,6 @@ winget install astral-sh.uv
 uv tool install graphifyy
 ```
 
-Pour taste-skill (pages web), installer aussi Node.js : `winget install OpenJS.NodeJS.LTS`.
-
 ## Tests sans Unity
 
 ```
