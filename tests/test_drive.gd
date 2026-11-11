@@ -19,7 +19,7 @@ var _min_up := 1.0
 
 
 func _init() -> void:
-	var model := "tiara"
+	var model := "toon_hatchback"
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		model = args[0]

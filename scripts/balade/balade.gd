@@ -9,7 +9,7 @@ const WorldData = preload("res://scripts/balade/world_data.gd")
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
 
-@export var start_model := "tiara"
+@export var start_model := "toon_hatchback"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
 @export var force_quality := -1
 var low_quality := false
@@ -46,6 +46,7 @@ func _ready() -> void:
 	terrain.name = "Terrain"
 	add_child(terrain)
 	terrain.near_range = 130.0 if low_quality else 180.0
+	terrain.cast_shadows = not low_quality
 	terrain.build(data)
 	terrain.material().set_shader_parameter("low_quality", low_quality)
 	ruts = load("res://scripts/balade/ruts.gd").new()

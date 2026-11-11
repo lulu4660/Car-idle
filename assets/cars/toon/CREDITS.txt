@@ -1,0 +1,8 @@
+Voitures « toon » (style low poly en couleurs unies), licence CC-BY 4.0 — crédit obligatoire.
+https://creativecommons.org/licenses/by/4.0/
+
+- toon4.glb : « 4 Low Poly Toon City Cars » par Viktor Tselikov (le jeu utilise la citadine
+  et la berline ; la police et l'ambulance ne sont pas utilisées)
+  https://sketchfab.com/3d-models/4-low-poly-toon-city-cars-cdce7c9c2a17473cadd03ce4746b4f13
+- pickup.glb : « Low Poly Pickup » par farooq.smurf
+  https://sketchfab.com/3d-models/low-poly-pickup-cea623973cf34aeab44e2c694fcece69

@@ -17,7 +17,7 @@ Le prototype 2D (dépôt lulu4660/garage-spotter) sert de référence : formules
 - Aucune marque réelle : logos, badges, textes et plaques retirés de chaque modèle 3D ; noms de voitures modifiés (base de noms du GDD), le nom réel n'est jamais affiché.
 - Économie : coût ×1,10 par niveau, revenu linéaire, ×2 aux paliers 25/50/100/150/200 ; les échelles s'additionnent, jamais ne se multiplient. Tout changement d'équilibrage passe par une simulation.
 - Les voitures spottées arrivent neuves (plus de mise à neuf) ; le rythme vient du déblocage des voitures au fil du temps.
-- DA : rendu réaliste ; garage et ville : course de rue de nuit, noir charbon + orange/rouge/or, pas de bleu dominant ; balade : désert et plage en fin d'après-midi, filmés comme une vidéo de drone.
+- DA : rendu réaliste ; garage et ville : course de rue de nuit, noir charbon + orange/rouge/or, pas de bleu dominant ; balade : style low poly épuré (couleurs unies, relief légèrement facetté, voitures « toon »), désert et plage l'après-midi, filmés comme une vidéo de drone.
 
 ## Code
 - `scripts/core/` : règles pures (aucun nœud), à porter telles quelles côté serveur.
@@ -28,10 +28,12 @@ Le prototype 2D (dépôt lulu4660/garage-spotter) sert de référence : formules
   - Aucune règle d'économie ailleurs que dans ce dossier.
 - `scripts/balade/` : la balade 3D.
   - `balade.gd` (point d'entrée, scène `scenes/balade.tscn` : décor, voiture, caméra, effets de roues, réception de saut, affichage), `world_data.gd` (monde précalculé), `terrain.gd` (16 × 16 morceaux à deux niveaux de détail déformés par la carte graphique, collision HeightMapShape3D, sable qui se creuse), `world_builder.gd` (ciel HDR et soleil calé dessus, brume, post-traitement, mer, sable lointain, limites, ville, rochers), `car.gd` (VehicleBody3D : 4x4/propulsion/traction, adhérence par sol, dérapage réglable avec contre-braquage automatique, garde-fou, retour au sec ; fabrique la voiture depuis un modèle du kit), `drone_camera.gd` (poursuite, travelling, plongée), `effects.gd` (traces de gomme sur le bitume et poussière, en MultiMesh animés par shader), `ruts.gd` (ornières : pièce de terrain fine qui suit la voiture et se creuse sous les roues dans le sable et la terre), `decor.gd` (oyats en 3D par cases, mouettes, campements et objets), `controls.gd` (clavier + boutons tactiles multi-doigts).
-- `shaders/` : `terrain` (hauteurs lues en texelFetch, sols photographiés, rides du vent), `sea` (houle, profondeur précalculée, écume), `stamps` (traces), `dust` (poussière à contre-jour).
+- `shaders/` : `terrain` (hauteurs lues en texelFetch, couleurs unies par sol, facettes, ornières en mode « pièce fine »), `sea` (houle, profondeur précalculée, écume), `stamps` (traces), `dust` (poussière à contre-jour).
 - `assets/balade/world.bin` : monde précalculé par `tools/bake_world.gd` (relief 1025², sols 512², profondeur de la mer). À relancer après tout changement de `world_layout.gd`.
 - `assets/ground/` : textures de sol et ciel HDR (Poly Haven, CC0 ; brillance rangée dans l'alpha des couleurs). Le soleil suit la position du soleil dans la photo (`world_builder.SKY_SUN_U`).
-- `assets/cars/concept/` : « Car Concept » (Khronos glTF Sample Assets, CC-BY 4.0 : crédit obligatoire, plaque et emblème masqués par `car.gd`), voiture réaliste sans marque, par défaut.
+- `assets/cars/toon/` : voitures low poly en couleurs unies (CC-BY 4.0, crédits dans le dossier), par défaut ; `car.TOON` dit quel fichier, quelle voiture d'un pack et quelle longueur.
+- `assets/cars/street/` : six voitures « street » plus détaillées (CC-BY 4.0, Daniel Zhabotinsky), plaques et badges masqués.
+- `assets/cars/concept/` : « Car Concept » (Khronos glTF Sample Assets, CC-BY 4.0 : crédit obligatoire, plaque et emblème masqués par `car.gd`), voiture réaliste sans marque.
 - `assets/cars/kenney/` : voitures low poly du Car Kit de Kenney (CC0), provisoires pour régler la physique.
 - Pas de `class_name` : les scripts se chargent avec `preload`/`load`. Les nombres d'argent sont des `float` (double).
 

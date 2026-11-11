@@ -53,6 +53,7 @@ func build(terrain_material: ShaderMaterial) -> void:
 	_patch.name = "Ornieres"
 	_patch.mesh = pm
 	_patch.material_override = patch_mat
+	_patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_patch.custom_aabb = AABB(Vector3(0, -5, 0), Vector3(SPAN, WL.MAX_HEIGHT + 10.0, SPAN))
 	add_child(_patch)
 	_set_origin(Vector2(WL.SPAWN_X, WL.SPAWN_Z) - Vector2(SPAN, SPAN) / 2.0)

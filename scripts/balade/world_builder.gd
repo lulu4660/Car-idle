@@ -44,7 +44,7 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 
 	# Rendu cinéma : ACES, image claire, halo léger sur les reflets.
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.95
+	env.tonemap_exposure = 0.9
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
@@ -52,8 +52,8 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	env.glow_hdr_threshold = 1.4
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 1.15
+	env.adjustment_contrast = 1.14
+	env.adjustment_saturation = 1.0
 
 	# Brume légère : seulement le lointain se fond dans l'horizon.
 	env.fog_enabled = true
@@ -78,8 +78,8 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	sun.light_color = SUN_COLOR
 	sun.light_energy = 2.3
 	sun.shadow_enabled = true
-	sun.shadow_bias = 0.08
-	sun.shadow_normal_bias = 1.8
+	sun.shadow_bias = 0.05
+	sun.shadow_normal_bias = 1.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = 160.0
 	sun.directional_shadow_blend_splits = true
@@ -127,10 +127,7 @@ static func _sea_mesh(parent: Node, mat: Material, r: Rect2, step_x: float, step
 ## Sable à perte de vue au nord, au sud et à l'ouest, à la hauteur des bords du terrain.
 static func build_far_ground(parent: Node) -> void:
 	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = load("res://assets/ground/sand_albedo.png")
-	mat.uv1_triplanar = true
-	mat.uv1_world_triplanar = true
-	mat.uv1_scale = Vector3.ONE / 7.0
+	mat.albedo_color = Color(0.85, 0.69, 0.48)
 	mat.roughness = 1.0
 	var half := WL.SIZE / 2.0
 	var far := 2500.0
@@ -220,13 +217,7 @@ static func build_rocks(parent: Node, data: RefCounted) -> void:
 	for i in 4:
 		meshes.append(_rock_mesh(500 + i))
 	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = load("res://assets/ground/dirt_albedo.png")
-	mat.albedo_color = Color(0.85, 0.78, 0.72)
-	mat.uv1_triplanar = true
-	mat.uv1_world_triplanar = true
-	mat.uv1_scale = Vector3.ONE / 2.5
-	mat.normal_enabled = true
-	mat.normal_texture = load("res://assets/ground/dirt_normal.jpg")
+	mat.albedo_color = Color(0.66, 0.55, 0.46)
 	mat.roughness = 0.9
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7

@@ -15,12 +15,21 @@ const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
 ## Voitures « street » (Sketchfab, Daniel Zhabotinsky, CC-BY 4.0) : détaillées et légères
 ## (18 000 à 28 000 triangles, textures 512 px), noms inventés, plaques et badges masqués.
 const STREET: Array[String] = ["tiara", "phoenix", "kiri", "lasley", "lightbody", "bokaroo"]
-const MODELS: Array[String] = ["tiara", "phoenix", "kiri", "lasley", "lightbody", "bokaroo", "concept", "hatchback-sports", "suv", "van"]
+## Voitures « toon » (style low poly en couleurs unies) : citadine et berline du pack
+## « 4 Low Poly Toon City Cars » (Viktor Tselikov) et pick-up (farooq.smurf), CC-BY 4.0.
+## Valeur : fichier, nom des pièces à garder dans le pack, longueur réelle (m).
+const TOON := {
+	"toon_hatchback": ["res://assets/cars/toon/toon4.glb", "Hatchback", 3.7],
+	"toon_sedan": ["res://assets/cars/toon/toon4.glb", "Sedan", 4.0],
+	"toon_pickup": ["res://assets/cars/toon/pickup.glb", "", 4.4],
+}
+const MODELS: Array[String] = ["toon_hatchback", "toon_sedan", "toon_pickup", "tiara", "phoenix", "kiri", "lasley", "lightbody", "bokaroo", "concept", "hatchback-sports", "suv", "van"]
 ## Nom affiché de chaque voiture (noms de jeu, jamais de marque réelle).
 const DISPLAY_NAMES := {
 	"tiara": "Tiara GT '83", "phoenix": "Phoenix 455 '71", "kiri": "Kiri '86", "lasley": "Lasley '67",
 	"lightbody": "Lightbody '85", "bokaroo": "Bokaroo '67", "concept": "Concept",
-	"hatchback-sports": "Kit Sport", "suv": "Kit SUV", "van": "Kit Van"}
+	"hatchback-sports": "Kit Sport", "suv": "Kit SUV", "van": "Kit Van",
+	"toon_hatchback": "Citadine", "toon_sedan": "Berline", "toon_pickup": "Pick-up"}
 const CAR_LENGTH := 4.4
 ## Noms possibles des roues, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_NAMES: Array = [
@@ -30,7 +39,8 @@ const WHEEL_NAMES: Array = [
 ## vu du drone (deux fois moins d'objets à dessiner).
 const HIDDEN_PARTS: Array[String] = ["License Plate", "Numberplate", "Badges", "Emblem", "Logo", "Interior", "Engine", "Pedal", "Steering"]
 ## Repères des roues dans les noms des modèles « street » : avant gauche, avant droite, arrière gauche, arrière droite.
-const WHEEL_TAGS: Array[String] = ["_FL_", "_FR_", "_RL_", "_RR_"]
+const WHEEL_TAGS: Array = [["_FL"], ["_FR"], ["_RL", "_BL", "R L"], ["_RR", "_BR", "R R"]]
+const WHEEL_TAGS_FRONT: Array = [["F L"], ["F R"]]
 
 
 static func model_path(model: String) -> String:
@@ -38,6 +48,8 @@ static func model_path(model: String) -> String:
 		return "res://assets/cars/concept/CarConcept.glb"
 	if model in STREET:
 		return "res://assets/cars/street/%s.glb" % model
+	if TOON.has(model):
+		return TOON[model][0]
 	return "res://assets/cars/kenney/%s.glb" % model
 
 @export_group("Moteur et freins")
@@ -94,6 +106,13 @@ var _safe_timer := 0.0
 static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	var scene: PackedScene = load(model_path(model))
 	var visual: Node3D = scene.instantiate()
+	# Pack de plusieurs voitures : on ne garde que les pièces de celle demandée.
+	if TOON.has(model) and String(TOON[model][1]) != "":
+		var keep := String(TOON[model][1])
+		for m in visual.find_children("*", "MeshInstance3D", true, false):
+			if not String(m.name).contains(keep):
+				m.get_parent().remove_child(m)
+				m.queue_free()
 	var car: VehicleBody3D = load("res://scripts/balade/car.gd").new()
 	car.name = "Voiture"
 	car.model_name = model
@@ -116,10 +135,16 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 				break
 		if found == null:
 			# Modèles « street » : maillage dont le nom contient « Wheel » et le repère de la roue.
+			var tags: Array = WHEEL_TAGS[k] + (WHEEL_TAGS_FRONT[k] if k < 2 else [])
 			for m in visual.find_children("*", "MeshInstance3D", true, false):
 				var nm := String(m.name)
-				if nm.containsn("Wheel") and nm.contains(WHEEL_TAGS[k]):
-					found = m
+				if not (nm.containsn("Wheel") or nm.containsn("Tire")) or nm.containsn("Steering"):
+					continue
+				for tag in tags:
+					if nm.contains(tag):
+						found = m
+						break
+				if found:
 					break
 		wheel_nodes.append(found)
 
@@ -130,7 +155,8 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	visual.rotate_y(fwd.signed_angle_to(Vector3.BACK, Vector3.UP))
 	# 2. Taille : longueur réelle d'une voiture.
 	var b := _bounds(visual, car)
-	var s := CAR_LENGTH / maxf(b.size.z, 0.01)
+	var length: float = TOON[model][2] if TOON.has(model) else CAR_LENGTH
+	var s := length / maxf(b.size.z, 0.01)
 	visual.scale *= s
 	visual.position *= s
 	# 3. Centrée, le bas des roues à y = 0.
@@ -195,7 +221,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 
 	if model == "concept":
 		_fix_glass(visual)
-	elif not model in STREET:
+	elif not model in STREET and not TOON.has(model):
 		_paint(visual)
 	car.drive = _drivetrain_of(model)
 	if model in ["van", "suv", "lightbody", "bokaroo"]:
@@ -208,7 +234,9 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 static func _drivetrain_of(model: String) -> int:
 	match model:
 		"concept", "tiara", "phoenix": return Drivetrain.REAR_WHEEL
-		"kiri", "lasley": return Drivetrain.FRONT_WHEEL
+		"kiri", "lasley", "toon_hatchback": return Drivetrain.FRONT_WHEEL
+		"toon_sedan": return Drivetrain.REAR_WHEEL
+		"toon_pickup": return Drivetrain.ALL_WHEEL
 		"lightbody", "bokaroo": return Drivetrain.ALL_WHEEL
 		"suv": return Drivetrain.ALL_WHEEL
 		"taxi", "van": return Drivetrain.FRONT_WHEEL

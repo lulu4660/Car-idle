@@ -17,6 +17,8 @@ var _material: ShaderMaterial
 
 
 var near_range := NEAR_RANGE
+## iPhone : le terrain ne projette pas d'ombre (le relief se lit déjà par la lumière des facettes).
+var cast_shadows := true
 
 
 func build(world_data: RefCounted) -> void:
@@ -31,9 +33,6 @@ func build(world_data: RefCounted) -> void:
 	_material.set_shader_parameter("splat_tex", splat)
 	_material.set_shader_parameter("world_size", WL.SIZE)
 	_material.set_shader_parameter("res", data.res)
-	for pair in [["asphalt", "asphalt"], ["dirt", "dirt"], ["sand", "sand"], ["wet", "wet_sand"]]:
-		_material.set_shader_parameter(pair[0] + "_albedo", load("res://assets/ground/%s_albedo.png" % pair[1]))
-		_material.set_shader_parameter(pair[0] + "_normal", load("res://assets/ground/%s_normal.jpg" % pair[1]))
 
 	var near_mesh := _grid_mesh(CHUNK, 1)
 	var far_mesh := _grid_mesh(CHUNK / 4, 4)
@@ -47,6 +46,7 @@ func build(world_data: RefCounted) -> void:
 				mi.mesh = near_mesh if lod == 0 else far_mesh
 				mi.material_override = _material
 				mi.custom_aabb = aabb
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast_shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				mi.position = origin
 				if lod == 0:
 					mi.visibility_range_end = near_range
