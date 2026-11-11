@@ -76,7 +76,9 @@ float rut(vec2 p) {
 		return 0.0;
 	}
 	vec4 r = textureLod(rut_tex, uv, 0.0);
-	return r.g * rut_berm - r.r * rut_depth;
+	// Fondu sur les bords de la zone : les vieilles ornières s'effacent doucement.
+	float edge = smoothstep(0.0, 0.12, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
+	return (r.g * rut_berm - r.r * rut_depth) * edge;
 }
 
 void vertex() {

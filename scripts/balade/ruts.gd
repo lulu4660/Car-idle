@@ -1,6 +1,6 @@
 ## Ornières : les roues creusent vraiment le sable et la terre. Autour de la voiture, une
 ## pièce de terrain fine (12,5 cm entre sommets, 20 cm sur iPhone) suit la voiture ; une carte des creux
-## (8 cm par texel, 41 m de côté) garde la profondeur des ornières et leurs bourrelets.
+## (10 cm par texel, 51 m de côté) garde la profondeur des ornières et leurs bourrelets.
 ## Le creux dépend du sol (sable profond, terre moins), de la charge et de la glisse ; il
 ## s'accumule quand on repasse. La carte glisse avec la voiture : au-delà de ~20 m derrière,
 ## les ornières s'effacent de la vue.
@@ -9,8 +9,8 @@ extends Node3D
 const WL = preload("res://scripts/core/world_layout.gd")
 
 const TEX := 512
-const TEXEL := 0.08
-const SPAN := TEX * TEXEL           # 40,96 m
+const TEXEL := 0.1
+const SPAN := TEX * TEXEL           # 51,2 m
 var mesh_step := 0.125
 const RUT_DEPTH := 0.3              # profondeur codée par R = 1 (m)
 const RUT_BERM := 0.12              # bourrelet codé par G = 1 (m)
@@ -59,8 +59,16 @@ func build(terrain_material: ShaderMaterial) -> void:
 	_set_origin(Vector2(WL.SPAWN_X, WL.SPAWN_Z) - Vector2(SPAN, SPAN) / 2.0)
 
 
+## Le coin de la zone est calé sur la grille des sommets (un multiple du pas du maillage,
+## lui-même multiple d'un texel) : les sommets tombent toujours aux mêmes endroits du monde,
+## sinon les ornières (à peine plus larges qu'un pas) clignotent quand la zone se déplace.
+func _grid() -> float:
+	return maxf(TEXEL, roundf(mesh_step / TEXEL) * TEXEL)
+
+
 func _set_origin(o: Vector2) -> void:
-	_origin = Vector2(snappedf(o.x, TEXEL), snappedf(o.y, TEXEL))
+	var g := _grid()
+	_origin = Vector2(snappedf(o.x, g), snappedf(o.y, g))
 	_patch.position = Vector3(_origin.x, 0, _origin.y)
 	for m in _materials:
 		m.set_shader_parameter("rut_rect", Vector4(_origin.x, _origin.y, SPAN, SPAN))
@@ -68,12 +76,15 @@ func _set_origin(o: Vector2) -> void:
 
 ## Recentre la zone sur la voiture quand elle s'approche du bord ; les ornières déjà
 ## creusées glissent avec (copie décalée de la carte).
-func follow(center: Vector3) -> void:
+func follow(center: Vector3, velocity := Vector3.ZERO) -> void:
 	var c := Vector2(center.x, center.z)
 	var rel := c - _origin - Vector2(SPAN, SPAN) / 2.0
-	if absf(rel.x) < SPAN * 0.2 and absf(rel.y) < SPAN * 0.2:
+	if absf(rel.x) < SPAN * 0.3 and absf(rel.y) < SPAN * 0.3:
 		return
-	var new_origin := Vector2(snappedf(c.x - SPAN / 2.0, TEXEL), snappedf(c.y - SPAN / 2.0, TEXEL))
+	# La voiture est placée vers l'avant de la zone : on garde plus d'ornières derrière.
+	var ahead := Vector2(velocity.x, velocity.z).limit_length(1.0) * SPAN * 0.22
+	var g := _grid()
+	var new_origin := Vector2(snappedf(c.x + ahead.x - SPAN / 2.0, g), snappedf(c.y + ahead.y - SPAN / 2.0, g))
 	var shift := Vector2i(roundi((new_origin.x - _origin.x) / TEXEL), roundi((new_origin.y - _origin.y) / TEXEL))
 	var old := _image.duplicate() as Image
 	_image.fill(Color(0, 0, 0, 1))
@@ -81,7 +92,11 @@ func follow(center: Vector3) -> void:
 	if src.size.x > 0 and src.size.y > 0:
 		_image.blit_rect(old, src, src.position - shift)
 	_set_origin(_origin + Vector2(shift) * TEXEL)
-	_dirty = true
+	# Envoi immédiat : la carte décalée et la nouvelle position doivent arriver ensemble,
+	# sinon les ornières sautent pendant une image.
+	_texture.update(_image)
+	_dirty = false
+	_since_upload = 0.0
 	for i in 4:
 		_last[i] = null
 

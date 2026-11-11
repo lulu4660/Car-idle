@@ -19,44 +19,41 @@ uniform float now = 0.0;
 
 varying vec3 wpos;
 
-// Sillage de la voiture (waves.gd) : ondes circulaires (x, z, départ, amplitude).
-uniform vec4 wakes[32];
-// Pièce fine autour de la voiture (0,4 m entre sommets) : elle seule porte le relief du
-// sillage ; la mer normale ne se dessine pas dessous.
+// Pièce fine autour de la voiture : elle porte le relief des vagues simulées
+// (scripts/balade/water_sim.gd) ; la mer normale ne se dessine pas dessous.
 uniform bool is_patch = false;
 uniform vec4 patch_rect = vec4(0.0, 0.0, -1.0, -1.0);
-const float WAKE_SPEED = 3.2;
-const float WAKE_LEN = 2.4;
-const float WAKE_WIDTH = 2.2;
-const float WAKE_DECAY = 0.55;
-const float WAKE_LIFE = 6.0;
+// Surface simulée : hauteurs codées sur 16 bits (R, G), zone sim_rect (x, z, l, p) en m.
+uniform sampler2D sim_tex : filter_nearest, repeat_disable;
+uniform vec4 sim_rect = vec4(0.0, 0.0, -1.0, -1.0);
+uniform int sim_size = 256;
+uniform float sim_range = 1.0;
 
-// Sillage : hauteur, pente x, pente z, écume (crêtes jeunes et hautes).
-vec4 wake(vec2 p, float t) {
-	vec4 r = vec4(0.0);
-	float k = 6.28318 / WAKE_LEN;
-	for (int i = 0; i < 32; i++) {
-		vec4 w = wakes[i];
-		float age = t - w.z;
-		if (age <= 0.0 || age > WAKE_LIFE || w.w <= 0.0) {
-			continue;
-		}
-		vec2 dp = p - w.xy;
-		float rr = max(length(dp), 0.001);
-		float front = WAKE_SPEED * age;
-		float u = (rr - front) / WAKE_WIDTH;
-		if (abs(u) > 2.5) {
-			continue;
-		}
-		float env = w.w * exp(-age * WAKE_DECAY) * exp(-u * u) / sqrt(1.0 + rr * 0.4);
-		float ph = k * (rr - front);
-		r.x += env * cos(ph);
-		// Pente : dérivée selon r (l'enveloppe varie peu devant l'onde), le long de dp.
-		float dh = -env * k * sin(ph) - env * cos(ph) * 2.0 * u / WAKE_WIDTH;
-		r.yz += dh * dp / rr;
-		r.w += env * max(cos(ph), 0.0) * exp(-age * 1.2);
+float sim_cell(ivec2 q) {
+	q = clamp(q, ivec2(0), ivec2(sim_size - 1));
+	vec2 v = texelFetch(sim_tex, q, 0).rg;
+	return ((v.x * 255.0 * 256.0 + v.y * 255.0) / 65535.0 * 2.0 - 1.0) * sim_range;
+}
+
+// Vagues simulées en p : hauteur, pente x, pente z (interpolées entre les cases).
+vec3 sim(vec2 p) {
+	if (sim_rect.z <= 0.0) {
+		return vec3(0.0);
 	}
-	return r;
+	vec2 g = (p - sim_rect.xy) / sim_rect.zw * float(sim_size) - 0.5;
+	if (any(lessThan(g, vec2(0.0))) || any(greaterThan(g, vec2(float(sim_size) - 1.0)))) {
+		return vec3(0.0);
+	}
+	ivec2 i = ivec2(floor(g));
+	vec2 f = g - vec2(i);
+	float a = sim_cell(i);
+	float b = sim_cell(i + ivec2(1, 0));
+	float c = sim_cell(i + ivec2(0, 1));
+	float d = sim_cell(i + ivec2(1, 1));
+	float cell = sim_rect.z / float(sim_size);
+	float h = mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+	vec2 grad = vec2(mix(b - a, d - c, f.y), mix(c - a, d - b, f.x)) / cell;
+	return vec3(h, grad);
 }
 
 float hash2(vec2 p) {
@@ -113,7 +110,7 @@ void vertex() {
 	if (is_patch) {
 		vec2 q = (w.xz - patch_rect.xy) / patch_rect.zw;
 		float edge = smoothstep(0.0, 0.1, min(min(q.x, 1.0 - q.x), min(q.y, 1.0 - q.y)));
-		VERTEX.y += wake(w.xz, now).x * clamp(depth / 0.3, 0.0, 1.0) * edge;
+		VERTEX.y += sim(w.xz).x * edge;
 	}
 	wpos = w;
 }
@@ -129,9 +126,17 @@ void fragment() {
 	vec3 s = swell(p, t, 4);
 	vec2 ripple = vec2(sin(p.x * 1.7 + t * 2.1 + sin(p.y * 0.9)), sin(p.y * 1.9 - t * 1.7 + sin(p.x * 1.1))) * 0.06;
 	ripple += vec2(sin(p.x * 4.3 - t * 3.3 + p.y * 2.0), sin(p.y * 3.7 + t * 2.9 - p.x * 1.6)) * 0.03;
-	vec4 wk = is_patch ? wake(p, t) : vec4(0.0);
-	float wet = clamp(d / 0.3, 0.0, 1.0);
-	vec3 nw = normalize(vec3(-(s.y + ripple.x + wk.y * wet), 1.0, -(s.z + ripple.y + wk.z * wet)));
+	vec3 wk = vec3(0.0);
+	if (is_patch && sim_rect.z > 0.0) {
+		// Pentes par différences centrées sur les hauteurs interpolées : lumière lisse,
+		// sans les facettes d'une case.
+		float e = sim_rect.z / float(sim_size);
+		wk.x = sim(p).x;
+		wk.y = (sim(p + vec2(e, 0.0)).x - sim(p - vec2(e, 0.0)).x) / (2.0 * e);
+		wk.z = (sim(p + vec2(0.0, e)).x - sim(p - vec2(0.0, e)).x) / (2.0 * e);
+	}
+	// Pentes des vagues simulées renforcées dans la lumière (elles restent basses en hauteur).
+	vec3 nw = normalize(vec3(-(s.y + ripple.x + wk.y * 2.5), 1.0, -(s.z + ripple.y + wk.z * 2.5)));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 
 	vec3 water = mix(shallow_color, deep_color, clamp(d / 6.0, 0.0, 1.0));
@@ -152,8 +157,8 @@ void fragment() {
 	float crest = smoothstep(0.94, 0.985, fract(wave_phase)) * (1.0 - smoothstep(0.985, 1.0, fract(wave_phase)));
 	float breakup = smoothstep(0.3, 0.7, vnoise(p * vec2(0.05, 0.3) + vec2(0.0, t * 0.1)));
 	foam = max(foam, crest * breakup * 0.7 * clamp(1.0 - d / 4.5, 0.0, 1.0) * clamp(d / 0.4, 0.0, 1.0));
-	// Écume sur les crêtes du sillage, découpée par un bruit fin.
-	float wfoam = smoothstep(0.04, 0.16, wk.w * wet) * (0.55 + 0.45 * vnoise(p * 2.3 + t));
+	// Écume sur les vagues de la voiture : crêtes hautes et pentes raides, découpée par un bruit fin.
+	float wfoam = max(smoothstep(0.05, 0.18, wk.x), smoothstep(0.2, 0.6, length(wk.yz))) * (0.5 + 0.5 * vnoise(p * 2.3 + t));
 	foam = max(foam, wfoam * 0.85);
 	ALBEDO = mix(water, foam_color, foam);
 	ROUGHNESS = mix(0.14, 0.7, foam);

@@ -97,7 +97,6 @@ var submerged := 0.0
 var _sunk_time := 0.0
 ## Flottaison : la voiture flotte un moment, tangue avec la houle, puis prend l'eau et coule.
 @export var buoyancy := 1.25
-@export var water_drag := 1.4
 ## Secondes à flotter avant de prendre l'eau, puis durée de la descente.
 @export var float_time := 5.0
 @export var sink_time := 6.0
@@ -106,13 +105,11 @@ var body_half := Vector3(0.9, 0.5, 2.1)
 var body_bottom := 0.35
 var wheel_surface: Array[int] = [WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND]
 var wheel_slip: Array[float] = [0.0, 0.0, 0.0, 0.0]
-## Enfoncement de chaque roue dans le sol meuble (m), donné par balade.gd d'après les
-## ornières : la roue descend dans son ornière et la voiture avec.
+## Profondeur de l'ornière sous chaque roue (m), donnée par balade.gd : freine un peu plus.
 var wheel_sink: Array[float] = [0.0, 0.0, 0.0, 0.0]
 const WHEEL_REST := 0.32
 # Résistance au roulement par sol (part du poids) : bitume, terre, sable, sable mouillé, eau.
 const ROLLING := [0.012, 0.03, 0.055, 0.04, 0.0]
-var _wheel_mesh_y: Array[float] = [0.0, 0.0, 0.0, 0.0]
 
 var world_data: RefCounted
 var _upside_down := 0.0
@@ -239,7 +236,6 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		var mesh := car.wheels[i].get_child(0) as Node3D
 		var c := _node_bounds(mesh, car.wheels[i])
 		mesh.position -= c.get_center()
-		car._wheel_mesh_y[i] = mesh.position.y
 
 	if model == "concept":
 		_fix_glass(visual)
@@ -342,6 +338,28 @@ static func _bounds(visual: Node3D, ref: Node3D) -> AABB:
 func _ready() -> void:
 	_safe_pos = global_position
 	_safe_yaw = rotation.y
+
+
+## Dessin des roues : posées exactement sur le sol (ou au fond de leur ornière). La roue
+## physique de Godot se dessine quelques centimètres dans le sol ; on corrige seulement le
+## dessin, le long de l'axe vertical de la voiture (le décalage est exprimé dans le repère de
+## la roue, qui tourne : sans ça la roue tournerait en ovale).
+var _wheel_fix: Array[float] = [0.0, 0.0, 0.0, 0.0]
+
+
+func _process(delta: float) -> void:
+	var up := global_basis.y
+	for i in wheels.size():
+		var w := wheels[i]
+		var mesh := w.get_child(0) as Node3D
+		if mesh == null:
+			continue
+		var want := _wheel_fix[i]
+		if w.is_in_contact():
+			var gap := (w.global_position - w.get_contact_point()).dot(up) - w.wheel_radius
+			want = clampf(-gap - clampf(wheel_sink[i], 0.0, 0.12), -0.25, 0.25)
+		_wheel_fix[i] = lerpf(_wheel_fix[i], want, minf(1.0, delta * 20.0))
+		mesh.position = w.global_basis.orthonormalized().inverse() * (up * _wheel_fix[i])
 
 
 func _physics_process(delta: float) -> void:
@@ -470,64 +488,65 @@ func _physics_process(delta: float) -> void:
 		respawn(global_position, rotation.y)
 
 
-## Flottaison : quatre points de la caisse sondent la mer. Sous la surface, chacun reçoit une
-## poussée d'Archimède (proportionnelle à l'enfoncement) et un frein (l'eau résiste au
-## mouvement). La poussée faiblit à mesure que la voiture prend l'eau : elle flotte, tangue
-## avec la houle, est poussée vers la plage par les vagues, puis coule.
+## Flottaison : 12 sondes réparties sous la caisse (3 de large × 4 de long). Chacune porte
+## une colonne de caisse ; sa part immergée sous la vraie surface (houle) donne une poussée
+## d'Archimède à cet endroit : la voiture tangue et roule avec les vagues, pique du nez en
+## entrant dans l'eau. Résistance de l'eau calculée par rapport à l'eau qui bouge (vagues,
+## ressac) et selon le sens : la caisse glisse vers l'avant, résiste de côté et surtout à
+## la verticale (amortit les rebonds). La poussée faiblit quand la voiture prend l'eau.
+const PROBES_X := [-0.8, 0.0, 0.8]
+const PROBES_Z := [-0.85, -0.3, 0.3, 0.85]
+# Résistance de l'eau (linéaire, quadratique) selon l'axe de la voiture : côté, haut, avant.
+const WATER_LIN := Vector3(1.6, 2.2, 0.5)
+const WATER_QUAD := Vector3(0.9, 1.2, 0.18)
+
+
 func _float(delta: float) -> void:
 	var xf := global_transform
+	var basis_n := xf.basis.orthonormalized()
 	var total := 0.0
-	var corners := [Vector3(-body_half.x, body_bottom, -body_half.z), Vector3(body_half.x, body_bottom, -body_half.z),
-		Vector3(-body_half.x, body_bottom, body_half.z), Vector3(body_half.x, body_bottom, body_half.z)]
+	var n := PROBES_X.size() * PROBES_Z.size()
+	var height := body_half.y * 2.0
 	var leak := clampf(1.0 - maxf(0.0, _water_time - float_time) / sink_time, 0.2, 1.0)
-	for c in corners:
-		var p: Vector3 = xf * c
-		var ground: float = world_data.height_at(p.x, p.z) if world_data else WL.height(p.x, p.z)
-		var depth := WL.SEA_LEVEL - ground
-		if depth <= 0.0:
-			continue
-		var ws := Waves.surface(p.x, p.z, depth)
-		var d := ws - p.y
-		if d <= 0.0:
-			continue
-		var k := clampf(d / (body_half.y * 2.0), 0.0, 1.0)
-		total += k / 4.0
-		var lift := mass * 9.8 / 4.0 * buoyancy * leak * k * 1.6
-		var offset := p - global_position
-		var v := linear_velocity + angular_velocity.cross(offset)
-		apply_force(Vector3.UP * lift - v * water_drag * mass / 4.0 * k, offset)
+	var weight_share := mass * 9.8 / n
+	for px in PROBES_X:
+		for pz in PROBES_Z:
+			var p: Vector3 = xf * Vector3(px * body_half.x, body_bottom, pz * body_half.z)
+			var ground: float = world_data.height_at(p.x, p.z) if world_data else WL.height(p.x, p.z)
+			var depth := WL.SEA_LEVEL - ground
+			if depth <= 0.0:
+				continue
+			var ws := Waves.surface(p.x, p.z, depth)
+			var k := clampf((ws - p.y) / height, 0.0, 1.0)
+			if k <= 0.0:
+				continue
+			total += k / n
+			var offset := p - global_position
+			var lift := weight_share * buoyancy * leak * k * 1.6
+			# Vitesse de la caisse par rapport à l'eau, dans le repère de la voiture.
+			var rel := linear_velocity + angular_velocity.cross(offset) - Waves.velocity(p.x, p.z, depth)
+			var lv := basis_n.inverse() * rel
+			var f := -(WATER_LIN * lv + WATER_QUAD * lv * lv.abs()) * mass / n * k
+			apply_force(Vector3.UP * lift + basis_n * f, offset)
 	submerged = total
 	in_water = total > 0.05
 	if in_water:
 		_water_time += delta
-		# Les vagues poussent doucement vers la plage (elles viennent du large, à l'est).
-		apply_central_force(Vector3(-1.0, 0.0, 0.1) * mass * 0.6 * total)
 	else:
 		_water_time = maxf(0.0, _water_time - delta * 2.0)
 	_sunk_time = _sunk_time + delta if total > 0.9 else 0.0
-	angular_damp = lerpf(0.5, 2.5, total)
+	angular_damp = lerpf(0.5, 1.2, total)
 	linear_damp = 0.05
 
 
 ## Sol meuble et eau peu profonde :
-## - la roue s'enfonce dans son ornière (suspension raccourcie d'autant, dessin de la roue
-##   abaissé) : la voiture roule vraiment dans ses traces ;
-## - résistance au roulement selon le sol, plus forte quand la roue est enfoncée ;
+## - résistance au roulement selon le sol, plus forte dans une ornière profonde ;
 ## - dans l'eau, chaque roue pousse l'eau devant elle (frein qui croît avec la vitesse au
 ##   carré et la hauteur d'eau).
 func _ground_resistance(delta: float) -> void:
 	var g := mass * 9.8 / 4.0
 	for i in 4:
 		var w := wheels[i]
-		var sink := 0.0
-		if w.is_in_contact():
-			sink = clampf(wheel_sink[i], 0.0, 0.22)
-		var cur := WHEEL_REST - w.wheel_rest_length
-		cur = move_toward(cur, sink, delta * 0.6)
-		w.wheel_rest_length = WHEEL_REST - cur
-		var mesh := w.get_child(0) as Node3D
-		if mesh:
-			mesh.position.y = _wheel_mesh_y[i] - cur
 		if not w.is_in_contact():
 			continue
 		var p := w.get_contact_point()
@@ -538,7 +557,7 @@ func _ground_resistance(delta: float) -> void:
 		if speed < 0.05:
 			continue
 		var dir := v / speed
-		var coef: float = ROLLING[wheel_surface[i]] + cur * 1.2
+		var coef: float = ROLLING[wheel_surface[i]] + clampf(wheel_sink[i], 0.0, 0.2) * 0.8
 		apply_force(-dir * coef * g * minf(1.0, speed), offset)
 		if p.y < WL.SEA_LEVEL + 0.6:
 			var depth: float = WL.SEA_LEVEL - (world_data.height_at(p.x, p.z) if world_data else WL.height(p.x, p.z))

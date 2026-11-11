@@ -14,11 +14,8 @@ const Car = preload("res://scripts/balade/car.gd")
 @export var force_quality := -1
 var low_quality := false
 var _sea_materials: Array[ShaderMaterial] = []
-const WAKE_PATCH := 48.0
 var _wake_patch: MeshInstance3D
-var _wake_timer := 0.0
-var _wake_last_vy := 0.0
-var _wake_dry := true
+var water_sim: Node
 var _plow_last: Array = []
 var _plow_amount := 0.0
 var _plow_point := Vector3.ZERO
@@ -63,7 +60,7 @@ func _ready() -> void:
 	ruts = load("res://scripts/balade/ruts.gd").new()
 	ruts.name = "Ornieres"
 	add_child(ruts)
-	ruts.mesh_step = 0.2
+	ruts.mesh_step = 0.3
 	ruts.build(terrain.material())
 	_sea_materials = WorldBuilder.build_sea(self, data, terrain.height_texture())
 	_build_wake_patch()
@@ -146,13 +143,12 @@ func _process(delta: float) -> void:
 		car.queue_free()
 		_spawn(pos, yaw)
 		return
-	_follow_wake_patch()
+	_follow_wake_patch(delta)
 	for m in _sea_materials:
 		m.set_shader_parameter("now", Waves.now())
-		m.set_shader_parameter("wakes", Waves.wakes())
 	_wheel_effects(delta)
 	_splash(delta)
-	ruts.follow(car.global_position)
+	ruts.follow(car.global_position, car.linear_velocity / 15.0)
 	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
 	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
 	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
@@ -238,7 +234,6 @@ func _physics_process(delta: float) -> void:
 	if car == null:
 		return
 	_dig_ruts()
-	_emit_wake(delta)
 	_body_contact(delta)
 	var grounded := 0
 	for w in car.wheels:
@@ -332,18 +327,23 @@ func _body_contact(delta: float) -> void:
 		terrain.dent(_plow_point, 1.1, clampf(deepest + 0.05, 0.05, 0.2) * (0.5 if s2 == WL.Surface.DIRT else 1.0))
 
 
-## Pièce de mer fine qui suit la voiture près de l'eau : les vagues du sillage y ont du relief.
+## Mer fine (un sommet tous les 75 cm) posée sur la zone simulée : les vagues de la voiture
+## y ont du relief ; ailleurs la mer normale.
 func _build_wake_patch() -> void:
+	water_sim = load("res://scripts/balade/water_sim.gd").new()
+	water_sim.name = "SimulationEau"
+	add_child(water_sim)
+	water_sim.build(terrain.height_texture(), data)
 	var mat := _sea_materials[0].duplicate() as ShaderMaterial
 	mat.set_shader_parameter("is_patch", true)
 	_sea_materials.append(mat)
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(WAKE_PATCH, WAKE_PATCH)
-	var n := int(WAKE_PATCH / 0.6)
+	pm.size = Vector2(water_sim.SPAN, water_sim.SPAN)
+	var n := int(water_sim.SPAN / water_sim.SNAP)
 	pm.subdivide_width = n - 1
 	pm.subdivide_depth = n - 1
 	_wake_patch = MeshInstance3D.new()
-	_wake_patch.name = "Sillage"
+	_wake_patch.name = "MerFine"
 	_wake_patch.mesh = pm
 	_wake_patch.material_override = mat
 	_wake_patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -352,50 +352,36 @@ func _build_wake_patch() -> void:
 	add_child(_wake_patch)
 
 
-func _follow_wake_patch() -> void:
+## Près de l'eau : un pas de simulation (caisse et roues qui poussent l'eau), puis la mer
+## fine se cale sur la zone simulée.
+func _follow_wake_patch(delta: float) -> void:
 	var p := car.global_position
-	var near: bool = Waves.active() and (data.height_at(p.x, p.z) < WL.SEA_LEVEL + 2.0 or p.x > WL.BEACH_END - 10.0)
+	var near: bool = data.height_at(p.x, p.z) < WL.SEA_LEVEL + 2.0 or p.x > WL.BEACH_END - 10.0
 	var rect := Vector4(0, 0, -1, -1)
 	if near:
-		var c := Vector3(snappedf(p.x, 0.4), WL.SEA_LEVEL, snappedf(p.z, 0.4))
-		if not _wake_patch.visible or Vector2(c.x - _wake_patch.position.x, c.z - _wake_patch.position.z).length() > 6.0:
-			_wake_patch.position = c
-		var o := _wake_patch.position
-		rect = Vector4(o.x - WAKE_PATCH / 2.0, o.z - WAKE_PATCH / 2.0, WAKE_PATCH, WAKE_PATCH)
+		var depth: float = WL.SEA_LEVEL - data.height_at(p.x, p.z)
+		var surf := Waves.surface(p.x, p.z, depth)
+		var dip := clampf(surf - (p.y + car.body_bottom), 0.0, 1.2)
+		var stirs: Array[Vector4] = []
+		for w in car.wheels:
+			var wv := w as VehicleWheel3D
+			if wv.is_in_contact():
+				var c := wv.get_contact_point()
+				var wd := clampf(Waves.surface(c.x, c.z, WL.SEA_LEVEL - c.y) - c.y, 0.0, 0.8)
+				stirs.append(Vector4(c.x, c.z, 0.55, wd))
+			else:
+				stirs.append(Vector4.ZERO)
+		var h: Vector3 = car.body_half
+		water_sim.step(p, p, car.global_basis.z, Vector2(h.x, h.z), dip, stirs, delta)
+		rect = water_sim.rect()
+		_wake_patch.position = Vector3(rect.x + rect.z / 2.0, WL.SEA_LEVEL, rect.y + rect.w / 2.0)
+	else:
+		water_sim.active = false
 	_wake_patch.visible = near
 	for m in _sea_materials:
 		m.set_shader_parameter("patch_rect", rect)
-
-
-## Sillage : quand la caisse ou les roues fendent l'eau, de nouvelles ondes partent de
-## l'avant et des flancs (plus fortes à grande vitesse) ; un plongeon fait un grand cercle.
-func _emit_wake(delta: float) -> void:
-	var p := car.global_position
-	var depth: float = WL.SEA_LEVEL - data.height_at(p.x, p.z)
-	if depth <= 0.03:
-		_wake_timer = 0.0
-		return
-	var surf := Waves.surface(p.x, p.z, depth)
-	var bottom: float = p.y + car.body_bottom
-	var dip: float = surf - bottom
-	if dip <= -0.15:
-		return
-	var vy := car.linear_velocity.y
-	if vy < -3.0 and _wake_last_vy >= -3.0 or (dip > 0.0 and _wake_dry):
-		# Entrée dans l'eau : un grand cercle.
-		Waves.emit(p.x, p.z, clampf(-vy * 0.06 + car.linear_velocity.length() * 0.01, 0.1, 0.5))
-	_wake_dry = dip <= 0.0
-	_wake_last_vy = vy
-	var speed := Vector2(car.linear_velocity.x, car.linear_velocity.z).length()
-	if speed < 1.0:
-		return
-	_wake_timer -= delta
-	if _wake_timer > 0.0:
-		return
-	_wake_timer = clampf(2.0 / speed, 0.14, 0.3)
-	var bow: Vector3 = p + car.global_basis.z * car.body_half.z * signf(car.global_basis.z.dot(car.linear_velocity))
-	var amp := clampf(speed * 0.012, 0.03, 0.22) * clampf(depth / 0.5, 0.3, 1.0)
-	Waves.emit(bow.x, bow.z, amp)
+		m.set_shader_parameter("sim_rect", rect)
+		m.set_shader_parameter("sim_tex", water_sim.texture())
 
 
 func _build_hud() -> void:
