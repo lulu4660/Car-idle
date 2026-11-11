@@ -44,7 +44,7 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 
 	# Rendu cinéma : ACES, image claire, halo léger sur les reflets.
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.92
+	env.tonemap_exposure = 1.0
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
@@ -91,12 +91,14 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 
 ## Mer : maillage fin le long de la côte (houle visible, vagues qui lèchent le sable)
 ## entouré de grands panneaux jusqu'à l'horizon.
-static func build_sea(parent: Node, data: RefCounted) -> void:
+static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/sea.gdshader")
-	mat.set_shader_parameter("depth_tex", ImageTexture.create_from_image(data.sea_image()))
+	mat.set_shader_parameter("height_tex", height_tex)
+	mat.set_shader_parameter("res", data.res)
+	mat.set_shader_parameter("world_size", WL.SIZE)
+	mat.set_shader_parameter("sea_level", WL.SEA_LEVEL)
 	var r := WorldData.SEA_RECT
-	mat.set_shader_parameter("depth_rect", Vector4(r.position.x, r.position.y, r.size.x, r.size.y))
 	var far_mat := mat.duplicate() as ShaderMaterial
 	far_mat.set_shader_parameter("wave_height", 0.0)
 	_sea_mesh(parent, mat, r, 2.0, 4.0)

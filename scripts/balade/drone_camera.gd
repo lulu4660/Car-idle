@@ -13,7 +13,7 @@ const MODE_NAMES: Array[String] = ["Drone", "Poursuite", "Travelling", "Plongée
 # Par plan : recul (m), recul à fond, hauteur, hauteur à fond, angle autour de la voiture (°), champ (°).
 const SHOTS := {
 	# Drone : haut et loin, presque à la verticale, comme une vidéo de drone.
-	Mode.DRONE: [22.0, 27.0, 23.0, 28.0, 25.0, 46.0],
+	Mode.DRONE: [20.0, 25.0, 26.0, 31.0, -32.0, 48.0],
 	Mode.CHASE: [10.0, 15.0, 4.6, 6.5, 22.0, 48.0],
 	Mode.SIDE: [13.0, 16.0, 4.0, 5.0, 95.0, 45.0],
 	Mode.TOP: [6.0, 10.0, 26.0, 32.0, 25.0, 50.0],

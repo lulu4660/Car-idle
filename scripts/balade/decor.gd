@@ -4,7 +4,7 @@ extends Node3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-const GRASS_COUNT := 4500
+const GRASS_COUNT := 3200
 const BIRDS := 9
 
 var data: RefCounted
@@ -51,7 +51,7 @@ func _build_grass() -> void:
 		var chance := (colony - 0.55) * 2.6 + near_beach * 0.3 + trough * 0.2
 		if rng.randf() > chance:
 			continue
-		var scale := rng.randf_range(0.7, 1.5) * (1.0 + near_beach * 0.4)
+		var scale := rng.randf_range(1.2, 2.4) * (1.0 + near_beach * 0.3)
 		var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.25, 0.25))
 		basis = basis.scaled(Vector3(scale, scale * rng.randf_range(0.8, 1.3), scale))
 		xforms.append(Transform3D(basis, Vector3(x, h - 0.05, z)))
@@ -74,8 +74,8 @@ func _build_grass() -> void:
 func _tuft_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var w := 0.9
-	var hgt := 1.15
+	var w := 0.6
+	var hgt := 1.0
 	for k in 3:
 		var a := k * PI / 3.0
 		var d := Vector3(cos(a), 0, sin(a)) * w
@@ -96,12 +96,12 @@ func _grass_texture() -> ImageTexture:
 	img.fill(Color(0, 0, 0, 0))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
-	for b in 160:
+	for b in 260:
 		var x0 := rng.randf_range(0.3, 0.7) * n
 		var lean := rng.randf_range(-0.6, 0.6) * n
 		var top := rng.randf_range(0.02, 0.5) * n
-		var base_col := Color(0.30, 0.24, 0.15).lerp(Color(0.50, 0.40, 0.25), rng.randf())
-		var tip_col := Color(0.78, 0.68, 0.48).lerp(Color(0.90, 0.82, 0.62), rng.randf())
+		var base_col := Color(0.36, 0.28, 0.17).lerp(Color(0.55, 0.43, 0.27), rng.randf())
+		var tip_col := Color(0.82, 0.69, 0.46).lerp(Color(0.95, 0.85, 0.62), rng.randf())
 		for y in range(int(top), n):
 			var t := (n - y) / float(n - top)
 			var x := int(x0 + lean * t * t)

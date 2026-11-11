@@ -4,8 +4,12 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back;
 
-uniform sampler2D depth_tex : filter_linear, repeat_disable;
-uniform vec4 depth_rect = vec4(290.0, -552.0, 420.0, 1104.0);
+// Profondeur lue dans la même carte des hauteurs que le terrain (1 texel = 1 m), interpolée
+// à la main : le rivage suit exactement le sable.
+uniform sampler2D height_tex : filter_nearest, repeat_disable;
+uniform float world_size = 1024.0;
+uniform int res = 1025;
+uniform float sea_level = 10.0;
 uniform vec3 deep_color : source_color = vec3(0.02, 0.16, 0.23);
 uniform vec3 shallow_color : source_color = vec3(0.10, 0.48, 0.47);
 uniform vec3 foam_color : source_color = vec3(0.95, 0.93, 0.88);
@@ -25,9 +29,17 @@ float vnoise(vec2 p) {
 }
 varying float depth;
 
+float hgt(ivec2 q) {
+	q = clamp(q, ivec2(0), ivec2(res - 1));
+	return texelFetch(height_tex, q, 0).r;
+}
+
 float water_depth(vec2 p) {
-	vec2 uv = (p - depth_rect.xy) / depth_rect.zw;
-	return texture(depth_tex, uv).r * 8.0;
+	vec2 g = clamp(p + vec2(world_size * 0.5), vec2(0.0), vec2(float(res) - 1.001));
+	ivec2 i = ivec2(floor(g));
+	vec2 f = g - vec2(i);
+	float h = mix(mix(hgt(i), hgt(i + ivec2(1, 0)), f.x), mix(hgt(i + ivec2(0, 1)), hgt(i + ivec2(1, 1)), f.x), f.y);
+	return clamp(sea_level - h, 0.0, 40.0);
 }
 
 // Houle : hauteur, pente x, pente z.
@@ -51,7 +63,9 @@ vec3 swell(vec2 p, float t) {
 void vertex() {
 	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	depth = water_depth(w.xz);
-	VERTEX.y += swell(w.xz, TIME).x * clamp(depth / 2.0, 0.0, 1.0);
+	// Houle en relief seulement au large : près du bord, la surface reste plane et le rivage
+	// suit exactement le sable (pas de marches dues au maillage).
+	VERTEX.y += swell(w.xz, TIME).x * smoothstep(3.0, 7.0, depth);
 	wpos = w;
 }
 
@@ -66,10 +80,11 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 
 	vec3 water = mix(shallow_color, deep_color, clamp(d / 6.0, 0.0, 1.0));
-	float shore = 1.0 - clamp(d / 0.9, 0.0, 1.0);
-	float surf = sin(d * 5.0 - t * 1.6 + sin(p.y * 0.08) * 2.0) * 0.5 + 0.5;
-	float foam = clamp(shore * 1.4 * (0.55 + 0.45 * surf), 0.0, 1.0);
-	foam = max(foam, smoothstep(0.6, 1.0, surf) * clamp(1.0 - d / 2.5, 0.0, 1.0) * 0.5);
+	// Bord : un liseré d'écume fin (quelques centimètres d'eau) qui monte et redescend.
+	float swash = 0.08 + 0.06 * sin(t * 0.9 + p.y * 0.05);
+	float shore = smoothstep(swash + 0.12, swash, d) * smoothstep(0.0, 0.03, d);
+	float lace = smoothstep(0.35, 0.75, vnoise(p * vec2(0.6, 0.25) + vec2(t * 0.3, 0.0)));
+	float foam = shore * (0.6 + 0.4 * lace);
 
 	// Écume au large : traînées et paquets blancs qui dérivent avec la houle.
 	vec2 fp = p * vec2(0.09, 0.05) + vec2(t * 0.03, 0.0);
@@ -77,10 +92,15 @@ void fragment() {
 	float specks = vnoise(p * 0.9 + vec2(t * 0.2, 0.0));
 	float sea_foam = smoothstep(0.70, 0.82, patches) * smoothstep(0.45, 0.8, specks) * clamp(d / 1.5, 0.0, 1.0);
 	foam = max(foam, sea_foam * 0.6);
+	// Vagues qui déferlent : des lignes d'écume avancent vers la plage et se brisent au bord.
+	float wave_phase = d * 0.55 + t * 0.12 + vnoise(p * 0.02) * 0.6;
+	float crest = smoothstep(0.90, 0.975, fract(wave_phase)) * (1.0 - smoothstep(0.975, 1.0, fract(wave_phase)));
+	float breakup = smoothstep(0.3, 0.7, vnoise(p * vec2(0.05, 0.3) + vec2(0.0, t * 0.1)));
+	foam = max(foam, crest * breakup * clamp(1.0 - d / 4.5, 0.0, 1.0) * clamp(d / 0.4, 0.0, 1.0));
 	ALBEDO = mix(water, foam_color, foam);
 	ROUGHNESS = mix(0.08, 0.6, foam);
 	METALLIC = 0.0;
 	SPECULAR = 0.35;
 	// Eau claire au bord : on voit le sable dessous sur les premiers mètres.
-	ALPHA = clamp(0.18 + d * 0.32 + foam, 0.0, 1.0);
+	ALPHA = clamp(0.12 + d * 0.28 + foam, 0.0, 1.0);
 }

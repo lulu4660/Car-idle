@@ -9,8 +9,8 @@ const HEIGHT_RES := 1025
 const SPLAT_RES := 512
 ## Zone détaillée de la mer, le long de la côte (x, z, largeur, profondeur en mètres).
 const SEA_RECT := Rect2(290.0, -552.0, 420.0, 1104.0)
-const SEA_W := 256
-const SEA_H := 512
+const SEA_W := 768
+const SEA_H := 2048
 
 var res := HEIGHT_RES
 var heights := PackedFloat32Array()

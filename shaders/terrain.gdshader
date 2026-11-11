@@ -10,6 +10,7 @@ uniform sampler2D splat_tex : filter_linear, repeat_disable;
 uniform float world_size = 1024.0;
 uniform int res = 1025;
 uniform float skirt = 2.0;
+uniform float sea_level = 10.0;
 
 uniform sampler2D asphalt_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D asphalt_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -25,8 +26,8 @@ uniform vec4 max_smoothness = vec4(0.25, 0.08, 0.05, 0.35);
 uniform vec3 sand_tint : source_color = vec3(1.22, 1.02, 0.78);
 // Sable de dune vu du ciel : deux teintes mêlées à grande échelle, le grain de la photo
 // seulement en léger relief (comme vu d'un drone).
-uniform vec3 sand_light : source_color = vec3(0.86, 0.66, 0.42);
-uniform vec3 sand_dark : source_color = vec3(0.74, 0.53, 0.33);
+uniform vec3 sand_light : source_color = vec3(0.92, 0.75, 0.50);
+uniform vec3 sand_dark : source_color = vec3(0.82, 0.62, 0.40);
 uniform float sand_detail = 0.18;
 // Rides du vent sur le sable : hauteur et longueur d'onde (m).
 uniform float ripple_strength = 0.16;
@@ -93,6 +94,9 @@ void fragment() {
 	// Sable de dune : teinte douce à grande échelle ; la photo ne garde que sa luminosité, atténuée.
 	float macro = fbm2(wpos.xz / 70.0) * 0.7 + fbm2(wpos.xz / 13.0) * 0.3;
 	vec3 sand_base = mix(sand_dark, sand_light, smoothstep(0.25, 0.8, macro));
+	// Traînées de vent : bandes claires et sombres très étirées, comme sur les dunes filmées d'en haut.
+	float streak = fbm2(vec2(wpos.x / 9.0, wpos.z / 55.0) + vec2(wpos.z / 140.0, 0.0));
+	sand_base *= mix(0.94, 1.05, streak);
 	float grain = dot(c2.rgb, vec3(0.333)) / 0.45;
 	c2.rgb = sand_base * mix(1.0, clamp(grain, 0.7, 1.3), sand_detail * (1.0 - far * 0.7));
 	// Rides du vent, perpendiculaires au vent d'ouest, ondulées ; elles s'effacent au loin.
@@ -100,17 +104,20 @@ void fragment() {
 	float warp = sin(q.y * 0.21 + sin(q.x * 0.13) * 1.7) * 0.9 + sin(q.y * 0.53 + q.x * 0.07) * 0.35 + sin(q.y * 1.7 + q.x * 0.3) * 0.12;
 	float ph = (q.x + warp) / ripple_length * 6.28318;
 	float ripple = cos(ph) + 0.35 * cos(ph * 2.0 + 0.6);
-	float near_k = 1.0 - smoothstep(10.0, 80.0, dist);
+	float near_k = 1.0 - smoothstep(3.0, 20.0, dist);
 	vec3 rip = vec3(0.5 - ripple * ripple_strength * near_k * 0.5, 0.5, 1.0);
 	// Relief de la photo très adouci : le sable de dune est lisse, seules les rides le marquent.
 	n2 = mix(vec3(0.5, 0.5, 1.0), n2, 0.35);
 	n2 = mix(n2, rip, 0.6 * near_k);
 	vec4 c = c0 * w.r + c1 * w.g + c2 * w.b + c3 * w.a;
+	// Sable mouillé au bord de l'eau : plus sombre et un peu luisant, jusqu'à 60 cm au-dessus de la mer.
+	float wet_band = smoothstep(sea_level + 0.6, sea_level + 0.05, wpos.y);
+	c.rgb *= mix(1.0, 0.68, wet_band);
 	ALBEDO = c.rgb;
 	NORMAL_MAP = n0 * w.r + n1 * w.g + n2 * w.b + n3 * w.a;
 	// Au loin, reliefs fins atténués (pas de scintillement).
 	NORMAL_MAP_DEPTH = mix(0.8, 0.3, far);
 	float smooth_max = dot(w, max_smoothness);
-	ROUGHNESS = 1.0 - clamp(c.a, 0.0, 1.0) * smooth_max * 4.0;
+	ROUGHNESS = mix(1.0 - clamp(c.a, 0.0, 1.0) * smooth_max * 4.0, 0.45, wet_band);
 	SPECULAR = 0.3;
 }

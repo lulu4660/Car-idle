@@ -115,6 +115,10 @@ func _grid_mesh(n: int, step: int) -> ArrayMesh:
 	return mesh
 
 
+func height_texture() -> Texture2D:
+	return _height_tex
+
+
 ## Creuse une cuvette (profil en cloche) bordée d'un léger bourrelet, autour de `world`.
 func dent(world: Vector3, radius: float, depth: float) -> void:
 	var res: int = data.res
