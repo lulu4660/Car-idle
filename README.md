@@ -57,6 +57,17 @@ La licence de l'Asset Store interdit de republier ses fichiers dans un dépôt p
 
 Première voiture du prototype : [Realistic Mobile Car #26 (Demo)](https://assetstore.unity.com/packages/3d/vehicles/land/realistic-mobile-car-26-demo-305319) (gratuite, design sans marque réelle).
 
+## Outils de Claude (facultatif)
+
+Le projet contient des skills pour Claude Code (`.claude/skills/`). Pour que graphify (carte du code) marche sur le PC :
+
+```
+winget install astral-sh.uv
+uv tool install graphifyy
+```
+
+Pour taste-skill (pages web), installer aussi Node.js : `winget install OpenJS.NodeJS.LTS`.
+
 ## Tests sans Unity
 
 ```

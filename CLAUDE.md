@@ -49,3 +49,19 @@ Le prototype Godot (dépôt lulu4660/garage-spotter) sert de référence : formu
 
 ## Agents (.claude/agents/)
 unity-dev (code Unity), vehicle-physics (ressenti de conduite, caméra drone), economy-balancer (simulation avant tout équilibrage), asset-scout (modèles 3D et licences), mobile-perf (60 i/s sur iPhone), build-release (build web, plus tard TestFlight), art-director (relecture DA), playtester-qa (tests sur la version web), supabase-backend (serveur, étape 7), store-compliance (conformité).
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
+
+## Skills (.claude/skills/)
+- `ui-ux-pro-max` (MIT, nextlevelbuilder) : règles et données d'interface (accessibilité, tactile, couleurs, typo). Pensé pour le web : en garder les règles mobiles pour l'interface Unity, en respectant la DA ci-dessus.
+- `design-taste-frontend` (taste-skill, MIT, Leonxlnx) : pages web soignées (site vitrine, page de présentation du jeu). Son hook de fin ne fait rien hors d'une page en cours ; il demande Node 22+.
+- `graphify` (Apache-2.0) : graphe du code dans `graphify-out/` ; il faut la commande `graphify` (`uv tool install graphifyy`), sinon ses hooks ne font rien. `.graphifyignore` limite le graphe au jeu.

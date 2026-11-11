@@ -1,0 +1,6 @@
+# Le graphe ne couvre que le jeu : pas les skills, les assets binaires ni les sorties.
+.claude/
+graphify-out/
+Assets/Resources/
+Assets/Store/
+Library/
