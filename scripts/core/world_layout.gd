@@ -26,7 +26,7 @@ const BLOCK_SIZE := 60.0
 const STREET_WIDTH := 16.0
 
 ## Départ de la voiture : au pied des dunes, au bord de la plage (la mer à l'est).
-const SPAWN_X := 340.0
+const SPAWN_X := 360.0
 const SPAWN_Z := 0.0
 
 const SURFACE_NAMES: Array[String] = ["Bitume", "Terre", "Sable", "Sable mouillé", "Eau"]
