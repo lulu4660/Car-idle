@@ -22,7 +22,7 @@ Les fichiers de Unity restés dans le dossier (`Assets`, `Library`, `Packages`, 
 - Transmissions : la sportive, la berline et la police sont des propulsions (elles dérapent sous les gaz), le SUV est un 4x4, le taxi et le van des tractions.
 - Réceptions de saut : le sable se creuse sous les roues, gerbe de sable et secousse de caméra.
 - Réglages de conduite : pendant le jeu, onglet **Remote** de l'arbre de scène > `Voiture` : `drift`, `counter_steer`, `tyre_grip`, `engine_force_total`… (les valeurs changées en jeu sont perdues à l'arrêt : noter celles qui plaisent).
-- Voitures provisoires : voitures low poly « toon » (CC-BY 4.0, crédits dans `assets/cars/toon/CREDITS.txt`). Textures de sol et ciel : [Poly Haven](https://polyhaven.com) (CC0). Arbres, cactus, rochers : [Nature Kit de Kenney](https://kenney.nl/assets/nature-kit) (CC0).
+- Voitures : « Free Low Poly Vehicles Pack » de RgsDev (CC-BY 4.0, [Sketchfab](https://sketchfab.com/3d-models/free-low-poly-vehicles-pack-cb7640039e7a40679a53be705ebff50e), crédits dans `assets/cars/rgs/CREDITS.txt`). Textures de sol et ciel : [Poly Haven](https://polyhaven.com) (CC0). Arbres, cactus, rochers : [Nature Kit de Kenney](https://kenney.nl/assets/nature-kit) (CC0).
 
 ## Jouer sur iPhone
 

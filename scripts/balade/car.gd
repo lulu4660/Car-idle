@@ -11,19 +11,21 @@ const Waves = preload("res://scripts/balade/waves.gd")
 enum Drivetrain { ALL_WHEEL, REAR_WHEEL, FRONT_WHEEL }
 const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
 
-## Voitures « toon » (style low poly en couleurs unies) : citadine et berline du pack
-## « 4 Low Poly Toon City Cars » (Viktor Tselikov) et pick-up (farooq.smurf), CC-BY 4.0.
-## Valeur : fichier, nom des pièces à garder dans le pack, longueur réelle (m).
+## Voitures low poly du « Free Low Poly Vehicles Pack » (RgsDev, CC-BY 4.0, crédits dans
+## assets/cars/rgs/) : un seul fichier, chaque véhicule = un nœud et ses quatre roues
+## (« <nom> wheel front left »...). Valeur : nom du véhicule dans le pack, longueur réelle (m).
+const PACK := "res://assets/cars/rgs/vehicles.glb"
 const TOON := {
-	"toon_hatchback": ["res://assets/cars/toon/toon4.glb", "Hatchback", 3.7],
-	"toon_sedan": ["res://assets/cars/toon/toon4.glb", "Sedan", 4.0],
-	"toon_pickup": ["res://assets/cars/toon/pickup.glb", "", 4.4],
+	"citadine": ["Hatchback", 3.9], "berline": ["Sedan", 4.6], "sportive": ["Sports", 4.4],
+	"muscle": ["Muscle", 4.8], "muscle_gt": ["Muscle 2", 4.8], "roadster": ["Roadster", 4.0],
+	"pickup": ["Pickup", 5.2], "suv": ["SUV", 4.7], "monstre": ["Monster Truck", 5.0],
 }
-## Pour l'instant, seulement les voitures low poly (même style que le décor).
-const MODELS: Array[String] = ["toon_hatchback", "toon_sedan", "toon_pickup"]
+const MODELS: Array[String] = ["sportive", "citadine", "berline", "muscle", "muscle_gt", "roadster", "pickup", "suv", "monstre"]
 ## Nom affiché de chaque voiture (noms de jeu, jamais de marque réelle).
 const DISPLAY_NAMES := {
-	"toon_hatchback": "Citadine", "toon_sedan": "Berline", "toon_pickup": "Pick-up"}
+	"citadine": "Citadine", "berline": "Berline", "sportive": "Sportive", "muscle": "Muscle",
+	"muscle_gt": "Muscle GT", "roadster": "Roadster", "pickup": "Pick-up", "suv": "Tout-terrain",
+	"monstre": "Monstre"}
 ## Noms possibles des roues, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_NAMES: Array = [
 	["wheel-front-left", "WheelFrontL"], ["wheel-front-right", "WheelFrontR"],
@@ -34,10 +36,12 @@ const HIDDEN_PARTS: Array[String] = ["License Plate", "Numberplate", "Badges", "
 ## Repères des roues dans les noms des maillages : avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_TAGS: Array = [["_FL"], ["_FR"], ["_RL", "_BL", "R L"], ["_RR", "_BR", "R R"]]
 const WHEEL_TAGS_FRONT: Array = [["F L"], ["F R"]]
+## Roues du pack RgsDev : nœud entier (pneu + jante) « <nom> wheel front left »...
+const WHEEL_WORDS: Array[String] = ["wheel front left", "wheel front right", "wheel rear left", "wheel rear right"]
 
 
-static func model_path(model: String) -> String:
-	return TOON[model][0]
+static func model_path(_model: String) -> String:
+	return PACK
 
 @export_group("Moteur et freins")
 @export var engine_force_total := 11500.0
@@ -54,17 +58,17 @@ static func model_path(model: String) -> String:
 @export var steer_fade_kmh := 120.0
 @export_group("Adhérence et dérapage")
 ## Adhérence des pneus sur le bitume (friction_slip de Godot) ; multipliée par le sol.
-@export var tyre_grip := 3.0
+@export var tyre_grip := 2.6
 ## 0 = sage, 1 = très joueur : perte d'adhérence de l'arrière sous les gaz et au frein à main.
-@export_range(0.0, 1.0) var drift := 0.6
+@export_range(0.0, 1.0) var drift := 0.75
 ## Les roues avant suivent la glisse : dérapages rattrapables au doigt.
 @export_range(0.0, 1.0) var counter_steer := 0.55
-@export var max_drift_deg := 48.0
+@export var max_drift_deg := 54.0
 @export var drift_yaw_assist := 1.2
-@export var lateral_assist := 0.8
+@export var lateral_assist := 0.65
 ## Glisse qui garde la vitesse : en travers, gaz appuyé, la voiture est poussée dans le sens
 ## où elle va (compense le frottement des pneus de côté), comme dans un jeu de rallye.
-@export var slide_keep := 1.0
+@export var slide_keep := 1.4
 @export var downforce := 2.0
 ## Aide à rester sur ses roues : redresse doucement la caisse et amortit le roulis.
 @export var upright_assist := 2.5
@@ -112,13 +116,15 @@ var _safe_timer := 0.0
 static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	var scene: PackedScene = load(model_path(model))
 	var visual: Node3D = scene.instantiate()
-	# Pack de plusieurs voitures : on ne garde que les pièces de celle demandée.
-	if TOON.has(model) and String(TOON[model][1]) != "":
-		var keep := String(TOON[model][1])
-		for m in visual.find_children("*", "MeshInstance3D", true, false):
-			if not String(m.name).contains(keep):
-				m.get_parent().remove_child(m)
-				m.queue_free()
+	# Pack de plusieurs véhicules : on ne garde que le nœud du véhicule demandé et ses roues.
+	var keep := String(TOON[model][0])
+	var root := visual.find_child("RootNode", true, false)
+	if root:
+		for n in root.get_children():
+			var nm := String(n.name)
+			if nm != keep and not nm.begins_with(keep + " wheel"):
+				root.remove_child(n)
+				n.queue_free()
 	var car: VehicleBody3D = load("res://scripts/balade/car.gd").new()
 	car.name = "Voiture"
 	car.model_name = model
@@ -135,6 +141,10 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	var wheel_nodes: Array[Node3D] = []
 	for k in 4:
 		var found: Node3D = null
+		var whole := visual.find_child(keep + " " + WHEEL_WORDS[k], true, false) as Node3D
+		if whole:
+			wheel_nodes.append(whole)
+			continue
 		for n in WHEEL_NAMES[k]:
 			found = visual.find_child(n, true, false) as Node3D
 			if found:
@@ -161,7 +171,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	visual.rotate_y(fwd.signed_angle_to(Vector3.BACK, Vector3.UP))
 	# 2. Taille : longueur réelle d'une voiture.
 	var b := _bounds(visual, car)
-	var length: float = TOON[model][2]
+	var length: float = TOON[model][1]
 	var s := length / maxf(b.size.z, 0.01)
 	visual.scale *= s
 	visual.position *= s
@@ -228,15 +238,15 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		car._wheel_base.append(mesh.position)
 
 	car.drive = _drivetrain_of(model)
-	if model == "toon_pickup":
-		car.drift = 0.45
+	if model in ["pickup", "suv", "monstre"]:
+		car.drift = 0.6
 	return car
 
 
 static func _drivetrain_of(model: String) -> int:
 	match model:
-		"toon_hatchback": return Drivetrain.FRONT_WHEEL
-		"toon_pickup": return Drivetrain.ALL_WHEEL
+		"citadine": return Drivetrain.FRONT_WHEEL
+		"pickup", "suv", "monstre": return Drivetrain.ALL_WHEEL
 	return Drivetrain.REAR_WHEEL
 
 
@@ -390,7 +400,7 @@ func _physics_process(delta: float) -> void:
 		var loss := 1.0
 		if not front:
 			# L'arrière décroche un peu avant l'avant : la voiture pivote et glisse.
-			loss *= 0.97
+			loss *= 0.92
 			if handbrake:
 				loss = lerpf(0.45, 0.25, drift)
 			loss *= 1.0 - 0.5 * power_oversteer
