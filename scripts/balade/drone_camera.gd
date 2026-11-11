@@ -7,11 +7,14 @@ extends Camera3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-enum Mode { DRONE, CHASE, SIDE, TOP }
-const MODE_NAMES: Array[String] = ["Drone", "Poursuite", "Travelling", "Plongée"]
+enum Mode { RALLY, DRONE, CHASE, SIDE, TOP }
+const MODE_NAMES: Array[String] = ["Rallye", "Drone", "Poursuite", "Travelling", "Plongée"]
 
 # Par plan : recul (m), recul à fond, hauteur, hauteur à fond, angle autour de la voiture (°), champ (°).
 const SHOTS := {
+	# Rallye (par défaut) : très haut, regard plongeant (~60°), la voiture dans le tiers bas
+	# de l'écran et le virage suivant bien visible devant elle.
+	Mode.RALLY: [8.0, 11.0, 15.0, 19.0, 0.0, 40.0],
 	# Drone : haut et loin, presque à la verticale, comme une vidéo de drone.
 	Mode.DRONE: [15.0, 19.0, 17.0, 21.0, -40.0, 50.0],
 	Mode.CHASE: [10.0, 15.0, 4.6, 6.5, 22.0, 48.0],
@@ -21,7 +24,7 @@ const SHOTS := {
 
 var target: VehicleBody3D
 var world_data: RefCounted
-var mode := Mode.DRONE
+var mode := Mode.RALLY
 var speed_for_max := 140.0
 var follow_time := 0.35
 var yaw_sharpness := 2.0
@@ -82,11 +85,24 @@ func _physics_process(delta: float) -> void:
 		_shake = move_toward(_shake, 0.0, delta * 2.5)
 	global_position = pos
 
-	var look := t.origin + Vector3.UP * 0.8 + flat * (0.3 if mode == Mode.TOP or mode == Mode.DRONE else 0.18)
+	var ahead := 0.18
+	if mode == Mode.TOP or mode == Mode.DRONE:
+		ahead = 0.3
+	elif mode == Mode.RALLY:
+		# On regarde devant la voiture : plus loin quand elle va vite.
+		ahead = 0.42
+	var look := t.origin + Vector3.UP * 0.8 + flat * ahead
 	if look.distance_to(pos) > 0.1:
 		var want := global_transform.looking_at(look, Vector3.UP)
 		global_basis = global_basis.slerp(want.basis, 1.0 - exp(-8.0 * delta)).orthonormalized()
-	fov = lerpf(fov, shot[5] + k * 6.0, 1.0 - exp(-3.0 * delta))
+	# Téléphone tenu droit : le champ est réglé en largeur (sinon la route sort de l'écran).
+	var vp := get_viewport().get_visible_rect().size
+	var portrait := vp.x < vp.y
+	keep_aspect = Camera3D.KEEP_WIDTH if portrait else Camera3D.KEEP_HEIGHT
+	var want_fov: float = shot[5] + k * 6.0
+	if portrait:
+		want_fov += 6.0
+	fov = lerpf(fov, want_fov, 1.0 - exp(-3.0 * delta))
 
 
 func _desired(car: Vector3, dist: float, height: float, side_deg: float) -> Vector3:

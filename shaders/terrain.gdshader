@@ -24,10 +24,10 @@ uniform float rut_depth = 0.3;
 uniform float rut_berm = 0.12;
 
 // Couleurs unies du style low poly, par sol.
-uniform vec3 sand_light : source_color = vec3(0.88, 0.72, 0.50);
-uniform vec3 sand_dark : source_color = vec3(0.81, 0.63, 0.43);
-uniform vec3 dirt_light : source_color = vec3(0.64, 0.46, 0.31);
-uniform vec3 dirt_dark : source_color = vec3(0.54, 0.38, 0.26);
+uniform vec3 sand_light : source_color = vec3(0.82, 0.62, 0.49);
+uniform vec3 sand_dark : source_color = vec3(0.73, 0.53, 0.43);
+uniform vec3 dirt_light : source_color = vec3(0.62, 0.42, 0.32);
+uniform vec3 dirt_dark : source_color = vec3(0.52, 0.35, 0.27);
 uniform vec3 asphalt_color : source_color = vec3(0.30, 0.30, 0.33);
 uniform vec3 wet_color : source_color = vec3(0.70, 0.55, 0.39);
 
@@ -133,5 +133,5 @@ void fragment() {
 	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	ROUGHNESS = mix(0.95, 0.5, wet_band);
-	SPECULAR = 0.25;
+	SPECULAR = 0.0;
 }

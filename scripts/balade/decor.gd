@@ -177,13 +177,13 @@ func _build_props() -> void:
 		var x := WL.DUNES_END + WL.shore_offset(z) + rng.randf_range(10.0, 45.0)
 		var kind: String = ["log", "log", "log_large", "rock-sand-b", "tree-log"][rng.randi() % 5]
 		_place(body, kind, Vector2(x, z), rng.randf() * TAU, rng.randf_range(0.8, 1.2))
-	# Souches, cactus et rochers épars dans les dunes.
-	for i in 90:
+	# Souches et cactus à renverser, épars dans les dunes (le reste : vegetation.gd).
+	for i in 35:
 		var x := rng.randf_range(WL.DIRT_END + 10.0, WL.DUNES_END - 10.0)
 		var zz := rng.randf_range(-WL.SIZE / 2.0 + 40.0, WL.SIZE / 2.0 - 40.0)
 		if Vector2(x - WL.SPAWN_X, zz - WL.SPAWN_Z).length() < 30.0:
 			continue
-		var kind: String = ["stump_old", "cactus_short", "cactus_tall", "rock-sand-a", "rock-sand-c", "log_large"][rng.randi() % 6]
+		var kind: String = ["stump_old", "cactus_short", "cactus_tall", "log_large"][rng.randi() % 4]
 		_place(body, kind, Vector2(x, zz), rng.randf() * TAU, rng.randf_range(0.8, 1.3))
 
 

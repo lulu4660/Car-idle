@@ -16,6 +16,6 @@ void vertex() {
 void fragment() {
 	ALBEDO = COLOR.rgb;
 	ROUGHNESS = 0.9;
-	SPECULAR = 0.25;
+	SPECULAR = 0.0;
 	BACKLIGHT = COLOR.rgb * 0.25;
 }

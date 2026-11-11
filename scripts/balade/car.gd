@@ -402,6 +402,11 @@ func _physics_process(delta: float) -> void:
 		# Stabilité : on gomme une partie du glissement latéral, moins pendant un dérapage.
 		var lateral := vel.dot(right)
 		var assist := lateral_assist * (0.1 if handbrake else lerpf(1.0, 0.25, drifting * drift))
+		# Rallye : sur terre et sable, l'aide lâche plus tôt, la voiture glisse plus longtemps.
+		var loose := 0.0
+		for ws in wheel_surface:
+			loose += 0.25 if WL.is_soft(ws) else 0.0
+		assist *= lerpf(1.0, 0.6, loose)
 		apply_central_force(-right * lateral * assist * mass)
 		# Dérapage : frein à main ou gaz en propulsion font pivoter la voiture.
 		var kick := (1.0 if handbrake else 0.0) + power_oversteer * 0.6

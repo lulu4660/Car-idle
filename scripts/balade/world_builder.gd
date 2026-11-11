@@ -10,9 +10,11 @@ const WorldData = preload("res://scripts/balade/world_data.gd")
 ## par la lumière rasante sur les versants, image claire comme une vidéo de drone en plein jour.
 const SUN_ELEVATION := 34.0
 const SUN_AZIMUTH := 225.0  # degrés depuis le nord, dans le sens des aiguilles d'une montre
-const SUN_COLOR := Color(1.0, 0.95, 0.86)
+const SUN_COLOR := Color(1.0, 0.89, 0.76)
 ## Horizon : la brume légère s'y fond.
-const HAZE_COLOR := Color(0.78, 0.84, 0.88)
+const HAZE_COLOR := Color(0.88, 0.80, 0.78)
+## Lumière ambiante (couleur des ombres) : lavande, pour des ombres colorées sur le sol chaud.
+const SHADOW_TINT := Color(0.60, 0.60, 0.80)
 
 
 ## Direction vers le soleil (repère Godot : nord = -Z, est = +X).
@@ -39,13 +41,15 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	sky.sky_material = proc
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	# Style « rallye low poly » : ombres teintées (lavande) plutôt que grises, lumière mate.
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = SHADOW_TINT
 	env.ambient_light_energy = 0.75
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 
 	# Rendu cinéma : ACES, image claire, halo léger sur les reflets.
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.9
+	env.tonemap_exposure = 0.85
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
@@ -53,18 +57,18 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	env.glow_hdr_threshold = 1.4
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.14
-	env.adjustment_saturation = 1.0
+	env.adjustment_contrast = 1.0
+	env.adjustment_saturation = 0.9
 
-	# Brume légère : seulement le lointain se fond dans l'horizon.
+	# Brume chaude : le lointain se fond dans une lumière poudrée (perspective aérienne).
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 	env.fog_light_color = HAZE_COLOR
 	env.fog_light_energy = 1.0
-	env.fog_sun_scatter = 0.1
-	env.fog_density = 0.0007
-	env.fog_sky_affect = 0.0
-	env.fog_aerial_perspective = 0.3
+	env.fog_sun_scatter = 0.15
+	env.fog_density = 0.0022
+	env.fog_sky_affect = 0.35
+	env.fog_aerial_perspective = 0.4
 	# Ombres de contact (rendu Forward+ seulement).
 	env.ssao_enabled = true
 	env.ssao_radius = 1.2
@@ -77,7 +81,7 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Soleil"
 	sun.light_color = SUN_COLOR
-	sun.light_energy = 2.3
+	sun.light_energy = 1.8
 	sun.shadow_enabled = true
 	sun.shadow_bias = 0.05
 	sun.shadow_normal_bias = 1.0

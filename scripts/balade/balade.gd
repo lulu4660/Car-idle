@@ -29,6 +29,7 @@ var ruts: Node3D
 ## Largeur d'un pneu (m) pour les ornières.
 const TYRE_WIDTH := 0.28
 var decor: Node3D
+var vegetation: Node3D
 var controls: CanvasLayer
 var camera: Camera3D
 var car: VehicleBody3D
@@ -89,6 +90,10 @@ func _ready() -> void:
 	decor = load("res://scripts/balade/decor.gd").new()
 	decor.name = "Decor"
 	add_child(decor)
+	vegetation = load("res://scripts/balade/vegetation.gd").new()
+	vegetation.name = "Vegetation"
+	add_child(vegetation)
+	vegetation.build(data)
 
 	_build_hud()
 	model_index = maxi(0, Car.MODELS.find(start_model))
