@@ -15,6 +15,7 @@ var low_quality := false
 var target: Node3D
 var _birds: Array[Dictionary] = []
 var _bird_mat: ShaderMaterial
+var grass_material: ShaderMaterial
 var _clock := 0.0
 
 
@@ -31,6 +32,7 @@ func build(world_data: RefCounted, follow: Node3D) -> void:
 func _build_grass() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/grass.gdshader")
+	grass_material = mat
 	var mesh := _tuft_mesh()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
@@ -82,21 +84,15 @@ func _build_grass() -> void:
 			mm.set_instance_transform(i, Transform3D(list[i].basis, list[i].origin - center))
 			aabb = aabb.expand(list[i].origin - center)
 		mm.custom_aabb = aabb.grow(2.0)
-		# Deux copies : ombrée près de la caméra, sans ombre plus loin.
-		for near in [true, false]:
-			var mmi := MultiMeshInstance3D.new()
-			mmi.multimesh = mm
-			mmi.material_override = mat
-			mmi.position = center
-			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if near else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			# iPhone et web : ombres de l'herbe seulement tout près (passe d'ombre moins chère).
-			var shadow_range := GRASS_SHADOW_RANGE * (0.45 if low_quality else 1.0)
-			if near:
-				mmi.visibility_range_end = shadow_range
-			else:
-				mmi.visibility_range_begin = shadow_range
-				mmi.visibility_range_end = GRASS_RANGE * (0.75 if low_quality else 1.0)
-			add_child(mmi)
+		# Une seule copie par case (plus d'ombres en temps réel : l'herbe lit les ombres
+		# précalculées et celle de la voiture dans son shader).
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.position = center
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = GRASS_RANGE * (0.75 if low_quality else 1.0)
+		add_child(mmi)
 
 
 ## Touffe d'herbe low poly : 7 lames larges et pointues, taillées en facettes (chaque

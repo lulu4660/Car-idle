@@ -31,7 +31,8 @@ var _since_upload := 0.0
 
 ## `terrain_material` : le matériau du terrain ; la pièce en reçoit une copie en mode fin.
 func build(terrain_material: ShaderMaterial) -> void:
-	_image = Image.create(TEX, TEX, false, Image.FORMAT_RGBA8)
+	# Deux canaux seulement (creux, bourrelet) : deux fois moins à envoyer à la carte graphique.
+	_image = Image.create(TEX, TEX, false, Image.FORMAT_RG8)
 	_image.fill(Color(0, 0, 0, 1))
 	_texture = ImageTexture.create_from_image(_image)
 

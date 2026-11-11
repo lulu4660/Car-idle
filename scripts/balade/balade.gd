@@ -55,7 +55,7 @@ func _ready() -> void:
 	terrain = load("res://scripts/balade/terrain.gd").new()
 	terrain.name = "Terrain"
 	add_child(terrain)
-	terrain.near_range = 130.0 if low_quality else 180.0
+	terrain.near_range = 100.0 if low_quality else 180.0
 	terrain.cast_shadows = false
 	terrain.build(data)
 	terrain.material().set_shader_parameter("low_quality", low_quality)
@@ -158,6 +158,7 @@ func _process(delta: float) -> void:
 		_spawn(pos, yaw)
 		return
 	_follow_wake_patch(delta)
+	_update_car_shadow()
 	for m in _sea_materials:
 		m.set_shader_parameter("now", Waves.now())
 	_wheel_effects(delta)
@@ -415,6 +416,55 @@ func _follow_wake_patch(delta: float) -> void:
 	for m in _sea_materials:
 		m.set_shader_parameter("sim_rect", sim_rect)
 		m.set_shader_parameter("sim_tex", water_sim.texture())
+
+
+## Matériaux qui reçoivent les ombres (terrain, pièce des ornières, herbe).
+var _shadow_mats: Array[ShaderMaterial] = []
+var _car_shape: CollisionShape3D
+
+
+func _setup_shadows() -> void:
+	var tex: Texture2D = load("res://assets/balade/shadows.png")
+	_shadow_mats = [terrain.material()]
+	for m in ruts._materials:
+		if not _shadow_mats.has(m):
+			_shadow_mats.append(m)
+	if decor.grass_material:
+		_shadow_mats.append(decor.grass_material)
+	for m in _shadow_mats:
+		m.set_shader_parameter("static_shadow_tex", tex)
+
+
+## Ombre de la voiture : sa position, son orientation et deux boîtes (bas de caisse,
+## habitacle) dans son repère, données aux matériaux qui la reçoivent.
+func _update_car_shadow() -> void:
+	if _shadow_mats.is_empty():
+		_setup_shadows()
+	if _car_shape == null or not is_instance_valid(_car_shape) or _car_shape.get_parent() != car:
+		_car_shape = null
+		for c in car.get_children():
+			if c is CollisionShape3D:
+				_car_shape = c
+				break
+	var xf := car.global_transform
+	var inv := xf.affine_inverse()
+	var sun_l := (xf.basis.inverse() * WorldBuilder.sun_direction()).normalized()
+	var c: Vector3 = _car_shape.position if _car_shape else Vector3(0, 0.9, 0)
+	var h: Vector3 = car.body_half
+	var bottom: float = car.body_bottom
+	var top := c.y + h.y
+	var b1_min := Vector3(c.x - h.x, 0.15, c.z - h.z)
+	var b1_max := Vector3(c.x + h.x, bottom + (top - bottom) * 0.5, c.z + h.z)
+	var b2_min := Vector3(c.x - h.x * 0.86, bottom, c.z - h.z * 0.55)
+	var b2_max := Vector3(c.x + h.x * 0.86, top, c.z + h.z * 0.3)
+	for m in _shadow_mats:
+		m.set_shader_parameter("car_inv", Projection(inv))
+		m.set_shader_parameter("car_sun", sun_l)
+		m.set_shader_parameter("car_pos", xf.origin)
+		m.set_shader_parameter("box1_min", b1_min)
+		m.set_shader_parameter("box1_max", b1_max)
+		m.set_shader_parameter("box2_min", b2_min)
+		m.set_shader_parameter("box2_max", b2_max)
 
 
 func _build_hud() -> void:

@@ -82,7 +82,10 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	sun.name = "Soleil"
 	sun.light_color = SUN_COLOR
 	sun.light_energy = 1.8
-	sun.shadow_enabled = true
+	# Pas d'ombres en temps réel : le décor fixe a ses ombres précalculées
+	# (tools/bake_shadows.gd) et l'ombre de la voiture est calculée par le terrain
+	# (shaders/car_shadow.gdshaderinc). Plus rapide, et bords lisses partout.
+	sun.shadow_enabled = false
 	sun.shadow_bias = 0.05
 	sun.shadow_normal_bias = 1.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS

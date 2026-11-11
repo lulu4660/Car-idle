@@ -24,6 +24,8 @@ uniform sampler2D road_tex : filter_linear, repeat_disable;
 uniform float road_half = 5.0;
 uniform vec3 road_color : source_color = vec3(0.50, 0.32, 0.25);
 uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
+#include "res://shaders/car_shadow.gdshaderinc"
+varying float sun_vis;
 uniform float rut_depth = 0.3;
 uniform float rut_berm = 0.12;
 
@@ -141,10 +143,18 @@ void fragment() {
 		c *= mix(1.0, 0.86, clamp(-r0 / 0.08, 0.0, 1.0));
 	}
 	ALBEDO = c;
+	sun_vis = sun_visibility(wpos, world_size);
 	// Facettes low poly : la normale est celle du triangle de 1 m (calculée, pas dérivée de
 	// l'écran : identique sur le terrain, la pièce des ornières et les niveaux de détail).
 	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	ROUGHNESS = mix(0.95, 0.5, wet_band);
 	SPECULAR = 0.0;
+}
+
+
+// Éclairage : le soleil est masqué par les ombres (décor précalculé, voiture calculée) ;
+// la lumière ambiante (lavande) reste : ombres teintées comme avant, bords lisses.
+void light() {
+	DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * LIGHT_COLOR / PI * sun_vis;
 }
