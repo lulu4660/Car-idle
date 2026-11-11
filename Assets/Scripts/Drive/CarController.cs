@@ -4,15 +4,28 @@ using UnityEngine;
 namespace CarIdle.Drive
 {
     /// <summary>
-    /// Conduite arcade sur les WheelCollider de Unity : 4 roues motrices, braquage qui se
+    /// Conduite arcade sur les WheelCollider de Unity : 4 roues motrices, propulsion ou traction, braquage qui se
     /// réduit avec la vitesse, adhérence selon le sol (bitume, terre, sable, eau), frein à
-    /// main qui fait déraper l'arrière, aides discrètes (barres antiroulis, appui, stabilité)
+    /// main et gaz qui font déraper l'arrière, contre-braquage automatique, aides discrètes (barres antiroulis, appui, stabilité)
     /// et retour sur la route quand la voiture est sur le toit ou à la mer.
     /// Ordre des roues : avant gauche, avant droite, arrière gauche, arrière droite.
     /// </summary>
+    /// <summary>Roues motrices : 4 roues, propulsion (arrière) ou traction (avant).</summary>
+    public enum Drivetrain
+    {
+        AllWheel,
+        RearWheel,
+        FrontWheel,
+    }
+
     [RequireComponent(typeof(Rigidbody))]
     public class CarController : MonoBehaviour
     {
+        [Header("Transmission")]
+        public Drivetrain Drive = Drivetrain.AllWheel;
+        /// <summary>Part du couple envoyée à l'arrière en 4 roues motrices (sportive : plus d'arrière).</summary>
+        [Range(0f, 1f)] public float AwdRearShare = 0.65f;
+
         [Header("Moteur et freins")]
         public float MotorTorque = 900f;
         public float BrakeTorque = 2600f;
@@ -28,8 +41,17 @@ namespace CarIdle.Drive
         [Header("Aides")]
         public float AntiRoll = 9000f;
         public float Downforce = 2.5f;
-        public float LateralGrip = 1.6f;
-        public float DriftYawAssist = 1.1f;
+        /// <summary>Force qui gomme le glissement latéral hors dérapage (plus haut = plus collé).</summary>
+        public float LateralGrip = 1.1f;
+        public float DriftYawAssist = 1.6f;
+
+        [Header("Dérapage")]
+        /// <summary>0 = sage, 1 = très joueur : perte d'adhérence de l'arrière sous les gaz et au frein à main.</summary>
+        [Range(0f, 1f)] public float Drift = 0.6f;
+        /// <summary>Contre-braquage automatique (les roues avant suivent la glisse) : dérapages rattrapables au doigt.</summary>
+        [Range(0f, 1f)] public float CounterSteer = 0.55f;
+        /// <summary>Angle de glisse au-delà duquel la voiture est retenue pour ne pas partir en tête-à-queue.</summary>
+        public float MaxDriftAngle = 55f;
 
         public WheelCollider[] Wheels = new WheelCollider[4];
         public Transform[] WheelVisuals = new Transform[4];
@@ -44,6 +66,8 @@ namespace CarIdle.Drive
         public readonly Vector3[] ContactPoint = new Vector3[4];
         public readonly Vector3[] ContactNormal = new Vector3[4];
         public bool InWater { get; private set; }
+        /// <summary>Angle entre le nez de la voiture et sa trajectoire, en degrés (signe = côté).</summary>
+        public float SlipAngle { get; private set; }
 
         private Rigidbody _rb;
         private Quaternion[] _visualOffset;
@@ -96,7 +120,21 @@ namespace CarIdle.Drive
             if (drive > 0f && kmh > TopSpeedKmh) drive = 0f;
             if (drive < 0f && kmh > ReverseSpeedKmh) drive = 0f;
 
-            float steerAngle = steer * Mathf.Lerp(MaxSteerAngle, MinSteerAngle, kmh / SteerFadeSpeedKmh);
+            // Angle de glisse : la voiture va-t-elle là où pointe son nez ?
+            Vector3 flatVel = Vector3.ProjectOnPlane(velocity, transform.up);
+            SlipAngle = flatVel.magnitude > 3f && ForwardSpeed > 0f ? Vector3.SignedAngle(transform.forward, flatVel, transform.up) : 0f;
+            float drifting = Mathf.Clamp01((Mathf.Abs(SlipAngle) - 6f) / 20f);
+
+            // Braquage : réduit avec la vitesse, plus le contre-braquage automatique en glisse.
+            float maxSteer = Mathf.Lerp(MaxSteerAngle, MinSteerAngle, kmh / SteerFadeSpeedKmh);
+            float steerAngle = steer * Mathf.Lerp(maxSteer, MaxSteerAngle, drifting);
+            steerAngle += SlipAngle * CounterSteer * drifting;
+            steerAngle = Mathf.Clamp(steerAngle, -MaxSteerAngle - 10f, MaxSteerAngle + 10f);
+
+            float rearShare = Drive == Drivetrain.RearWheel ? 1f : Drive == Drivetrain.FrontWheel ? 0f : AwdRearShare;
+            // Sous les gaz, les roues arrière motrices décrochent (plus en propulsion).
+            float powerOversteer = Drift * rearShare * drive * Mathf.Clamp01((kmh - 20f) / 30f);
+
             int groundedCount = 0;
             for (int i = 0; i < 4; i++)
             {
@@ -128,11 +166,21 @@ namespace CarIdle.Drive
                 fwd.stiffness = 1.3f * grip;
                 wc.forwardFriction = fwd;
                 var side = wc.sidewaysFriction;
-                side.stiffness = 1.8f * grip * (!front && handbrake ? 0.4f : 1f);
+                float rearLoss = 1f;
+                if (!front)
+                {
+                    if (handbrake)
+                        rearLoss = Mathf.Lerp(0.45f, 0.25f, Drift);
+                    rearLoss *= 1f - 0.45f * powerOversteer;
+                    // En glisse, l'arrière reste un peu glissant : le dérapage dure.
+                    rearLoss *= 1f - 0.25f * Drift * drifting;
+                }
+                side.stiffness = 1.8f * grip * rearLoss;
                 wc.sidewaysFriction = side;
 
-                // 4 roues motrices ; sur sol mou, un peu moins de couple passe au sol.
-                wc.motorTorque = drive * MotorTorque * Mathf.Lerp(0.75f, 1f, grip);
+                // Couple réparti selon la transmission ; sur sol mou, un peu moins de couple passe.
+                float share = front ? 1f - rearShare : rearShare;
+                wc.motorTorque = drive * MotorTorque * 2f * share * Mathf.Lerp(0.75f, 1f, grip);
                 float b = brakeInput * BrakeTorque;
                 if (!front && handbrake) b = Mathf.Max(b, HandbrakeTorque);
                 wc.brakeTorque = b;
@@ -145,13 +193,22 @@ namespace CarIdle.Drive
             {
                 // Appui aérodynamique : la voiture colle au sol à haute vitesse.
                 _rb.AddForce(-transform.up * Downforce * velocity.sqrMagnitude, ForceMode.Force);
-                // Stabilité : on gomme une partie du glissement latéral, sauf en dérapage voulu.
+                // Stabilité : on gomme une partie du glissement latéral, moins pendant un dérapage.
                 float lateral = Vector3.Dot(velocity, transform.right);
-                float assist = handbrake ? 0.15f : LateralGrip;
+                float assist = LateralGrip * (handbrake ? 0.1f : Mathf.Lerp(1f, 0.25f, drifting * Drift));
                 _rb.AddForce(-transform.right * lateral * assist, ForceMode.Acceleration);
-                // Dérapage : le frein à main aide la voiture à tourner sur elle-même.
-                if (handbrake && kmh > 15f)
-                    _rb.AddTorque(transform.up * steer * DriftYawAssist, ForceMode.Acceleration);
+                // Dérapage : frein à main ou gaz en propulsion font pivoter la voiture.
+                float kick = (handbrake ? 1f : 0f) + powerOversteer * 0.6f;
+                if (kick > 0f && kmh > 15f)
+                    _rb.AddTorque(transform.up * steer * DriftYawAssist * Mathf.Min(1f, kick), ForceMode.Acceleration);
+                // Garde-fou : au-delà de l'angle maxi, on freine la rotation (pas de tête-à-queue involontaire).
+                float over = Mathf.Abs(SlipAngle) - MaxDriftAngle;
+                if (over > 0f)
+                {
+                    float yawRate = Vector3.Dot(_rb.angularVelocity, transform.up);
+                    if (Mathf.Sign(yawRate) == -Mathf.Sign(SlipAngle))
+                        _rb.AddTorque(-transform.up * yawRate * Mathf.Min(1f, over / 20f) * 6f, ForceMode.Acceleration);
+                }
             }
 
             // Mer : la voiture freine fort dans l'eau.

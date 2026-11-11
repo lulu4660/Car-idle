@@ -21,6 +21,9 @@ namespace CarIdle.EditorTools
             "Nature/Terrain/Standard",
             "Universal Render Pipeline/Lit",
             "Universal Render Pipeline/Terrain/Lit",
+            "Skybox/Procedural",
+            "CarIdle/Sea",
+            "CarIdle/Particle",
         };
 
         [MenuItem("Car Idle/Build web")]
@@ -28,6 +31,7 @@ namespace CarIdle.EditorTools
         {
             if (!System.IO.File.Exists(BaladeSceneMenu.ScenePath))
                 BaladeSceneMenu.WriteScene();
+            RenderSetup.Ensure();
             IncludeShaders();
 
             PlayerSettings.productName = "Car Idle";

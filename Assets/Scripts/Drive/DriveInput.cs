@@ -7,7 +7,7 @@ namespace CarIdle.Drive
 {
     /// <summary>
     /// Commandes de conduite : clavier (flèches ou ZQSD/WASD, espace = frein à main, R = replacer,
-    /// C = voiture suivante)
+    /// C = voiture suivante, V = plan de caméra suivant)
     /// et boutons tactiles dessinés à l'écran (gauche/droite en bas à gauche, gaz/frein en bas
     /// à droite, dérapage au-dessus). La souris compte comme un doigt, pour tester sur PC.
     /// Marche avec le nouveau système d'entrées comme avec l'ancien.
@@ -20,6 +20,7 @@ namespace CarIdle.Drive
         public bool Handbrake { get; private set; }
         public bool ResetRequested { get; private set; }
         public bool NextCarRequested { get; private set; }
+        public bool CameraRequested { get; private set; }
         public bool ShowTouchButtons = true;
 
         private float _steerSmooth;
@@ -34,8 +35,9 @@ namespace CarIdle.Drive
         private static readonly Rect DriftZone = new Rect(0.80f, 0.31f, 0.18f, 0.12f);
         private static readonly Rect ResetZone = new Rect(0.02f, 0.88f, 0.12f, 0.08f);
         private static readonly Rect CarZone = new Rect(0.86f, 0.88f, 0.12f, 0.08f);
+        private static readonly Rect CamZone = new Rect(0.72f, 0.88f, 0.12f, 0.08f);
 
-        private bool _left, _right, _gas, _brake, _drift, _resetWasDown, _carWasDown;
+        private bool _left, _right, _gas, _brake, _drift, _resetWasDown, _carWasDown, _camWasDown;
 
         private void Update()
         {
@@ -47,9 +49,10 @@ namespace CarIdle.Drive
             _drift = AnyIn(DriftZone);
             bool resetDown = AnyIn(ResetZone);
             bool carDown = AnyIn(CarZone);
+            bool camDown = AnyIn(CamZone);
 
             float kSteer = 0f, kGas = 0f, kBrake = 0f;
-            bool kDrift = false, kReset = false, kCar = false;
+            bool kDrift = false, kReset = false, kCar = false, kCam = false;
 #if ENABLE_INPUT_SYSTEM
             var k = Keyboard.current;
             if (k != null)
@@ -61,6 +64,7 @@ namespace CarIdle.Drive
                 kDrift = k.spaceKey.isPressed;
                 kReset = k.rKey.wasPressedThisFrame;
                 kCar = k.cKey.wasPressedThisFrame;
+                kCam = k.vKey.wasPressedThisFrame;
             }
 #elif ENABLE_LEGACY_INPUT_MANAGER
             if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.Q)) kSteer -= 1f;
@@ -70,6 +74,7 @@ namespace CarIdle.Drive
             kDrift = Input.GetKey(KeyCode.Space);
             kReset = Input.GetKeyDown(KeyCode.R);
             kCar = Input.GetKeyDown(KeyCode.C);
+            kCam = Input.GetKeyDown(KeyCode.V);
 #endif
             float steerTarget = Mathf.Clamp(kSteer + (_right ? 1f : 0f) - (_left ? 1f : 0f), -1f, 1f);
             // Le volant revient plus vite au centre qu'il ne braque : plus facile au doigt.
@@ -83,6 +88,8 @@ namespace CarIdle.Drive
             _resetWasDown = resetDown;
             NextCarRequested = kCar || (carDown && !_carWasDown);
             _carWasDown = carDown;
+            CameraRequested = kCam || (camDown && !_camWasDown);
+            _camWasDown = camDown;
         }
 
         private void ReadPointers()
@@ -153,6 +160,7 @@ namespace CarIdle.Drive
             DrawButton(DriftZone, "DÉRAPAGE", _drift);
             DrawButton(ResetZone, "REPLACER", false);
             DrawButton(CarZone, "VOITURE", false);
+            DrawButton(CamZone, "CAMÉRA", false);
         }
 
         private void DrawButton(Rect zone, string label, bool pressed)

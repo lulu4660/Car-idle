@@ -2,7 +2,10 @@
   "name": "CarIdle.Editor",
   "rootNamespace": "CarIdle.EditorTools",
   "references": [
-    "CarIdle.Drive"
+    "CarIdle.Drive",
+    "CarIdle.Core",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime"
   ],
   "includePlatforms": [
     "Editor"

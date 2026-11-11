@@ -23,7 +23,7 @@ namespace CarIdle.Core.Tests
                     worst = Math.Max(worst, Math.Abs(WorldLayout.Height(x, z + 2f) - h));
                 }
             }
-            Assert.That(worst, Is.LessThan(1.6f));
+            Assert.That(worst, Is.LessThan(1.6f), "pire dénivelé : " + worst);
         }
 
         [Test]

@@ -12,7 +12,19 @@ namespace CarIdle.Drive
     /// </summary>
     public static class VehicleFactory
     {
-        public static readonly string[] Models = { "suv", "sedan", "hatchback-sports", "taxi", "police", "van" };
+        public static readonly string[] Models = { "hatchback-sports", "sedan", "suv", "police", "taxi", "van" };
+
+        /// <summary>Transmission de chaque modèle : propulsion pour les sportives, 4x4 pour le SUV, traction pour les utilitaires.</summary>
+        public static Drivetrain DrivetrainOf(string model)
+        {
+            switch (model)
+            {
+                case "suv": return Drivetrain.AllWheel;
+                case "taxi":
+                case "van": return Drivetrain.FrontWheel;
+                default: return Drivetrain.RearWheel;
+            }
+        }
 
         private static readonly string[] WheelNames =
         {
@@ -135,6 +147,9 @@ namespace CarIdle.Drive
             car.Wheels = colliders;
             car.WheelVisuals = pivots;
             car.Controls = input;
+            car.Drive = DrivetrainOf(model);
+            if (model == "van" || model == "suv")
+                car.Drift = 0.4f;
             root.AddComponent<CarEffects>();
 
             root.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
@@ -159,7 +174,8 @@ namespace CarIdle.Drive
             if (_paint == null)
             {
                 var tex = Resources.Load<Texture2D>("CarKit/Textures/colormap");
-                _paint = Materials.Lit(Color.white, tex, 0.55f, 0.1f);
+                // Peinture vernie : reflète le ciel et le soleil couchant.
+                _paint = Materials.Lit(Color.white, tex, 0.78f, 0.2f);
             }
             foreach (var r in model.GetComponentsInChildren<Renderer>())
             {

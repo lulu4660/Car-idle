@@ -12,7 +12,7 @@ namespace CarIdle.Drive
     [RequireComponent(typeof(CarController))]
     public class CarEffects : MonoBehaviour
     {
-        public float MarkWidth = 0.32f;
+        public float MarkWidth = 0.38f;
         public float SlipForMarks = 0.35f;
 
         private CarController _car;
@@ -35,8 +35,8 @@ namespace CarIdle.Drive
         private static readonly Color[] DustColors =
         {
             new Color(0.75f, 0.75f, 0.75f, 0.35f), // fumée de pneus
-            new Color(0.55f, 0.42f, 0.30f, 0.45f),
-            new Color(0.92f, 0.82f, 0.62f, 0.50f),
+            new Color(0.62f, 0.48f, 0.34f, 0.50f),
+            new Color(0.95f, 0.80f, 0.60f, 0.42f),
             new Color(0.70f, 0.62f, 0.50f, 0.25f),
             new Color(0.92f, 0.97f, 1.00f, 0.70f), // éclaboussures
         };
@@ -46,7 +46,7 @@ namespace CarIdle.Drive
         private void Start()
         {
             _car = GetComponent<CarController>();
-            _markMaterial = Materials.Fx();
+            _markMaterial = Materials.Fx(Materials.TrackTexture());
             BuildDust();
         }
 
@@ -59,7 +59,7 @@ namespace CarIdle.Drive
 
             var main = _dust.main;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 2000;
+            main.maxParticles = 2500;
             main.playOnAwake = false;
             main.gravityModifier = -0.03f;
             var emission = _dust.emission;
@@ -69,7 +69,7 @@ namespace CarIdle.Drive
 
             var size = _dust.sizeOverLifetime;
             size.enabled = true;
-            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.4f, 1f, 1.6f));
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.35f), new Keyframe(0.3f, 1f), new Keyframe(1f, 2.2f)));
 
             var color = _dust.colorOverLifetime;
             color.enabled = true;
@@ -84,7 +84,8 @@ namespace CarIdle.Drive
             limit.drag = 1.5f;
 
             var r = go.GetComponent<ParticleSystemRenderer>();
-            r.material = Materials.Fx(Materials.SoftDot());
+            // Contre-jour : le nuage de sable s'illumine quand on filme face au soleil.
+            r.material = Materials.Fx(Materials.SoftDot(), 1.6f);
             r.renderMode = ParticleSystemRenderMode.Billboard;
             r.sortingFudge = 10f;
             _dust.Play();
@@ -132,6 +133,7 @@ namespace CarIdle.Drive
             trail.time = MarkLife[(int)s];
             trail.minVertexDistance = 0.25f;
             trail.widthMultiplier = MarkWidth;
+            trail.textureMode = LineTextureMode.Tile;
             trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             trail.receiveShadows = false;
             trail.numCapVertices = 0;
@@ -168,7 +170,10 @@ namespace CarIdle.Drive
                 return;
 
             // Nombre de particules par image, avec un tirage pour les fractions.
-            float rate = amount * 45f * Time.deltaTime;
+            // En dérapage sur le sable, un vrai panache.
+            float drift = Mathf.Clamp01((Mathf.Abs(_car.SlipAngle) - 8f) / 25f);
+            amount += drift * (s == Surface.Asphalt ? 0.6f : 1.5f) * (i >= 2 ? 1f : 0.3f);
+            float rate = amount * 55f * Time.deltaTime;
             int count = Mathf.FloorToInt(rate) + (Random.value < rate % 1f ? 1 : 0);
             var c = DustColors[(int)s];
             var p = new ParticleSystem.EmitParams();
@@ -178,8 +183,8 @@ namespace CarIdle.Drive
                 p.position = _car.ContactPoint[i] + Vector3.up * 0.2f + Random.insideUnitSphere * 0.2f;
                 p.velocity = back + Vector3.up * Random.Range(0.6f, s == Surface.Water ? 4f : 1.6f) + Random.insideUnitSphere * 0.6f;
                 p.startColor = new Color(c.r, c.g, c.b, c.a * Random.Range(0.6f, 1f));
-                p.startSize = Random.Range(0.8f, 1.6f) * (s == Surface.Sand ? 1.4f : 1f);
-                p.startLifetime = Random.Range(1.2f, 2.6f) * (s == Surface.Water ? 0.5f : 1f);
+                p.startSize = Random.Range(1.0f, 2.0f) * (s == Surface.Sand ? 1.6f : 1f) * (1f + drift * 0.6f);
+                p.startLifetime = Random.Range(1.6f, 3.4f) * (s == Surface.Water ? 0.45f : 1f);
                 _dust.Emit(p, 1);
             }
         }

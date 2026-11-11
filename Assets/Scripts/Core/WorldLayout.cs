@@ -48,13 +48,12 @@ namespace CarIdle.Core
             float city = GroundLevel;
             // Terre : collines douces (±4 m).
             float dirt = GroundLevel + 8f * (Fbm(x / 110f + 3.1f, z / 110f - 7.3f) - 0.5f);
-            // Dunes : crêtes perpendiculaires au vent, déformées par du bruit, jusqu'à 8 m.
-            float warp = 1.6f * Fbm(x / 70f, z / 70f) + 0.5f * (float)Math.Sin(z * 0.013f);
-            float ridge = (float)Math.Abs(Math.Sin(x * 0.034f + warp));
-            float dunes = GroundLevel + 8f * (float)Math.Pow(ridge, 1.6) + 2.5f * (Fbm(x / 40f + 11f, z / 40f) - 0.5f);
+            float dunes = DuneHeight(x, z);
 
             float h = Lerp(city, dirt, SmoothStep(CityEnd - 25f, CityEnd + 25f, x));
             h = Lerp(h, dunes, SmoothStep(DirtEnd - 45f, DirtEnd + 45f, x));
+            // Bords du monde : le relief s'aplatit, puis des dunes lointaines prennent le relais (décor).
+            h = Lerp(h, GroundLevel, EdgeFade(x, z));
 
             // Plage puis fond marin : la côte ondule le long de z.
             float coast = ShoreOffset(z);
@@ -65,6 +64,43 @@ namespace CarIdle.Core
                 shore = SeaLevel - 0.4f - (x - beachEnd) * 0.06f;
             h = Lerp(h, shore, SmoothStep(shoreStart - 10f, shoreStart + 25f, x));
             return Math.Max(0.5f, Math.Min(MaxHeight - 0.5f, h));
+        }
+
+        /// <summary>
+        /// Dunes comme dans le désert : crêtes perpendiculaires au vent (qui vient de l'ouest),
+        /// pente douce et bombée face au vent, crête vive, versant abrupt (≈ 30°) sous le vent,
+        /// creux arrondis. Les crêtes ondulent et leur hauteur varie (6 à 13 m).
+        /// </summary>
+        public static float DuneHeight(float x, float z)
+        {
+            const float wavelength = 105f;
+            const float windward = 0.68f; // part de la dune côté vent
+            float warp = 0.55f * (float)Math.Sin(z * 0.011f + 0.8f) + 0.9f * (Fbm(x / 160f + 4f, z / 90f) - 0.5f);
+            float u = x / wavelength + warp;
+            float p = u - (float)Math.Floor(u);
+            float profile;
+            if (p < windward)
+            {
+                float t = p / windward;
+                profile = 1f - (1f - t) * (1f - t); // bombé, de plus en plus plat vers la crête
+            }
+            else
+            {
+                float t = (p - windward) / (1f - windward);
+                profile = (float)Math.Pow(1f - t, 1.35); // versant raide, pied arrondi
+            }
+            float amplitude = 6f + 7f * Fbm(x / 230f - 2f, z / 150f + 6f);
+            // Petites dunes secondaires, en biais, et ondulations douces.
+            float small = 1.2f * (float)Math.Pow(Math.Abs(Math.Sin((x * 0.6f + z * 0.8f) * 0.045f + 3f * Fbm(x / 50f, z / 50f))), 2.0);
+            return GroundLevel + amplitude * profile + small + 1.5f * (Fbm(x / 45f + 11f, z / 45f) - 0.5f);
+        }
+
+        /// <summary>0 au cœur du monde, 1 sur les 70 derniers mètres des bords nord, sud et ouest.</summary>
+        public static float EdgeFade(float x, float z)
+        {
+            float half = Size / 2f;
+            float d = Math.Min(half - Math.Abs(z), x + half);
+            return 1f - SmoothStep(8f, 70f, d);
         }
 
         /// <summary>Décalage de la côte vers l'est ou l'ouest selon z (±15 m).</summary>

@@ -22,7 +22,9 @@ Game design : https://claude.ai/artifact/WgkvZZaTt9JrZg6hYERz9r
 À la première ouverture, Unity crée tout seul la scène **`Assets/Scenes/Balade.unity`** et l'ouvre (sinon : menu **Car Idle > Recréer la scène Balade**). Appuyer sur **Play**.
 
 - Monde de 1 km : ville à l'ouest, chemins de terre et collines, dunes, plage et mer à l'est. Départ sur le sable, face à la ville.
-- Clavier : flèches ou ZQSD/WASD, **Espace** = frein à main (dérapage), **R** = replacer la voiture, **C** = voiture suivante.
+- Clavier : flèches ou ZQSD/WASD, **Espace** = frein à main (dérapage), **R** = replacer la voiture, **C** = voiture suivante, **V** = plan de caméra suivant (poursuite, travelling, plongée).
+- Transmissions : la sportive, la berline et la police sont des propulsions (elles dérapent sous les gaz), le SUV est un 4x4, le taxi et le van des tractions. Réglage du dérapage : champs **Drift** et **CounterSteer** du CarController.
+- Le rendu URP est activé tout seul à l'ouverture (fichier `Assets/Settings/CarIdle-URP.asset`) ; sinon menu **Car Idle > Régler le rendu URP**.
 - Tactile (ou souris) : boutons à l'écran. La voiture revient toute seule au sec si elle est sur le toit ou trop loin dans la mer.
 - Voitures provisoires : [Car Kit de Kenney](https://kenney.nl/assets/car-kit) (CC0, libre de droits), dans `Assets/Resources/CarKit/`. Elles servent à régler la physique ; les belles voitures viendront ensuite.
 - Réglages de conduite : sélectionner la voiture pendant le Play, composant **CarController** (couple, freins, braquage, aides). Les valeurs changées pendant le Play sont perdues à l'arrêt : noter celles qui plaisent.

@@ -10,7 +10,7 @@ namespace CarIdle.Drive
     /// </summary>
     public class BaladeBootstrap : MonoBehaviour
     {
-        public string StartModel = "suv";
+        public string StartModel = "hatchback-sports";
 
         private DriveInput _input;
         private DroneCamera _camera;
@@ -36,9 +36,9 @@ namespace CarIdle.Drive
             }
             cam.fieldOfView = 55f;
             cam.nearClipPlane = 0.3f;
-            cam.farClipPlane = 1500f;
-            cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = RenderSettings.fogColor;
+            cam.farClipPlane = 3000f;
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.allowHDR = true;
             _camera = cam.GetComponent<DroneCamera>();
             if (_camera == null)
                 _camera = cam.gameObject.AddComponent<DroneCamera>();
@@ -48,11 +48,14 @@ namespace CarIdle.Drive
             // Départ sur le sable, tourné vers la ville (vers l'ouest).
             Spawn(new Vector3(WorldLayout.SpawnX, y, WorldLayout.SpawnZ), -90f);
 
+            PostFx.Setup(cam);
             gameObject.AddComponent<BaladeHud>().Car = () => _car;
         }
 
         private void Update()
         {
+            if (_input.CameraRequested)
+                _camera.NextMode();
             if (_input.NextCarRequested && _car != null)
             {
                 _modelIndex = (_modelIndex + 1) % VehicleFactory.Models.Length;
@@ -79,6 +82,7 @@ namespace CarIdle.Drive
         private GUIStyle _big, _small;
 
         private static readonly string[] SurfaceNames = { "Bitume", "Terre", "Sable", "Sable mouillé", "Eau" };
+        private static readonly string[] DriveNames = { "4x4", "Propulsion", "Traction" };
 
         private void OnGUI()
         {
@@ -95,7 +99,7 @@ namespace CarIdle.Drive
             float w = Screen.width;
             GUI.Label(new Rect(0, Screen.height * 0.02f, w, Screen.height * 0.1f), Mathf.RoundToInt(car.SpeedKmh) + " km/h", _big);
             string ground = car.InWater ? "Eau" : SurfaceNames[(int)car.WheelSurface[2]];
-            GUI.Label(new Rect(0, Screen.height * 0.11f, w, Screen.height * 0.05f), ground + "  ·  " + car.name, _small);
+            GUI.Label(new Rect(0, Screen.height * 0.11f, w, Screen.height * 0.05f), ground + "  ·  " + car.name + "  ·  " + DriveNames[(int)car.Drive], _small);
         }
     }
 }
