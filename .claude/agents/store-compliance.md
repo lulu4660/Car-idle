@@ -11,5 +11,5 @@ Tu relis une fonctionnalité, une boutique ou un asset et tu dis ce qui bloque l
 - Belgique et Pays-Bas : contenus aléatoires payants.
 - RGPD : consentement pubs, suppression complète du compte, données minimales.
 - Marques automobiles : noms modifiés assez éloignés, aucun logo, badge, calandre trop reconnaissable ni plaque ; formes de carrosserie emblématiques à signaler.
-- Licences d'assets : usage commercial autorisé, crédit exigé, interdiction de redistribution (dépôt public → `Assets/Store/`).
+- Licences d'assets : usage commercial autorisé, crédit exigé, interdiction de redistribution (dépôt public → `assets/store/`), restriction à un moteur (vérifier qu'un asset vendu pour Unity peut servir sous Godot).
 Vérifie toujours la règle actuelle en ligne avant de conclure et cite le lien.

@@ -3,75 +3,55 @@
 Idle game mobile de garage au rendu 3D réaliste, avec balade en vue de drone et chasse aux voitures rares.
 Game design : https://claude.ai/artifact/WgkvZZaTt9JrZg6hYERz9r
 
+Moteur : **Godot 4.7** (gratuit, léger, version web sans licence). L'essai sous Unity est gardé sur la branche `unity`.
+
 ## Ouvrir le projet (PC Windows)
 
-1. **Installer** [Unity Hub](https://unity.com/download), puis dans Hub > Installs : **Unity 6.6 (6000.6.8f1)** (version du projet : `ProjectSettings/ProjectVersion.txt`), avec les modules **WebGL Build Support** et **iOS Build Support**.
-2. **Récupérer le dépôt** avec [GitHub Desktop](https://desktop.github.com/) : File > Clone repository > `lulu4660/Car-idle`.
-3. **Ouvrir** : Unity Hub > Projects > Add > Add project from disk > choisir le dossier `Car-idle`.
-   Si Hub propose une autre version de Unity 6 que celle du projet, accepter celle qui est installée.
-   La première ouverture prend quelques minutes (Unity télécharge les paquets et crée ses fichiers).
-4. **Activer le rendu URP** (une seule fois) :
-   - Assets > Create > Rendering > **URP Asset (with Universal Renderer)**, nommé `URP-Mobile`, dans `Assets/Settings`.
-   - Edit > Project Settings > **Graphics** : Default Render Pipeline = `URP-Mobile`.
-   - Edit > Project Settings > **Quality** : pour chaque niveau, Render Pipeline Asset = `URP-Mobile`.
-5. **Lancer les tests** : Window > General > Test Runner > EditMode > **Run All**. Tout doit être vert.
-6. **Enregistrer** : GitHub Desktop montre les fichiers créés par Unity (`.meta`, `ProjectSettings/`, `Packages/packages-lock.json`) : les envoyer (Commit, puis Push).
+1. **Installer Godot 4.7.2** : https://godotengine.org/download/windows (version « Standard », pas .NET). C'est un simple fichier à dézipper, sans installation.
+2. **Récupérer le dépôt** avec GitHub Desktop (Fetch puis Pull ; le dossier `Documents\Car-idle` existe déjà).
+3. **Ouvrir** : lancer Godot > **Import** > choisir `Documents\Car-idle\project.godot` > Import & Edit. La première ouverture importe les textures (une minute).
+4. **Jouer** : touche **F5** (ou le triangle en haut à droite). La balade démarre.
 
-## Essayer la balade (prototype de conduite)
+Les fichiers de Unity restés dans le dossier (`Assets`, `Library`, `Packages`, `ProjectSettings`…) peuvent être supprimés : ils ne servent plus et Git les ignore ou les a retirés.
 
-À la première ouverture, Unity crée tout seul la scène **`Assets/Scenes/Balade.unity`** et l'ouvre (sinon : menu **Car Idle > Recréer la scène Balade**). Appuyer sur **Play**.
+## La balade
 
-- Monde de 1 km : ville à l'ouest, chemins de terre et collines, dunes, plage et mer à l'est. Départ sur le sable, face à la ville.
-- Clavier : flèches ou ZQSD/WASD, **Espace** = frein à main (dérapage), **R** = replacer la voiture, **C** = voiture suivante, **V** = plan de caméra suivant (poursuite, travelling, plongée).
-- Transmissions : la sportive, la berline et la police sont des propulsions (elles dérapent sous les gaz), le SUV est un 4x4, le taxi et le van des tractions. Réglage du dérapage : champs **Drift** et **CounterSteer** du CarController.
-- Le rendu URP est activé tout seul à l'ouverture (fichier `Assets/Settings/CarIdle-URP.asset`) ; sinon menu **Car Idle > Régler le rendu URP**.
-- Tactile (ou souris) : boutons à l'écran. La voiture revient toute seule au sec si elle est sur le toit ou trop loin dans la mer.
-- Voitures provisoires : [Car Kit de Kenney](https://kenney.nl/assets/car-kit) (CC0, libre de droits), dans `Assets/Resources/CarKit/`. Elles servent à régler la physique ; les belles voitures viendront ensuite.
-- Réglages de conduite : sélectionner la voiture pendant le Play, composant **CarController** (couple, freins, braquage, aides). Les valeurs changées pendant le Play sont perdues à l'arrêt : noter celles qui plaisent.
+- Monde de 1 km : ville à l'ouest, chemins de terre et collines avec des rochers, grandes dunes, plage et mer à l'est. Départ dans les dunes, face à la ville.
+- Clavier : flèches ou ZQSD/WASD, **Espace** = frein à main (dérapage), **R** = replacer la voiture, **C** = voiture suivante, **V** = plan de caméra (poursuite, travelling, plongée).
+- Tactile (ou souris) : boutons à l'écran, plusieurs doigts en même temps.
+- Transmissions : la sportive, la berline et la police sont des propulsions (elles dérapent sous les gaz), le SUV est un 4x4, le taxi et le van des tractions.
+- Réceptions de saut : le sable se creuse sous les roues, gerbe de sable et secousse de caméra.
+- Réglages de conduite : pendant le jeu, onglet **Remote** de l'arbre de scène > `Voiture` : `drift`, `counter_steer`, `tyre_grip`, `engine_force_total`… (les valeurs changées en jeu sont perdues à l'arrêt : noter celles qui plaisent).
+- Voitures provisoires : [Car Kit de Kenney](https://kenney.nl/assets/car-kit) (CC0). Textures de sol et ciel : [Poly Haven](https://polyhaven.com) (CC0).
 
 ## Jouer sur iPhone
 
-### Version web (Safari), mise en ligne toute seule
+À chaque envoi sur `main`, GitHub exporte la version web et la met en ligne sur **https://lulu4660.github.io/Car-idle/** (Safari ; Partager > « Sur l'écran d'accueil » pour le plein écran). Aucune licence ni secret à fournir. Il faut seulement, une fois : Settings > Pages > Source = **GitHub Actions** (déjà fait). Les secrets Unity enregistrés sur GitHub ne servent plus et peuvent être supprimés (Settings > Secrets and variables > Actions).
 
-À chaque envoi sur `main`, GitHub construit la version web avec Unity et la met en ligne sur **https://lulu4660.github.io/Car-idle/** (à ouvrir dans Safari ; Partager > « Sur l'écran d'accueil » pour l'avoir en plein écran). Réglages à faire une seule fois :
+La version web utilise le rendu « Compatibility » de Godot (WebGL 2) : un peu moins riche que sur PC (pas d'ombres de contact, brume plus simple).
 
-1. **Licence Unity** (gratuite, Unity Personal) : ouvrir Unity Hub une fois connecté à son compte, puis récupérer le fichier `C:\ProgramData\Unity\Unity_lic.ulf` (dossier caché : taper le chemin dans l'Explorateur).
-2. Sur GitHub, dépôt Car-idle > **Settings > Secrets and variables > Actions > New repository secret**, trois secrets :
-   - `UNITY_LICENSE` : tout le contenu du fichier `Unity_lic.ulf` (l'ouvrir avec le Bloc-notes, copier-coller) ;
-   - `UNITY_EMAIL` : l'e-mail du compte Unity ;
-   - `UNITY_PASSWORD` : son mot de passe.
-3. **Settings > Pages > Build and deployment > Source = GitHub Actions**.
-4. Onglet **Actions > Version web (iPhone) > Run workflow**. La première build prend 20 à 40 min, les suivantes une dizaine.
+## Tests
 
-Ces secrets restent chez GitHub : ils ne sont jamais dans le code ni visibles dans les journaux.
+```
+godot --headless --path . -s tests/run_tests.gd      # règles du jeu
+godot --headless --path . -s tests/test_drive.gd     # banc d'essai de la conduite
+```
 
-### Unity Remote (le plus rapide pour régler la conduite)
+Les règles tournent aussi sur GitHub à chaque envoi (onglet Actions).
 
-L'appli gratuite **Unity Remote 5** (App Store) affiche le jeu de l'éditeur sur l'iPhone et renvoie les touches de l'écran. iPhone branché en USB au PC (iTunes ou « Appareils Apple » installé), puis dans Unity : Edit > Project Settings > **Editor > Unity Remote > Device = Any iOS Device**, et Play. L'image est compressée, mais les commandes tactiles sont les vraies.
+## Monde précalculé
 
-## Assets de boutique (voitures, décors)
+`assets/balade/world.bin` contient le relief, les sols et la profondeur de la mer, calculés à partir de `scripts/core/world_layout.gd`. Après un changement de ce fichier :
 
-La licence de l'Asset Store interdit de republier ses fichiers dans un dépôt public. Tout ce qui vient d'une boutique va dans **`Assets/Store/`**, que Git ignore :
-
-1. Sur la page de l'asset, **Add to My Assets** (compte Unity gratuit).
-2. Dans Unity : Window > **Package Manager** > My Assets > l'asset > **Download**, puis **Import**.
-3. Dans la fenêtre Project, **glisser le dossier importé dans `Assets/Store/`** (créer le dossier la première fois).
-
-Première voiture du prototype : [Realistic Mobile Car #26 (Demo)](https://assetstore.unity.com/packages/3d/vehicles/land/realistic-mobile-car-26-demo-305319) (gratuite, design sans marque réelle).
+```
+godot --headless --path . -s tools/bake_world.gd
+```
 
 ## Outils de Claude (facultatif)
 
-Le projet contient des skills pour Claude Code (`.claude/skills/`). Pour que graphify (carte du code) marche sur le PC :
+Le projet contient des agents et des skills pour Claude Code (`.claude/`). Pour graphify (carte du code) sur le PC :
 
 ```
 winget install astral-sh.uv
 uv tool install graphifyy
 ```
-
-## Tests sans Unity
-
-```
-dotnet test tools/CoreTests/CoreTests.csproj
-```
-
-Ils tournent aussi sur GitHub à chaque envoi (onglet Actions).
