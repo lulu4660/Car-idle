@@ -189,6 +189,26 @@ namespace CarIdle.Drive
             }
         }
 
+        /// <summary>Gerbe de sable à la réception d'un saut, projetée tout autour de la roue.</summary>
+        public void Burst(Vector3 point, Surface s, float strength)
+        {
+            if (_dust == null)
+                return;
+            var c = DustColors[(int)s];
+            int count = Mathf.RoundToInt(28f * strength);
+            var p = new ParticleSystem.EmitParams();
+            for (int k = 0; k < count; k++)
+            {
+                Vector2 dir = Random.insideUnitCircle.normalized * Random.Range(1.5f, 5f) * strength;
+                p.position = point + Vector3.up * 0.15f;
+                p.velocity = new Vector3(dir.x, Random.Range(1.5f, 4.5f) * strength, dir.y);
+                p.startColor = new Color(c.r, c.g, c.b, Mathf.Min(1f, c.a * 1.4f) * Random.Range(0.7f, 1f));
+                p.startSize = Random.Range(0.8f, 2.2f) * (0.8f + strength * 0.5f);
+                p.startLifetime = Random.Range(1.2f, 2.8f);
+                _dust.Emit(p, 1);
+            }
+        }
+
         private void OnDestroy()
         {
             for (int i = 0; i < 4; i++)

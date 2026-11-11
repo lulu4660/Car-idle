@@ -6,8 +6,8 @@ namespace CarIdle.Drive
 {
     /// <summary>
     /// Construit le monde de la balade à partir de <see cref="WorldLayout"/> : terrain (relief,
-    /// sols peints avec reliefs fins), immeubles de la ville, rochers, mer animée, ciel de fin
-    /// de journée, soleil rasant, brume et reflets. Tout est fait en code : aucun asset à préparer.
+    /// sols texturés par des photos), immeubles de la ville, rochers, mer animée, ciel photographié
+    /// de fin de journée, soleil rasant, brume et reflets. Tout est fait en code : aucun asset à préparer.
     /// </summary>
     public static class WorldBuilder
     {
@@ -24,13 +24,23 @@ namespace CarIdle.Drive
         };
 
         // Taille d'une répétition de texture, en mètres.
-        private static readonly float[] TileSizes = { 4f, 6f, 5f, 7f };
+        private static readonly float[] TileSizes = { 4f, 3.5f, 3f, 3.5f };
+        // Textures photographiées (Poly Haven, CC0) dans Resources/Ground, par sol.
+        private static readonly string[] GroundNames = { "asphalt", "dirt", "sand", "wet_sand" };
+        // Brillance maximale de chaque sol (la texture module dans son alpha).
+        private static readonly float[] Smoothness = { 0.25f, 0.08f, 0.05f, 0.35f };
 
-        // Soleil de fin d'après-midi, bas sur l'horizon, au sud-est : ombres longues dans les dunes,
-        // contre-jour doré sur la mer et dans la poussière.
-        public static readonly Quaternion SunRotation = Quaternion.Euler(13f, 300f, 0f);
-        public static readonly Color SunColor = new Color(1f, 0.80f, 0.58f);
-        public static readonly Color HazeColor = new Color(0.86f, 0.70f, 0.54f);
+        // Ciel photographié de fin d'après-midi (HDR). Le soleil y est à u = 0,6003, 19° de hauteur ;
+        // on tourne le ciel pour le placer au sud-ouest : lumière rasante de côté sur les dunes
+        // (crêtes nord-sud), contre-jour doré quand on roule vers l'ouest.
+        private const string SkyTexture = "Ground/sky_late_afternoon";
+        private const float SkySunU = 0.6003f;
+        private const float SkySunElevation = 19.07f;
+        // Le shader du ciel tourne d'un angle opposé à Quaternion.Euler : -261° = soleil au sud-ouest.
+        private const float SkyRotation = 261f;
+        public static readonly Color SunColor = new Color(1f, 0.84f, 0.66f);
+        // Couleur de l'horizon du ciel : la brume s'y fond.
+        public static readonly Color HazeColor = new Color(0.80f, 0.75f, 0.67f);
 
         private static Texture2D _sandAlbedo;
 
@@ -72,16 +82,19 @@ namespace CarIdle.Drive
             var layers = new TerrainLayer[GroundColors.Length];
             for (int i = 0; i < layers.Length; i++)
             {
-                Materials.Ground((Surface)i, GroundColors[i], 100 + i, out var albedo, out var normal);
+                var albedo = Resources.Load<Texture2D>("Ground/" + GroundNames[i] + "_albedo");
+                var normal = Resources.Load<Texture2D>("Ground/" + GroundNames[i] + "_normal");
+                if (albedo == null || normal == null)
+                    Materials.Ground((Surface)i, GroundColors[i], 100 + i, out albedo, out normal);
                 if (i == (int)Surface.Sand)
                     _sandAlbedo = albedo;
                 layers[i] = new TerrainLayer
                 {
                     diffuseTexture = albedo,
                     normalMapTexture = normal,
-                    normalScale = 1f,
+                    normalScale = i == (int)Surface.Sand ? 0.7f : 1f,
                     tileSize = new Vector2(TileSizes[i], TileSizes[i]),
-                    smoothness = i == (int)Surface.WetSand ? 0.45f : i == 0 ? 0.2f : 0.05f,
+                    smoothness = Smoothness[i],
                     metallic = 0f,
                 };
             }
@@ -476,47 +489,68 @@ namespace CarIdle.Drive
 
         private static void BuildSky(Transform parent)
         {
+            // Direction du soleil dans le ciel photographié (repère du shader Skybox/Panoramic),
+            // puis la même rotation que le ciel.
+            float lon = (0.5f - SkySunU) * 2f * Mathf.PI;
+            float el = SkySunElevation * Mathf.Deg2Rad;
+            var toSun = new Vector3(Mathf.Cos(el) * Mathf.Cos(lon), Mathf.Sin(el), Mathf.Cos(el) * Mathf.Sin(lon));
+            toSun = Quaternion.Euler(0f, -SkyRotation, 0f) * toSun;
+
             var sunGo = new GameObject("Soleil");
             sunGo.transform.SetParent(parent, false);
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.color = SunColor;
-            sun.intensity = 2.1f;
+            sun.intensity = 2.4f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.9f;
+            sun.shadowStrength = 0.85f;
             sun.shadowBias = 0.05f;
             sun.shadowNormalBias = 0.4f;
-            sunGo.transform.rotation = SunRotation;
+            sunGo.transform.rotation = Quaternion.LookRotation(-toSun);
             RenderSettings.sun = sun;
 
+            var skyTex = Resources.Load<Texture2D>(SkyTexture);
+            var panoShader = Shader.Find("Skybox/Panoramic");
             var skyShader = Shader.Find("Skybox/Procedural");
-            if (skyShader != null)
+            if (skyTex != null && panoShader != null)
             {
-                var sky = new Material(skyShader);
-                sky.SetFloat("_SunDisk", 2f); // disque de soleil de haute qualité
-                sky.SetFloat("_SunSize", 0.045f);
-                sky.SetFloat("_SunSizeConvergence", 4f);
-                sky.SetFloat("_AtmosphereThickness", 1.35f);
-                sky.SetColor("_SkyTint", new Color(0.62f, 0.58f, 0.55f));
-                sky.SetColor("_GroundColor", new Color(0.55f, 0.45f, 0.36f));
-                sky.SetFloat("_Exposure", 1.15f);
+                var sky = new Material(panoShader);
+                sky.SetTexture("_MainTex", skyTex);
+                sky.SetFloat("_Rotation", SkyRotation);
+                sky.SetFloat("_Exposure", 1f);
+                sky.SetFloat("_Mapping", 1f); // équirectangulaire
+                sky.SetFloat("_ImageType", 0f); // 360°
                 RenderSettings.skybox = sky;
                 RenderSettings.ambientMode = AmbientMode.Skybox;
-                RenderSettings.ambientIntensity = 1.1f;
+                RenderSettings.ambientIntensity = 1f;
+            }
+            else if (skyShader != null)
+            {
+                var sky = new Material(skyShader);
+                sky.SetFloat("_SunDisk", 2f);
+                sky.SetFloat("_SunSize", 0.045f);
+                sky.SetFloat("_SunSizeConvergence", 4f);
+                sky.SetFloat("_AtmosphereThickness", 1.2f);
+                sky.SetColor("_SkyTint", new Color(0.55f, 0.58f, 0.62f));
+                sky.SetColor("_GroundColor", new Color(0.55f, 0.47f, 0.40f));
+                sky.SetFloat("_Exposure", 1.1f);
+                RenderSettings.skybox = sky;
+                RenderSettings.ambientMode = AmbientMode.Skybox;
+                RenderSettings.ambientIntensity = 1f;
             }
             else
             {
                 RenderSettings.ambientMode = AmbientMode.Trilight;
-                RenderSettings.ambientSkyColor = new Color(0.55f, 0.58f, 0.62f);
-                RenderSettings.ambientEquatorColor = new Color(0.62f, 0.50f, 0.40f);
-                RenderSettings.ambientGroundColor = new Color(0.32f, 0.25f, 0.20f);
+                RenderSettings.ambientSkyColor = new Color(0.55f, 0.62f, 0.72f);
+                RenderSettings.ambientEquatorColor = new Color(0.66f, 0.60f, 0.52f);
+                RenderSettings.ambientGroundColor = new Color(0.36f, 0.30f, 0.25f);
             }
 
-            // Brume de chaleur dorée : profondeur, et fin du monde invisible.
+            // Brume de chaleur : profondeur, et fin du monde invisible.
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = HazeColor;
-            RenderSettings.fogDensity = 0.0021f;
+            RenderSettings.fogDensity = 0.0017f;
 
             // Lumière ambiante et reflets calculés depuis le ciel (pas de précalcul).
             DynamicGI.UpdateEnvironment();

@@ -139,7 +139,8 @@ namespace CarIdle.Drive
                     float dy = heights[((y + 1) % n) * n + x] - heights[((y + n - 1) % n) * n + x];
                     nm[y * n + x] = EncodeNormal(-dx * strength, -dy * strength, 1f);
                     float k = 1f + (h - 0.5f) * shade + ((float)rng.NextDouble() - 0.5f) * grain;
-                    a[y * n + x] = new Color(baseColor.r * k, baseColor.g * k, baseColor.b * k, 1f);
+                    // Alpha = brillance (lu par le terrain URP) : sol mat.
+                    a[y * n + x] = new Color(baseColor.r * k, baseColor.g * k, baseColor.b * k, 0.08f);
                 }
             }
             albedo.SetPixels(a);

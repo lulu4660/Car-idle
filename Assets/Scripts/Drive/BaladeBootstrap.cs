@@ -71,6 +71,12 @@ namespace CarIdle.Drive
         {
             _car = VehicleFactory.Create(VehicleFactory.Models[_modelIndex], position, yaw, _input);
             _camera.Target = _car;
+            if (_car != null)
+            {
+                var impacts = _car.GetComponent<TerrainImpacts>();
+                if (impacts != null)
+                    impacts.Landed += k => _camera.Shake(0.3f + k * 0.7f);
+            }
             _camera.Snap();
         }
     }

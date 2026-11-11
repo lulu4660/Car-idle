@@ -28,23 +28,23 @@ namespace CarIdle.Drive
 
             var bloom = profile.Add<Bloom>(true);
             bloom.threshold.Override(1.05f);
-            bloom.intensity.Override(0.55f);
+            bloom.intensity.Override(0.45f);
             bloom.scatter.Override(0.72f);
             bloom.tint.Override(new Color(1f, 0.86f, 0.70f));
 
             var color = profile.Add<ColorAdjustments>(true);
-            color.postExposure.Override(0.25f);
-            color.contrast.Override(14f);
-            color.saturation.Override(8f);
+            color.postExposure.Override(0.1f);
+            color.contrast.Override(18f);
+            color.saturation.Override(4f);
 
             var white = profile.Add<WhiteBalance>(true);
-            white.temperature.Override(12f);
-            white.tint.Override(2f);
+            white.temperature.Override(6f);
+            white.tint.Override(1f);
 
             var split = profile.Add<SplitToning>(true);
-            split.shadows.Override(new Color(0.42f, 0.47f, 0.55f));
-            split.highlights.Override(new Color(0.62f, 0.52f, 0.40f));
-            split.balance.Override(-15f);
+            split.shadows.Override(new Color(0.46f, 0.49f, 0.53f));
+            split.highlights.Override(new Color(0.56f, 0.51f, 0.45f));
+            split.balance.Override(0f);
 
             var vignette = profile.Add<Vignette>(true);
             vignette.intensity.Override(0.28f);

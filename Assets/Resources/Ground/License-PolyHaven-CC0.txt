@@ -1,0 +1,9 @@
+Textures et ciel de la balade : Poly Haven (https://polyhaven.com), licence CC0 (domaine public).
+
+- sand_* : « Sand 01 » par Rob Tuytel
+- dirt_* : « Dirt » (Poly Haven)
+- wet_sand_* : « Damp Sand » (Poly Haven)
+- asphalt_* : « Asphalt 01 » (Poly Haven)
+- sky_late_afternoon.hdr : « Qwantani Late Afternoon (Pure Sky) » par Greg Zaal et Jarod Guest
+
+Les couleurs gardent la texture d'origine ; la brillance (1 - rugosité) est rangée dans l'alpha.

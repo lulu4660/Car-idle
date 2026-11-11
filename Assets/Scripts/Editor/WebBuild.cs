@@ -22,6 +22,7 @@ namespace CarIdle.EditorTools
             "Universal Render Pipeline/Lit",
             "Universal Render Pipeline/Terrain/Lit",
             "Skybox/Procedural",
+            "Skybox/Panoramic",
             "CarIdle/Sea",
             "CarIdle/Particle",
         };

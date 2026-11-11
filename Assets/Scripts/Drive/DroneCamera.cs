@@ -42,6 +42,13 @@ namespace CarIdle.Drive
         private bool _placed;
         private Camera _cam;
         private Rigidbody _targetBody;
+        private float _shake;
+
+        /// <summary>Secousse (0 à 1) : réception de saut, choc.</summary>
+        public void Shake(float amount)
+        {
+            _shake = Mathf.Max(_shake, Mathf.Clamp01(amount));
+        }
 
         private void Awake()
         {
@@ -93,6 +100,12 @@ namespace CarIdle.Drive
             if (pos.y < floor)
                 pos.y = floor;
             transform.position = pos;
+            if (_shake > 0.001f)
+            {
+                float a = _shake * _shake * 0.6f;
+                transform.position += new Vector3(Mathf.PerlinNoise(time * 25f, 0f) - 0.5f, Mathf.PerlinNoise(0f, time * 25f) - 0.5f, Mathf.PerlinNoise(time * 25f, 7f) - 0.5f) * a;
+                _shake = Mathf.MoveTowards(_shake, 0f, Time.deltaTime * 2.5f);
+            }
 
             // On vise un peu devant la voiture, dans le sens où elle va.
             Vector3 look = t.position + Vector3.up * 0.8f + flatVel * (Current == Mode.Top ? 0.25f : 0.18f);

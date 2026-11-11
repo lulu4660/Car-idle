@@ -151,6 +151,7 @@ namespace CarIdle.Drive
             if (model == "van" || model == "suv")
                 car.Drift = 0.4f;
             root.AddComponent<CarEffects>();
+            root.AddComponent<TerrainImpacts>();
 
             root.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
             return car;
