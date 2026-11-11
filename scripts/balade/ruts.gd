@@ -101,6 +101,11 @@ func dig(wheel: int, point: Vector3, surface: int, width: float, load_k: float, 
 	_stamp_segment(a as Vector2, p, width * 0.5, depth)
 
 
+## La caisse frotte le sable en `point` : un sillon large (bourrelets autour).
+func plow(a: Vector3, b: Vector3, radius: float, depth: float) -> void:
+	_stamp_segment(Vector2(a.x, a.z), Vector2(b.x, b.z), radius, depth)
+
+
 func lift(wheel: int) -> void:
 	_last[wheel] = null
 

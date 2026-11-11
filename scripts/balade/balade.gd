@@ -14,6 +14,15 @@ const Car = preload("res://scripts/balade/car.gd")
 @export var force_quality := -1
 var low_quality := false
 var _sea_materials: Array[ShaderMaterial] = []
+const WAKE_PATCH := 48.0
+var _wake_patch: MeshInstance3D
+var _wake_timer := 0.0
+var _wake_last_vy := 0.0
+var _wake_dry := true
+var _plow_last: Array = []
+var _plow_amount := 0.0
+var _plow_point := Vector3.ZERO
+var _plow_timer := 0.0
 const Waves = preload("res://scripts/balade/waves.gd")
 
 var data: RefCounted
@@ -57,6 +66,7 @@ func _ready() -> void:
 	ruts.mesh_step = 0.2 if low_quality else 0.125
 	ruts.build(terrain.material())
 	_sea_materials = WorldBuilder.build_sea(self, data, terrain.height_texture())
+	_build_wake_patch()
 	WorldBuilder.build_far_ground(self)
 	WorldBuilder.build_walls(self)
 	WorldBuilder.build_city(self)
@@ -136,8 +146,10 @@ func _process(delta: float) -> void:
 		car.queue_free()
 		_spawn(pos, yaw)
 		return
+	_follow_wake_patch()
 	for m in _sea_materials:
 		m.set_shader_parameter("now", Waves.now())
+		m.set_shader_parameter("wakes", Waves.wakes())
 	_wheel_effects(delta)
 	_splash(delta)
 	ruts.follow(car.global_position)
@@ -169,9 +181,13 @@ func _splash(delta: float) -> void:
 	var side: Vector3 = car.global_basis.x
 	for k in count:
 		var p: Vector3 = car.global_position + fwd * randf_range(0.5, 2.2) + side * randf_range(-1.2, 1.2)
-		p.y = WL.SEA_LEVEL + 0.1
-		var v: Vector3 = car.linear_velocity * 0.4 + side * randf_range(-3.0, 3.0) + Vector3.UP * randf_range(2.0, 5.0)
-		effects.dust(p, v, Color(0.92, 0.97, 1.0, 0.75), randf_range(0.8, 1.8), randf_range(0.6, 1.2))
+		var surf: float = Waves.surface(p.x, p.z, 10.0)
+		p.y = surf + 0.1
+		# Gouttes lourdes qui retombent dans l'eau, plus une brume légère.
+		var v: Vector3 = car.linear_velocity * 0.55 + side * signf(side.dot(p - car.global_position)) * randf_range(1.5, 4.5) + Vector3.UP * randf_range(2.5, 6.0)
+		effects.dust(p, v, Color(0.93, 0.98, 1.0, 0.85), randf_range(0.25, 0.6), randf_range(0.9, 1.6), effects.Kind.WATER, surf)
+		if randf() < 0.3:
+			effects.dust(p, v * 0.4, Color(0.92, 0.97, 1.0, 0.35), randf_range(1.2, 2.2), randf_range(0.6, 1.1))
 
 
 func _wheel_effects(delta: float) -> void:
@@ -210,12 +226,27 @@ func _wheel_effects(delta: float) -> void:
 			var v := back + Vector3.UP * randf_range(0.6, 4.0 if s == WL.Surface.WATER else 1.6) + Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 1.2
 			var size := randf_range(1.0, 2.0) * (1.6 if s == WL.Surface.SAND else 1.0) * (1.0 + drift * 0.6)
 			effects.dust(p + Vector3.UP * 0.2, v, Color(c.r, c.g, c.b, c.a * randf_range(0.6, 1.0)), size, randf_range(1.6, 3.4) * (0.45 if s == WL.Surface.WATER else 1.0))
+		# Gerbe de sable : les roues qui patinent ou dérapent projettent des grains en arrière,
+		# qui retombent et roulent au sol.
+		if s == WL.Surface.SAND or s == WL.Surface.DIRT:
+			var roost := (clampf(slip - 0.15, 0.0, 1.0) * 1.5 + drift) * clampf(speed / 25.0, 0.2, 1.0)
+			var grains := roost * 90.0 * delta
+			var gn := int(grains) + (1 if randf() < fmod(grains, 1.0) else 0)
+			var gc: Color = effects.DUST_COLORS[s]
+			var spin: Vector3 = -heading
+			for k in gn:
+				var gv: Vector3 = spin * randf_range(3.0, 8.0) + car.linear_velocity * 0.6 + Vector3.UP * randf_range(1.5, 4.5) + car.global_basis.x * randf_range(-1.5, 1.5)
+				effects.dust(p + Vector3.UP * 0.15, gv, Color(gc.r * 0.8, gc.g * 0.74, gc.b * 0.68, 0.95), randf_range(0.07, 0.15), randf_range(1.2, 2.0), effects.Kind.SAND, p.y - 0.03)
+	# La voiture souffle la poussière qu'elle traverse.
+	effects.push_from(car.global_position + Vector3.UP * 0.6, car.linear_velocity, 3.2)
 
 
 func _physics_process(delta: float) -> void:
 	if car == null:
 		return
 	_dig_ruts()
+	_emit_wake(delta)
+	_body_contact(delta)
 	var grounded := 0
 	for w in car.wheels:
 		if w.is_in_contact():
@@ -252,6 +283,134 @@ func _land(speed: float) -> void:
 	if k > 0.6:
 		terrain.dent(car.global_position, radius * 1.6, depth * 0.5)
 	camera.shake(0.3 + k * 0.7)
+
+
+## Les dunes se déforment sous la caisse : quand le bas de caisse ou un pare-chocs touche
+## le sable (dos de dune, nez planté dans une pente), il y laisse un sillon large, repousse
+## le sable en bourrelets et en gerbe, et freine la voiture. Si ça frotte longtemps, la
+## collision du sol est creusée aussi (la voiture s'enfonce et finit par passer).
+const PLOW_POINTS := [
+	Vector3(-0.75, 0.0, -0.85), Vector3(0.0, 0.0, -0.85), Vector3(0.75, 0.0, -0.85),
+	Vector3(-0.75, 0.0, -0.3), Vector3(0.75, 0.0, -0.3), Vector3(-0.75, 0.0, 0.3), Vector3(0.75, 0.0, 0.3),
+	Vector3(-0.75, 0.0, 0.85), Vector3(0.0, 0.0, 0.85), Vector3(0.75, 0.0, 0.85),
+	# pare-chocs, un peu plus haut
+	Vector3(-0.6, 0.35, 1.0), Vector3(0.0, 0.35, 1.0), Vector3(0.6, 0.35, 1.0),
+	Vector3(-0.6, 0.35, -1.0), Vector3(0.6, 0.35, -1.0)]
+
+
+func _body_contact(delta: float) -> void:
+	if _plow_last.size() != PLOW_POINTS.size():
+		_plow_last.resize(PLOW_POINTS.size())
+	var xf := car.global_transform
+	var h: Vector3 = car.body_half
+	var speed: float = car.linear_velocity.length()
+	var touching := 0
+	var deepest := 0.0
+	for i in PLOW_POINTS.size():
+		var lp: Vector3 = PLOW_POINTS[i]
+		var q: Vector3 = xf * Vector3(lp.x * h.x, car.body_bottom + lp.y, lp.z * h.z)
+		var g: float = data.height_at(q.x, q.z)
+		var pen := g - q.y + 0.06
+		var s := WL.surface_at(q.x, q.z, g)
+		if pen <= 0.0 or not WL.is_soft(s):
+			_plow_last[i] = null
+			continue
+		touching += 1
+		var depth := clampf(pen * 0.8 + 0.03 + speed * 0.004, 0.03, 0.28)
+		var a: Variant = _plow_last[i]
+		var from: Vector3 = q if a == null or (a as Vector3).distance_to(q) > 3.0 else a
+		ruts.plow(from, q, 0.42, depth * (0.6 if s == WL.Surface.DIRT else 1.0))
+		_plow_last[i] = q
+		if pen > deepest:
+			deepest = pen
+			_plow_point = q
+		# Gerbe : le sable chassé par la caisse.
+		if speed > 2.0 and randf() < 0.25:
+			var c: Color = effects.DUST_COLORS[s]
+			var side: Vector3 = car.global_basis.x * signf(lp.x if lp.x != 0.0 else randf() - 0.5)
+			var v: Vector3 = car.linear_velocity * 0.7 + side * randf_range(1.5, 3.5) + Vector3.UP * randf_range(1.5, 3.5)
+			effects.dust(q + Vector3.UP * 0.1, v, Color(c.r * 0.82, c.g * 0.76, c.b * 0.7, 0.95), randf_range(0.08, 0.15), randf_range(1.0, 1.8), effects.Kind.SAND, g - 0.03)
+			if randf() < 0.4:
+				effects.dust(q + Vector3.UP * 0.2, v * 0.3, Color(c.r, c.g, c.b, c.a), randf_range(1.0, 1.8), randf_range(1.5, 2.8))
+	if touching == 0:
+		_plow_amount = maxf(0.0, _plow_amount - delta)
+		return
+	# Le sable freine la caisse qui frotte (plus fort à grande vitesse).
+	var k := float(touching) / PLOW_POINTS.size()
+	car.apply_central_force(-car.linear_velocity * car.mass * 0.9 * k)
+	_plow_amount += delta * (0.5 + deepest * 4.0) * (0.3 + speed * 0.1)
+	_plow_timer -= delta
+	if _plow_amount > 0.35 and _plow_timer <= 0.0:
+		_plow_timer = 0.4
+		_plow_amount = 0.0
+		var s2 := WL.surface_at(_plow_point.x, _plow_point.z, _plow_point.y)
+		terrain.dent(_plow_point, 1.1, clampf(deepest + 0.05, 0.05, 0.2) * (0.5 if s2 == WL.Surface.DIRT else 1.0))
+
+
+## Pièce de mer fine qui suit la voiture près de l'eau : les vagues du sillage y ont du relief.
+func _build_wake_patch() -> void:
+	var mat := _sea_materials[0].duplicate() as ShaderMaterial
+	mat.set_shader_parameter("is_patch", true)
+	_sea_materials.append(mat)
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(WAKE_PATCH, WAKE_PATCH)
+	var n := int(WAKE_PATCH / (0.6 if low_quality else 0.4))
+	pm.subdivide_width = n - 1
+	pm.subdivide_depth = n - 1
+	_wake_patch = MeshInstance3D.new()
+	_wake_patch.name = "Sillage"
+	_wake_patch.mesh = pm
+	_wake_patch.material_override = mat
+	_wake_patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_wake_patch.extra_cull_margin = 2.0
+	_wake_patch.visible = false
+	add_child(_wake_patch)
+
+
+func _follow_wake_patch() -> void:
+	var p := car.global_position
+	var near: bool = Waves.active() and (data.height_at(p.x, p.z) < WL.SEA_LEVEL + 2.0 or p.x > WL.BEACH_END - 10.0)
+	var rect := Vector4(0, 0, -1, -1)
+	if near:
+		var c := Vector3(snappedf(p.x, 0.4), WL.SEA_LEVEL, snappedf(p.z, 0.4))
+		if not _wake_patch.visible or Vector2(c.x - _wake_patch.position.x, c.z - _wake_patch.position.z).length() > 6.0:
+			_wake_patch.position = c
+		var o := _wake_patch.position
+		rect = Vector4(o.x - WAKE_PATCH / 2.0, o.z - WAKE_PATCH / 2.0, WAKE_PATCH, WAKE_PATCH)
+	_wake_patch.visible = near
+	for m in _sea_materials:
+		m.set_shader_parameter("patch_rect", rect)
+
+
+## Sillage : quand la caisse ou les roues fendent l'eau, de nouvelles ondes partent de
+## l'avant et des flancs (plus fortes à grande vitesse) ; un plongeon fait un grand cercle.
+func _emit_wake(delta: float) -> void:
+	var p := car.global_position
+	var depth: float = WL.SEA_LEVEL - data.height_at(p.x, p.z)
+	if depth <= 0.03:
+		_wake_timer = 0.0
+		return
+	var surf := Waves.surface(p.x, p.z, depth)
+	var bottom: float = p.y + car.body_bottom
+	var dip: float = surf - bottom
+	if dip <= -0.15:
+		return
+	var vy := car.linear_velocity.y
+	if vy < -3.0 and _wake_last_vy >= -3.0 or (dip > 0.0 and _wake_dry):
+		# Entrée dans l'eau : un grand cercle.
+		Waves.emit(p.x, p.z, clampf(-vy * 0.06 + car.linear_velocity.length() * 0.01, 0.1, 0.5))
+	_wake_dry = dip <= 0.0
+	_wake_last_vy = vy
+	var speed := Vector2(car.linear_velocity.x, car.linear_velocity.z).length()
+	if speed < 1.0:
+		return
+	_wake_timer -= delta
+	if _wake_timer > 0.0:
+		return
+	_wake_timer = clampf(2.0 / speed, 0.14, 0.3)
+	var bow: Vector3 = p + car.global_basis.z * car.body_half.z * signf(car.global_basis.z.dot(car.linear_velocity))
+	var amp := clampf(speed * 0.012, 0.03, 0.22) * clampf(depth / 0.5, 0.3, 1.0)
+	Waves.emit(bow.x, bow.z, amp)
 
 
 func _build_hud() -> void:

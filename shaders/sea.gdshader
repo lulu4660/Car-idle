@@ -19,6 +19,46 @@ uniform float now = 0.0;
 
 varying vec3 wpos;
 
+// Sillage de la voiture (waves.gd) : ondes circulaires (x, z, départ, amplitude).
+uniform vec4 wakes[32];
+// Pièce fine autour de la voiture (0,4 m entre sommets) : elle seule porte le relief du
+// sillage ; la mer normale ne se dessine pas dessous.
+uniform bool is_patch = false;
+uniform vec4 patch_rect = vec4(0.0, 0.0, -1.0, -1.0);
+const float WAKE_SPEED = 3.2;
+const float WAKE_LEN = 2.4;
+const float WAKE_WIDTH = 2.2;
+const float WAKE_DECAY = 0.55;
+const float WAKE_LIFE = 6.0;
+
+// Sillage : hauteur, pente x, pente z, écume (crêtes jeunes et hautes).
+vec4 wake(vec2 p, float t) {
+	vec4 r = vec4(0.0);
+	float k = 6.28318 / WAKE_LEN;
+	for (int i = 0; i < 32; i++) {
+		vec4 w = wakes[i];
+		float age = t - w.z;
+		if (age <= 0.0 || age > WAKE_LIFE || w.w <= 0.0) {
+			continue;
+		}
+		vec2 dp = p - w.xy;
+		float rr = max(length(dp), 0.001);
+		float front = WAKE_SPEED * age;
+		float u = (rr - front) / WAKE_WIDTH;
+		if (abs(u) > 2.5) {
+			continue;
+		}
+		float env = w.w * exp(-age * WAKE_DECAY) * exp(-u * u) / sqrt(1.0 + rr * 0.4);
+		float ph = k * (rr - front);
+		r.x += env * cos(ph);
+		// Pente : dérivée selon r (l'enveloppe varie peu devant l'onde), le long de dp.
+		float dh = -env * k * sin(ph) - env * cos(ph) * 2.0 * u / WAKE_WIDTH;
+		r.yz += dh * dp / rr;
+		r.w += env * max(cos(ph), 0.0) * exp(-age * 1.2);
+	}
+	return r;
+}
+
 float hash2(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
@@ -68,17 +108,28 @@ void vertex() {
 	// Houle en relief seulement au large : près du bord, la surface reste plane et le rivage
 	// suit exactement le sable (pas de marches dues au maillage).
 	VERTEX.y += swell(w.xz, now).x * smoothstep(3.0, 7.0, depth);
+	if (is_patch) {
+		vec2 q = (w.xz - patch_rect.xy) / patch_rect.zw;
+		float edge = smoothstep(0.0, 0.1, min(min(q.x, 1.0 - q.x), min(q.y, 1.0 - q.y)));
+		VERTEX.y += wake(w.xz, now).x * clamp(depth / 0.3, 0.0, 1.0) * edge;
+	}
 	wpos = w;
 }
 
 void fragment() {
 	float t = now;
 	vec2 p = wpos.xz;
+	bool inside = all(greaterThan(p, patch_rect.xy)) && all(lessThan(p, patch_rect.xy + patch_rect.zw));
+	if (inside != is_patch) {
+		discard;
+	}
 	float d = water_depth(p);
 	vec3 s = swell(p, t);
 	vec2 ripple = vec2(sin(p.x * 1.7 + t * 2.1 + sin(p.y * 0.9)), sin(p.y * 1.9 - t * 1.7 + sin(p.x * 1.1))) * 0.06;
 	ripple += vec2(sin(p.x * 4.3 - t * 3.3 + p.y * 2.0), sin(p.y * 3.7 + t * 2.9 - p.x * 1.6)) * 0.03;
-	vec3 nw = normalize(vec3(-(s.y + ripple.x), 1.0, -(s.z + ripple.y)));
+	vec4 wk = is_patch ? wake(p, t) : vec4(0.0);
+	float wet = clamp(d / 0.3, 0.0, 1.0);
+	vec3 nw = normalize(vec3(-(s.y + ripple.x + wk.y * wet), 1.0, -(s.z + ripple.y + wk.z * wet)));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 
 	vec3 water = mix(shallow_color, deep_color, clamp(d / 6.0, 0.0, 1.0));
@@ -99,6 +150,9 @@ void fragment() {
 	float crest = smoothstep(0.94, 0.985, fract(wave_phase)) * (1.0 - smoothstep(0.985, 1.0, fract(wave_phase)));
 	float breakup = smoothstep(0.3, 0.7, vnoise(p * vec2(0.05, 0.3) + vec2(0.0, t * 0.1)));
 	foam = max(foam, crest * breakup * 0.7 * clamp(1.0 - d / 4.5, 0.0, 1.0) * clamp(d / 0.4, 0.0, 1.0));
+	// Écume sur les crêtes du sillage, découpée par un bruit fin.
+	float wfoam = smoothstep(0.04, 0.16, wk.w * wet) * (0.55 + 0.45 * vnoise(p * 2.3 + t));
+	foam = max(foam, wfoam * 0.85);
 	ALBEDO = mix(water, foam_color, foam);
 	ROUGHNESS = mix(0.14, 0.7, foam);
 	METALLIC = 0.0;
