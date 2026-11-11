@@ -12,7 +12,7 @@ uniform int res = 1025;
 uniform float sea_level = 10.0;
 uniform vec3 deep_color : source_color = vec3(0.02, 0.16, 0.23);
 uniform vec3 shallow_color : source_color = vec3(0.05, 0.55, 0.52);
-uniform vec3 foam_color : source_color = vec3(0.95, 0.93, 0.88);
+uniform vec3 foam_color : source_color = vec3(0.86, 0.88, 0.86);
 uniform float wave_height = 0.25;
 // Horloge du jeu (waves.gd), la même que celle de la physique de la flottaison.
 uniform float now = 0.0;
@@ -96,9 +96,9 @@ void fragment() {
 	foam = max(foam, sea_foam * 0.6);
 	// Vagues qui déferlent : des lignes d'écume avancent vers la plage et se brisent au bord.
 	float wave_phase = d * 0.55 + t * 0.12 + vnoise(p * 0.02) * 0.6;
-	float crest = smoothstep(0.90, 0.975, fract(wave_phase)) * (1.0 - smoothstep(0.975, 1.0, fract(wave_phase)));
+	float crest = smoothstep(0.94, 0.985, fract(wave_phase)) * (1.0 - smoothstep(0.985, 1.0, fract(wave_phase)));
 	float breakup = smoothstep(0.3, 0.7, vnoise(p * vec2(0.05, 0.3) + vec2(0.0, t * 0.1)));
-	foam = max(foam, crest * breakup * clamp(1.0 - d / 4.5, 0.0, 1.0) * clamp(d / 0.4, 0.0, 1.0));
+	foam = max(foam, crest * breakup * 0.7 * clamp(1.0 - d / 4.5, 0.0, 1.0) * clamp(d / 0.4, 0.0, 1.0));
 	ALBEDO = mix(water, foam_color, foam);
 	ROUGHNESS = mix(0.14, 0.7, foam);
 	METALLIC = 0.0;
