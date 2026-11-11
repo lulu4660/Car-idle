@@ -1,18 +1,18 @@
 # Graph Report - car-idle  (2026-11-11)
 
 ## Corpus Check
-- 4 files · ~2,488 words
+- 5 files · ~2,772 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 66 file(s) not represented in the graph (top: .uid 30, .gd 23, .gdshader 7)
-- WARNING: 66 of 71 files seen (93%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
+- Unclassified: 70 file(s) not represented in the graph (top: .uid 33, .gd 24, .gdshader 7)
+- WARNING: 70 of 76 files seen (92%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
 
 ## Summary
-- 134 nodes · 71 edges · 69 communities (8 shown, 61 thin omitted)
+- 137 nodes · 73 edges · 70 communities (8 shown, 62 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `3a816af8`
+- Built from commit: `91f02f0b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -25,6 +25,7 @@
 - deploy
 - export
 - Car Idle
+- web_check.js
 
 ## God Nodes (most connected - your core abstractions)
 1. `Car Idle` - 9 edges
@@ -44,7 +45,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (69 total, 61 thin omitted)
+## Communities (70 total, 62 thin omitted)
 
 ### Community 1 - "Car Idle"
 Cohesion: 0.20
@@ -79,14 +80,14 @@ Cohesion: 0.25
 Nodes (7): Car Idle, Jouer sur iPhone, La balade, Monde précalculé, Outils de Claude (facultatif), Ouvrir le projet (PC Windows), Tests
 
 ## Knowledge Gaps
-- **61 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **62 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `jobs` connect `export` to `deploy`, `web.yml`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
+  _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **Why does `export` connect `export` to `steps`?**
-  _High betweenness centrality (0.031) - this node is a cross-community bridge._
+  _High betweenness centrality (0.029) - this node is a cross-community bridge._
 - **Why does `steps` connect `steps` to `export`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._

@@ -41,6 +41,7 @@ var _was_airborne := false
 
 var _hud_speed: Label
 var _hud_info: Label
+var _hud_box: VBoxContainer
 
 
 func _ready() -> void:
@@ -103,8 +104,14 @@ func _apply_quality(sun: DirectionalLight3D) -> void:
 	var vp := get_viewport()
 	if low_quality:
 		vp.scaling_3d_scale = 1.0
-		vp.msaa_3d = Viewport.MSAA_DISABLED
-		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+		if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+			# Web : ce rendu n'a pas de FXAA (il ne faisait rien). Le MSAA ×2 coûterait
+			# beaucoup au banc d'essai ; à essayer sur un vrai iPhone avant de l'activer.
+			vp.msaa_3d = Viewport.MSAA_DISABLED
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+		else:
+			vp.msaa_3d = Viewport.MSAA_DISABLED
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 		RenderingServer.directional_shadow_atlas_set_size(2048, true)
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 		sun.directional_shadow_max_distance = 70.0
@@ -409,9 +416,6 @@ func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	box.position = Vector2(-300, 8)
-	box.size = Vector2(600, 100)
 	box.alignment = BoxContainer.ALIGNMENT_BEGIN
 	layer.add_child(box)
 	_hud_speed = Label.new()
@@ -427,3 +431,17 @@ func _build_hud() -> void:
 	_hud_info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
 	_hud_info.add_theme_constant_override("outline_size", 4)
 	box.add_child(_hud_info)
+	_hud_box = box
+	get_viewport().size_changed.connect(_layout_hud)
+	_layout_hud()
+
+
+## Affichage à la taille de l'écran ; en portrait, sous les boutons du haut.
+func _layout_hud() -> void:
+	var size := get_viewport().get_visible_rect().size
+	var u := minf(size.x, size.y)
+	var portrait := size.x < size.y
+	_hud_box.size = Vector2(size.x, u * 0.2)
+	_hud_box.position = Vector2(0, u * (0.29 if portrait else 0.02))
+	_hud_speed.add_theme_font_size_override("font_size", maxi(24, int(u * 0.075)))
+	_hud_info.add_theme_font_size_override("font_size", maxi(12, int(u * 0.03)))

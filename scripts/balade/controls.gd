@@ -14,16 +14,18 @@ var camera_requested := false
 
 var _steer_smooth := 0.0
 
-# Boutons : action, texte, zone en fraction de l'écran (x, y depuis le HAUT, largeur, hauteur).
+# Boutons : action, texte (vide = flèche dessinée), coin d'accroche (0/1 en x et y) et zone
+# mesurée depuis ce coin, en fraction du petit côté de l'écran : même taille au doigt en
+# portrait et en paysage, rien ne se chevauche sur un téléphone tenu droit.
 const BUTTONS := [
-	["ci_left", "◀", Rect2(0.02, 0.77, 0.17, 0.20)],
-	["ci_right", "▶", Rect2(0.21, 0.77, 0.17, 0.20)],
-	["ci_brake", "FREIN", Rect2(0.61, 0.79, 0.17, 0.18)],
-	["ci_gas", "GAZ", Rect2(0.80, 0.71, 0.18, 0.26)],
-	["ci_drift", "DÉRAPAGE", Rect2(0.80, 0.57, 0.18, 0.12)],
-	["ci_reset", "REPLACER", Rect2(0.02, 0.04, 0.12, 0.08)],
-	["ci_camera", "CAMÉRA", Rect2(0.72, 0.04, 0.12, 0.08)],
-	["ci_car", "VOITURE", Rect2(0.86, 0.04, 0.12, 0.08)],
+	["ci_left", "", Vector2(0, 1), Rect2(0.04, 0.04, 0.20, 0.26)],
+	["ci_right", "", Vector2(0, 1), Rect2(0.26, 0.04, 0.20, 0.26)],
+	["ci_gas", "GAZ", Vector2(1, 1), Rect2(0.04, 0.04, 0.24, 0.32)],
+	["ci_brake", "FREIN", Vector2(1, 1), Rect2(0.30, 0.04, 0.20, 0.20)],
+	["ci_drift", "DÉRAPAGE", Vector2(1, 1), Rect2(0.04, 0.38, 0.24, 0.14)],
+	["ci_reset", "REPLACER", Vector2(0, 0), Rect2(0.03, 0.03, 0.28, 0.11)],
+	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.03, 0.03, 0.28, 0.11)],
+	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.03, 0.16, 0.28, 0.11)],
 ]
 
 const KEYS := {
@@ -53,7 +55,9 @@ func _ready() -> void:
 		var t := TouchScreenButton.new()
 		t.action = b[0]
 		t.passby_press = true
-		t.set_meta("zone", b[2])
+		t.set_meta("corner", b[2])
+		t.set_meta("zone", b[3])
+		t.set_meta("arrow", -1 if b[0] == "ci_left" else (1 if b[0] == "ci_right" else 0))
 		var lbl := Label.new()
 		lbl.text = b[1]
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -70,18 +74,25 @@ func _ready() -> void:
 
 func _layout() -> void:
 	var size := get_viewport().get_visible_rect().size
+	var u := minf(size.x, size.y)
 	for t in _buttons:
+		var corner: Vector2 = t.get_meta("corner")
 		var z: Rect2 = t.get_meta("zone")
-		var r := Rect2(z.position * size, z.size * size)
-		t.position = r.position
-		t.texture_normal = _box(Vector2i(r.size), Color(1, 1, 1, 0.18))
-		t.texture_pressed = _box(Vector2i(r.size), Color(1.0, 0.55, 0.15, 0.65))
+		var bs := z.size * u
+		var x := z.position.x * u if corner.x == 0 else size.x - (z.position.x + z.size.x) * u
+		var y := z.position.y * u if corner.y == 0 else size.y - (z.position.y + z.size.y) * u
+		t.position = Vector2(x, y)
+		var arrow: int = t.get_meta("arrow")
+		t.texture_normal = _box(Vector2i(bs), Color(1, 1, 1, 0.18), arrow)
+		t.texture_pressed = _box(Vector2i(bs), Color(1.0, 0.55, 0.15, 0.65), arrow)
 		var lbl := t.get_child(0) as Label
-		lbl.size = r.size
-		lbl.add_theme_font_size_override("font_size", maxi(14, int(size.y / 30.0)))
+		lbl.size = bs
+		lbl.add_theme_font_size_override("font_size", maxi(12, int(u * 0.042)))
 
 
-func _box(s: Vector2i, c: Color) -> ImageTexture:
+## Fond du bouton (cadre) ; `arrow` = -1 ou 1 : flèche gauche ou droite dessinée dedans
+## (les caractères ◀ ▶ manquent dans la police de la version web).
+func _box(s: Vector2i, c: Color, arrow := 0) -> ImageTexture:
 	s = s.max(Vector2i(8, 8))
 	var img := Image.create(s.x, s.y, false, Image.FORMAT_RGBA8)
 	img.fill(c)
@@ -94,6 +105,17 @@ func _box(s: Vector2i, c: Color) -> ImageTexture:
 		for w in 2:
 			img.set_pixel(w, y, border)
 			img.set_pixel(s.x - 1 - w, y, border)
+	if arrow != 0:
+		var half := minf(s.x, s.y) * 0.22
+		var cx := s.x * 0.5
+		var cy := s.y * 0.5
+		var ink := Color(1, 1, 1, 0.9)
+		for y in range(int(cy - half), int(cy + half) + 1):
+			var span := half * (1.0 - absf(y - cy) / half) * 1.6
+			for x in range(int(cx - half * 0.8), int(cx - half * 0.8 + span) + 1):
+				var xx := x if arrow > 0 else int(2.0 * cx) - x
+				if xx >= 0 and xx < s.x and y >= 0 and y < s.y:
+					img.set_pixel(xx, y, ink)
 	return ImageTexture.create_from_image(img)
 
 

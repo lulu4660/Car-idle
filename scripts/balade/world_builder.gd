@@ -100,6 +100,7 @@ static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> 
 	mat.set_shader_parameter("world_size", WL.SIZE)
 	mat.set_shader_parameter("sea_level", WL.SEA_LEVEL)
 	mat.set_shader_parameter("wave_height", Waves.WAVE_HEIGHT)
+	mat.set_shader_parameter("ripple_tex", load("res://assets/water/ripples.png"))
 	var far_mat := mat.duplicate() as ShaderMaterial
 	mat.set_shader_parameter("is_near", true)
 	var r := WorldData.SEA_RECT

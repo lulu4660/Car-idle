@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1794424601.281956,
-    "seen": 1794424607.2639604,
-    "ast_hash": "bf5f9371197dadf36de69aa5ecceefe5",
+    "mtime": 1794428849.0604296,
+    "seen": 1794428849.912471,
+    "ast_hash": "5763e3c699b3224e254b90236eb89407",
     "semantic_hash": ""
   },
   "README.md": {
@@ -27,6 +27,12 @@
     "mtime": 1794399557.2834504,
     "seen": 1794400595.6509628,
     "ast_hash": "f6bce8258a1a00043f0f287c9474f8eb",
+    "semantic_hash": ""
+  },
+  "tools/web_check.js": {
+    "mtime": 1794428849.0491023,
+    "seen": 1794428849.912467,
+    "ast_hash": "6366e4d6d52602b9d1d4510f1aef0095",
     "semantic_hash": ""
   }
 }
