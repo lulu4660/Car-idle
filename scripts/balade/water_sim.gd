@@ -1,5 +1,5 @@
 ## Vraies vagues autour de la voiture : la surface de l'eau est simulée sur une grille de
-## 64 m (25 cm par case) qui suit la voiture (shaders/water_sim.gdshader, équation des ondes
+## 64 m (50 cm par case) qui suit la voiture (shaders/water_sim.gdshader, équation des ondes
 ## en eau peu profonde, un pas par image). La caisse et les roues qui fendent l'eau la
 ## poussent : vague d'étrave, sillage en V, vagues qui ralentissent et meurent sur le sable.
 ## Deux SubViewports se passent le relais (l'un lit l'image de l'autre) ; la mer lit la
@@ -8,11 +8,11 @@ extends Node
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-const SIZE := 256
-const CELL := 0.25
+const SIZE := 128
+const CELL := 0.5
 const SPAN := SIZE * CELL            # 64 m
 const RANGE := 1.0                    # hauteur codée : ±1 m
-const SNAP := 0.75                    # pas du maillage de la mer fine (multiple de CELL)
+const SNAP := 0.5
 
 var _vp: Array[SubViewport] = []
 var _mat: Array[ShaderMaterial] = []

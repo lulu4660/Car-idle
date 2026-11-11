@@ -21,8 +21,8 @@ static func now() -> float:
 static func surface(x: float, z: float, depth: float) -> float:
 	var h := 0.0
 	var t := now()
-	# Les deux grandes vagues, celles qui ont du relief à l'image.
-	for i in 2:
+	# Les quatre vagues, comme à l'image (grille fine de la mer).
+	for i in 4:
 		var d := DIRS[i].normalized()
 		var k := TAU / LENS[i]
 		var c := sqrt(9.8 / k)
@@ -37,7 +37,7 @@ static func velocity(x: float, z: float, depth: float) -> Vector3:
 	var v := Vector3.ZERO
 	var t := now()
 	var k_depth := smoothstep(3.0, 7.0, depth)
-	for i in 2:
+	for i in 4:
 		var d := DIRS[i].normalized()
 		var k := TAU / LENS[i]
 		var c := sqrt(9.8 / k)

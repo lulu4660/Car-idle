@@ -107,7 +107,9 @@ func _apply_quality(sun: DirectionalLight3D) -> void:
 		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 		RenderingServer.directional_shadow_atlas_set_size(2048, true)
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-		sun.directional_shadow_max_distance = 90.0
+		sun.directional_shadow_max_distance = 70.0
+		# Filtre d'ombre le moins cher qui reste lisse (le filtre « dur » crénelle les bords).
+		RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW)
 		for n in get_children():
 			if n is WorldEnvironment:
 				(n as WorldEnvironment).environment.glow_enabled = false
@@ -327,60 +329,79 @@ func _body_contact(delta: float) -> void:
 		terrain.dent(_plow_point, 1.1, clampf(deepest + 0.05, 0.05, 0.2) * (0.5 if s2 == WL.Surface.DIRT else 1.0))
 
 
-## Mer fine (un sommet tous les 75 cm) posée sur la zone simulée : les vagues de la voiture
-## y ont du relief ; ailleurs la mer normale.
+## Grille fine de la mer (128 m, un sommet tous les 1,6 m) qui suit la voiture : houle
+## en facettes et vagues simulées autour de la voiture. La mer plate ne se dessine pas
+## dessous.
+const NEAR_SEA := 128.0
+const NEAR_SEA_STEP := 1.6
+
+
 func _build_wake_patch() -> void:
 	water_sim = load("res://scripts/balade/water_sim.gd").new()
 	water_sim.name = "SimulationEau"
 	add_child(water_sim)
 	water_sim.build(terrain.height_texture(), data)
-	var mat := _sea_materials[0].duplicate() as ShaderMaterial
-	mat.set_shader_parameter("is_patch", true)
-	_sea_materials.append(mat)
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(water_sim.SPAN, water_sim.SPAN)
-	var n := int(water_sim.SPAN / water_sim.SNAP)
+	pm.size = Vector2(NEAR_SEA, NEAR_SEA)
+	var n := int(NEAR_SEA / NEAR_SEA_STEP)
 	pm.subdivide_width = n - 1
 	pm.subdivide_depth = n - 1
 	_wake_patch = MeshInstance3D.new()
-	_wake_patch.name = "MerFine"
+	_wake_patch.name = "MerProche"
 	_wake_patch.mesh = pm
-	_wake_patch.material_override = mat
+	_wake_patch.material_override = _sea_materials[0]
 	_wake_patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_wake_patch.extra_cull_margin = 2.0
 	_wake_patch.visible = false
 	add_child(_wake_patch)
+	for m in _sea_materials:
+		m.set_shader_parameter("sim_size", water_sim.SIZE)
+		m.set_shader_parameter("sim_range", water_sim.RANGE)
 
 
-## Près de l'eau : un pas de simulation (caisse et roues qui poussent l'eau), puis la mer
-## fine se cale sur la zone simulée.
+## Près de la mer : la grille fine se cale sur la voiture (sur une grille fixe, sinon les
+## facettes ondulent en la suivant) et la simulation avance d'un pas (caisse et roues qui
+## poussent l'eau). Loin de la mer : rien à faire.
 func _follow_wake_patch(delta: float) -> void:
 	var p := car.global_position
-	var near: bool = data.height_at(p.x, p.z) < WL.SEA_LEVEL + 2.0 or p.x > WL.BEACH_END - 10.0
-	var rect := Vector4(0, 0, -1, -1)
+	var near: bool = p.x > WL.BEACH_END - 90.0 or data.height_at(p.x, p.z) < WL.SEA_LEVEL + 3.0
+	var near_rect := Vector4(0, 0, -1, -1)
+	var sim_rect := Vector4(0, 0, -1, -1)
 	if near:
-		var depth: float = WL.SEA_LEVEL - data.height_at(p.x, p.z)
-		var surf := Waves.surface(p.x, p.z, depth)
-		var dip := clampf(surf - (p.y + car.body_bottom), 0.0, 1.2)
-		var stirs: Array[Vector4] = []
-		for w in car.wheels:
-			var wv := w as VehicleWheel3D
-			if wv.is_in_contact():
-				var c := wv.get_contact_point()
-				var wd := clampf(Waves.surface(c.x, c.z, WL.SEA_LEVEL - c.y) - c.y, 0.0, 0.8)
-				stirs.append(Vector4(c.x, c.z, 0.55, wd))
-			else:
-				stirs.append(Vector4.ZERO)
-		var h: Vector3 = car.body_half
-		water_sim.step(p, p, car.global_basis.z, Vector2(h.x, h.z), dip, stirs, delta)
-		rect = water_sim.rect()
-		_wake_patch.position = Vector3(rect.x + rect.z / 2.0, WL.SEA_LEVEL, rect.y + rect.w / 2.0)
+		var g := NEAR_SEA_STEP * 4.0
+		var c := Vector3(snappedf(p.x, g), WL.SEA_LEVEL, snappedf(p.z, g))
+		_wake_patch.position = c
+		near_rect = Vector4(c.x - NEAR_SEA / 2.0, c.z - NEAR_SEA / 2.0, NEAR_SEA, NEAR_SEA)
+		var in_reach: bool = data.height_at(p.x, p.z) < WL.SEA_LEVEL + 1.0
+		if in_reach:
+			var depth: float = WL.SEA_LEVEL - data.height_at(p.x, p.z)
+			var surf := Waves.surface(p.x, p.z, depth)
+			var dip := clampf(surf - (p.y + car.body_bottom), 0.0, 1.2)
+			var stirs: Array[Vector4] = []
+			for w in car.wheels:
+				var wv := w as VehicleWheel3D
+				if wv.is_in_contact():
+					var cp := wv.get_contact_point()
+					var wd := clampf(Waves.surface(cp.x, cp.z, WL.SEA_LEVEL - cp.y) - cp.y, 0.0, 0.8)
+					stirs.append(Vector4(cp.x, cp.z, 0.6, wd))
+				else:
+					stirs.append(Vector4.ZERO)
+			var h: Vector3 = car.body_half
+			water_sim.step(p, p, car.global_basis.z, Vector2(h.x, h.z), dip, stirs, delta)
+			sim_rect = water_sim.rect()
+		else:
+			water_sim.active = false
 	else:
 		water_sim.active = false
 	_wake_patch.visible = near
+	# La mer plate s'arrête un peu avant le bord de la grille fine (pas de fente entre les deux).
+	var hole := near_rect
+	if near:
+		hole = Vector4(near_rect.x + 0.5, near_rect.y + 0.5, near_rect.z - 1.0, near_rect.w - 1.0)
+	_sea_materials[0].set_shader_parameter("near_rect", near_rect)
+	_sea_materials[1].set_shader_parameter("hole_rect", hole)
 	for m in _sea_materials:
-		m.set_shader_parameter("patch_rect", rect)
-		m.set_shader_parameter("sim_rect", rect)
+		m.set_shader_parameter("sim_rect", sim_rect)
 		m.set_shader_parameter("sim_tex", water_sim.texture())
 
 

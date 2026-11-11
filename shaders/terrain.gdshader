@@ -33,8 +33,11 @@ uniform vec3 wet_color : source_color = vec3(0.70, 0.55, 0.39);
 
 varying vec3 wpos;
 
+// Hasard sans sinus (moins cher et stable sur les GPU mobiles).
 float hash2(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
 }
 
 float vnoise(vec2 p) {

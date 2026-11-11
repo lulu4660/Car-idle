@@ -89,7 +89,8 @@ func _build_grass() -> void:
 			mmi.material_override = mat
 			mmi.position = center
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if near else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			var shadow_range := GRASS_SHADOW_RANGE
+			# iPhone et web : ombres de l'herbe seulement tout près (passe d'ombre moins chère).
+			var shadow_range := GRASS_SHADOW_RANGE * (0.45 if low_quality else 1.0)
 			if near:
 				mmi.visibility_range_end = shadow_range
 			else:

@@ -3,6 +3,7 @@
 extends RefCounted
 
 const WL = preload("res://scripts/core/world_layout.gd")
+const Waves = preload("res://scripts/balade/waves.gd")
 const WorldData = preload("res://scripts/balade/world_data.gd")
 
 ## Soleil d'après-midi (34°) au sud-ouest : ombres nettes et assez longues, le sable modelé
@@ -89,8 +90,8 @@ static func build_environment(parent: Node) -> DirectionalLight3D:
 	return sun
 
 
-## Mer : maillage fin le long de la côte (houle visible, vagues qui lèchent le sable)
-## entouré de grands panneaux jusqu'à l'horizon.
+## Mer : une mer plate et grossière jusqu'à l'horizon (la grille fine qui suit la voiture
+## est fabriquée par balade.gd). Rend [matériau de la grille fine, matériau de la mer plate].
 static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> Array[ShaderMaterial]:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/sea.gdshader")
@@ -98,10 +99,12 @@ static func build_sea(parent: Node, data: RefCounted, height_tex: Texture2D) -> 
 	mat.set_shader_parameter("res", data.res)
 	mat.set_shader_parameter("world_size", WL.SIZE)
 	mat.set_shader_parameter("sea_level", WL.SEA_LEVEL)
-	var r := WorldData.SEA_RECT
+	mat.set_shader_parameter("wave_height", Waves.WAVE_HEIGHT)
 	var far_mat := mat.duplicate() as ShaderMaterial
-	far_mat.set_shader_parameter("wave_height", 0.0)
-	_sea_mesh(parent, mat, r, 8.0, 8.0)
+	mat.set_shader_parameter("is_near", true)
+	var r := WorldData.SEA_RECT
+	# Le long de la côte, des carreaux de 16 m suffisent : le rivage suit le sable.
+	_sea_mesh(parent, far_mat, r, 16.0, 16.0)
 	var far := 4000.0
 	_sea_mesh(parent, far_mat, Rect2(r.end.x, -far, far, far * 2.0), 400.0, 400.0)
 	_sea_mesh(parent, far_mat, Rect2(r.position.x, r.end.y, r.size.x, far - r.end.y), 60.0, 400.0)

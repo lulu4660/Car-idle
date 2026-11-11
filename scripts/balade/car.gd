@@ -11,11 +11,6 @@ const Waves = preload("res://scripts/balade/waves.gd")
 enum Drivetrain { ALL_WHEEL, REAR_WHEEL, FRONT_WHEEL }
 const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
 
-## Modèles jouables : la « Car Concept » de Khronos (CC-BY 4.0, voiture réaliste sans marque)
-## et le Car Kit de Kenney (CC0, low poly), provisoires.
-## Voitures « street » (Sketchfab, Daniel Zhabotinsky, CC-BY 4.0) : détaillées et légères
-## (18 000 à 28 000 triangles, textures 512 px), noms inventés, plaques et badges masqués.
-const STREET: Array[String] = ["tiara", "phoenix", "kiri", "lasley", "lightbody", "bokaroo"]
 ## Voitures « toon » (style low poly en couleurs unies) : citadine et berline du pack
 ## « 4 Low Poly Toon City Cars » (Viktor Tselikov) et pick-up (farooq.smurf), CC-BY 4.0.
 ## Valeur : fichier, nom des pièces à garder dans le pack, longueur réelle (m).
@@ -24,14 +19,11 @@ const TOON := {
 	"toon_sedan": ["res://assets/cars/toon/toon4.glb", "Sedan", 4.0],
 	"toon_pickup": ["res://assets/cars/toon/pickup.glb", "", 4.4],
 }
-const MODELS: Array[String] = ["toon_hatchback", "toon_sedan", "toon_pickup", "tiara", "phoenix", "kiri", "lasley", "lightbody", "bokaroo", "concept", "hatchback-sports", "suv", "van"]
+## Pour l'instant, seulement les voitures low poly (même style que le décor).
+const MODELS: Array[String] = ["toon_hatchback", "toon_sedan", "toon_pickup"]
 ## Nom affiché de chaque voiture (noms de jeu, jamais de marque réelle).
 const DISPLAY_NAMES := {
-	"tiara": "Tiara GT '83", "phoenix": "Phoenix 455 '71", "kiri": "Kiri '86", "lasley": "Lasley '67",
-	"lightbody": "Lightbody '85", "bokaroo": "Bokaroo '67", "concept": "Concept",
-	"hatchback-sports": "Kit Sport", "suv": "Kit SUV", "van": "Kit Van",
 	"toon_hatchback": "Citadine", "toon_sedan": "Berline", "toon_pickup": "Pick-up"}
-const CAR_LENGTH := 4.4
 ## Noms possibles des roues, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_NAMES: Array = [
 	["wheel-front-left", "WheelFrontL"], ["wheel-front-right", "WheelFrontR"],
@@ -39,19 +31,13 @@ const WHEEL_NAMES: Array = [
 ## Pièces masquées : plaques et logos (aucune marque à l'écran), et l'intérieur, invisible
 ## vu du drone (deux fois moins d'objets à dessiner).
 const HIDDEN_PARTS: Array[String] = ["License Plate", "Numberplate", "Badges", "Emblem", "Logo", "Interior", "Engine", "Pedal", "Steering"]
-## Repères des roues dans les noms des modèles « street » : avant gauche, avant droite, arrière gauche, arrière droite.
+## Repères des roues dans les noms des maillages : avant gauche, avant droite, arrière gauche, arrière droite.
 const WHEEL_TAGS: Array = [["_FL"], ["_FR"], ["_RL", "_BL", "R L"], ["_RR", "_BR", "R R"]]
 const WHEEL_TAGS_FRONT: Array = [["F L"], ["F R"]]
 
 
 static func model_path(model: String) -> String:
-	if model == "concept":
-		return "res://assets/cars/concept/CarConcept.glb"
-	if model in STREET:
-		return "res://assets/cars/street/%s.glb" % model
-	if TOON.has(model):
-		return TOON[model][0]
-	return "res://assets/cars/kenney/%s.glb" % model
+	return TOON[model][0]
 
 @export_group("Moteur et freins")
 @export var engine_force_total := 10000.0
@@ -151,7 +137,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 			if found:
 				break
 		if found == null:
-			# Modèles « street » : maillage dont le nom contient « Wheel » et le repère de la roue.
+			# Sinon : maillage dont le nom contient « Wheel » (ou « Tire ») et le repère de la roue.
 			var tags: Array = WHEEL_TAGS[k] + (WHEEL_TAGS_FRONT[k] if k < 2 else [])
 			for m in visual.find_children("*", "MeshInstance3D", true, false):
 				var nm := String(m.name)
@@ -172,7 +158,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	visual.rotate_y(fwd.signed_angle_to(Vector3.BACK, Vector3.UP))
 	# 2. Taille : longueur réelle d'une voiture.
 	var b := _bounds(visual, car)
-	var length: float = TOON[model][2] if TOON.has(model) else CAR_LENGTH
+	var length: float = TOON[model][2]
 	var s := length / maxf(b.size.z, 0.01)
 	visual.scale *= s
 	visual.position *= s
@@ -236,59 +222,19 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		var mesh := car.wheels[i].get_child(0) as Node3D
 		var c := _node_bounds(mesh, car.wheels[i])
 		mesh.position -= c.get_center()
+		car._wheel_base.append(mesh.position)
 
-	if model == "concept":
-		_fix_glass(visual)
-	elif not model in STREET and not TOON.has(model):
-		_paint(visual)
 	car.drive = _drivetrain_of(model)
-	if model in ["van", "suv", "lightbody", "bokaroo"]:
-		car.drift = 0.4
-	elif model == "tiara":
-		car.drift = 0.8
+	if model == "toon_pickup":
+		car.drift = 0.45
 	return car
 
 
 static func _drivetrain_of(model: String) -> int:
 	match model:
-		"concept", "tiara", "phoenix": return Drivetrain.REAR_WHEEL
-		"kiri", "lasley", "toon_hatchback": return Drivetrain.FRONT_WHEEL
-		"toon_sedan": return Drivetrain.REAR_WHEEL
+		"toon_hatchback": return Drivetrain.FRONT_WHEEL
 		"toon_pickup": return Drivetrain.ALL_WHEEL
-		"lightbody", "bokaroo": return Drivetrain.ALL_WHEEL
-		"suv": return Drivetrain.ALL_WHEEL
-		"taxi", "van": return Drivetrain.FRONT_WHEEL
 	return Drivetrain.REAR_WHEEL
-
-
-## Peinture vernie : reflète le ciel et le soleil.
-static func _paint(visual: Node3D) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = load("res://assets/cars/kenney/Textures/colormap.png")
-	mat.roughness = 0.28
-	mat.metallic = 0.25
-	mat.clearcoat_enabled = true
-	mat.clearcoat = 0.6
-	mat.clearcoat_roughness = 0.15
-	for m in visual.find_children("*", "MeshInstance3D", true, false):
-		(m as MeshInstance3D).material_override = mat
-
-
-## Vitres : le verre du modèle (réfraction) passe mal sur mobile et sur le web ; on le
-## remplace par un verre fumé simple, transparent et brillant.
-static func _fix_glass(visual: Node3D) -> void:
-	var glass := StandardMaterial3D.new()
-	glass.albedo_color = Color(0.04, 0.05, 0.06, 0.88)
-	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass.metallic = 0.6
-	glass.roughness = 0.04
-	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
-	for m in visual.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
-		var n := String(mi.name)
-		var is_glass := n.containsn("Window") or n.containsn("Windshield")
-		if is_glass and not n.containsn("Gasket") and not n.containsn("Wiper"):
-			mi.material_override = glass
 
 
 static func _mesh_bounds(m: MeshInstance3D, ref: Node3D) -> AABB:
@@ -345,6 +291,8 @@ func _ready() -> void:
 ## dessin, le long de l'axe vertical de la voiture (le décalage est exprimé dans le repère de
 ## la roue, qui tourne : sans ça la roue tournerait en ovale).
 var _wheel_fix: Array[float] = [0.0, 0.0, 0.0, 0.0]
+# Recentrage du dessin de chaque roue sur son axe (certains modèles ont le pivot ailleurs).
+var _wheel_base: Array[Vector3] = []
 
 
 func _process(delta: float) -> void:
@@ -359,7 +307,8 @@ func _process(delta: float) -> void:
 			var gap := (w.global_position - w.get_contact_point()).dot(up) - w.wheel_radius
 			want = clampf(-gap - clampf(wheel_sink[i], 0.0, 0.12), -0.25, 0.25)
 		_wheel_fix[i] = lerpf(_wheel_fix[i], want, minf(1.0, delta * 20.0))
-		mesh.position = w.global_basis.orthonormalized().inverse() * (up * _wheel_fix[i])
+		var base: Vector3 = _wheel_base[i] if i < _wheel_base.size() else Vector3.ZERO
+		mesh.position = base + w.global_basis.orthonormalized().inverse() * (up * _wheel_fix[i])
 
 
 func _physics_process(delta: float) -> void:
