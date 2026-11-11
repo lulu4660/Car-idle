@@ -9,7 +9,7 @@ const WorldData = preload("res://scripts/balade/world_data.gd")
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
 
-@export var start_model := "hatchback-sports"
+@export var start_model := "concept"
 
 var data: RefCounted
 var terrain: Node3D

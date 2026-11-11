@@ -14,12 +14,12 @@ const STAMP_SPACING := 0.35
 # Couleur des traces par sol (alpha = force de la marque).
 const MARK_COLORS: Array[Color] = [
 	Color(0.05, 0.05, 0.05, 0.55), Color(0.22, 0.15, 0.10, 0.5),
-	Color(0.50, 0.40, 0.27, 0.55), Color(0.33, 0.26, 0.18, 0.5), Color(0, 0, 0, 0)]
+	Color(0.42, 0.31, 0.19, 0.6), Color(0.33, 0.26, 0.18, 0.5), Color(0, 0, 0, 0)]
 const MARK_LIFE: Array[float] = [8.0, 25.0, 35.0, 15.0, 0.0]
 # Poussière soulevée, par sol (alpha = densité).
 const DUST_COLORS: Array[Color] = [
 	Color(0.75, 0.75, 0.75, 0.30), Color(0.62, 0.48, 0.34, 0.45),
-	Color(0.92, 0.78, 0.58, 0.40), Color(0.70, 0.62, 0.50, 0.22), Color(0.92, 0.97, 1.0, 0.6)]
+	Color(0.92, 0.78, 0.58, 0.55), Color(0.70, 0.62, 0.50, 0.3), Color(0.92, 0.97, 1.0, 0.6)]
 
 var _stamps: MultiMesh
 var _stamp_next := 0
@@ -28,13 +28,15 @@ var _dust_next := 0
 var _dust_material: ShaderMaterial
 var _last_stamp: Array[Vector3] = []
 var _hidden := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3(0, -1000, 0))
+var _clock := 0.0
+var _track_material: ShaderMaterial
 
 
 func _ready() -> void:
-	var track_mat := ShaderMaterial.new()
-	track_mat.shader = load("res://shaders/stamps.gdshader")
-	track_mat.set_shader_parameter("tex", _track_texture())
-	_stamps = _ring(MAX_STAMPS, _stamp_mesh(), track_mat)
+	_track_material = ShaderMaterial.new()
+	_track_material.shader = load("res://shaders/stamps.gdshader")
+	_track_material.set_shader_parameter("tex", _track_texture())
+	_stamps = _ring(MAX_STAMPS, _stamp_mesh(), _track_material)
 
 	_dust_material = ShaderMaterial.new()
 	_dust_material.shader = load("res://shaders/dust.gdshader")
@@ -96,8 +98,16 @@ func _track_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
+## Horloge propre aux effets, partagée avec les shaders (TIME du moteur démarre plus tôt
+## que le jeu et ne peut pas servir de référence pour les poses).
+func _process(delta: float) -> void:
+	_clock += delta
+	_track_material.set_shader_parameter("now", _clock)
+	_dust_material.set_shader_parameter("now", _clock)
+
+
 func _now() -> float:
-	return Time.get_ticks_msec() / 1000.0
+	return _clock
 
 
 ## Pose une empreinte si la roue a assez avancé depuis la dernière.

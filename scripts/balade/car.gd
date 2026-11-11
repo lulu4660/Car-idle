@@ -10,10 +10,22 @@ const WL = preload("res://scripts/core/world_layout.gd")
 enum Drivetrain { ALL_WHEEL, REAR_WHEEL, FRONT_WHEEL }
 const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
 
-## Modèles du Car Kit de Kenney (CC0), provisoires.
-const MODELS: Array[String] = ["hatchback-sports", "sedan", "suv", "police", "taxi", "van"]
+## Modèles jouables : la « Car Concept » de Khronos (CC-BY 4.0, voiture réaliste sans marque)
+## et le Car Kit de Kenney (CC0, low poly), provisoires.
+const MODELS: Array[String] = ["concept", "hatchback-sports", "sedan", "suv", "police", "taxi", "van"]
 const CAR_LENGTH := 4.4
-const WHEEL_NAMES: Array[String] = ["wheel-front-left", "wheel-front-right", "wheel-back-left", "wheel-back-right"]
+## Noms possibles des roues, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.
+const WHEEL_NAMES: Array = [
+	["wheel-front-left", "WheelFrontL"], ["wheel-front-right", "WheelFrontR"],
+	["wheel-back-left", "WheelRearL"], ["wheel-back-right", "WheelRearR"]]
+## Pièces masquées : plaques et logos (aucune marque à l'écran).
+const HIDDEN_PARTS: Array[String] = ["License Plate", "Emblem", "Logo"]
+
+
+static func model_path(model: String) -> String:
+	if model == "concept":
+		return "res://assets/cars/concept/CarConcept.glb"
+	return "res://assets/cars/kenney/%s.glb" % model
 
 @export_group("Moteur et freins")
 @export var engine_force_total := 10000.0
@@ -67,7 +79,7 @@ var _safe_timer := 0.0
 ## Fabrique une voiture à partir d'un modèle du kit : remise dans le bon sens d'après la
 ## position des roues, mise à la taille d'une vraie voiture, corps physique et 4 roues.
 static func create(model: String, controls_node: Node) -> VehicleBody3D:
-	var scene: PackedScene = load("res://assets/cars/kenney/%s.glb" % model)
+	var scene: PackedScene = load(model_path(model))
 	var visual: Node3D = scene.instantiate()
 	var car: VehicleBody3D = load("res://scripts/balade/car.gd").new()
 	car.name = "Voiture"
@@ -76,9 +88,19 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	car.mass = 1400.0
 	car.add_child(visual)
 
-	var wheel_nodes: Array[MeshInstance3D] = []
-	for n in WHEEL_NAMES:
-		wheel_nodes.append(visual.find_child(n, true, false) as MeshInstance3D)
+	for part in visual.find_children("*", "MeshInstance3D", true, false):
+		for h in HIDDEN_PARTS:
+			if String(part.name).containsn(h):
+				part.queue_free()
+				part.get_parent().remove_child(part)
+				break
+	var wheel_nodes: Array[Node3D] = []
+	for names in WHEEL_NAMES:
+		for n in names:
+			var found := visual.find_child(n, true, false) as Node3D
+			if found:
+				wheel_nodes.append(found)
+				break
 
 	# 1. Sens : l'avant est du côté des roues avant.
 	var front := (_center(wheel_nodes[0], car) + _center(wheel_nodes[1], car)) / 2.0
@@ -100,7 +122,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 
 	var radius := 0.0
 	for w in wheel_nodes:
-		radius += _mesh_bounds(w, car).size.y / 8.0
+		radius += _node_bounds(w, car).size.y / 8.0
 	var axle := radius
 
 	# Carrosserie : une boîte au-dessus des essieux (les roues sont des rayons).
@@ -124,7 +146,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	for i in 4:
 		var c := _center(wheel_nodes[i], car)
 		var w := VehicleWheel3D.new()
-		w.name = WHEEL_NAMES[i]
+		w.name = WHEEL_NAMES[i][0]
 		w.position = c + Vector3.UP * REST * 0.6
 		w.wheel_radius = radius
 		w.wheel_rest_length = REST
@@ -147,10 +169,11 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	# Le dessin des roues est placé par rapport au centre de la roue physique.
 	for i in 4:
 		var mesh := car.wheels[i].get_child(0) as Node3D
-		var c := _mesh_bounds(mesh, car.wheels[i])
+		var c := _node_bounds(mesh, car.wheels[i])
 		mesh.position -= c.get_center()
 
-	_paint(visual)
+	if model != "concept":
+		_paint(visual)
 	car.drive = _drivetrain_of(model)
 	if model == "van" or model == "suv":
 		car.drift = 0.4
@@ -159,6 +182,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 
 static func _drivetrain_of(model: String) -> int:
 	match model:
+		"concept": return Drivetrain.REAR_WHEEL
 		"suv": return Drivetrain.ALL_WHEEL
 		"taxi", "van": return Drivetrain.FRONT_WHEEL
 	return Drivetrain.REAR_WHEEL
@@ -193,8 +217,22 @@ static func _rel(n: Node3D, ref: Node3D) -> Transform3D:
 	return xf
 
 
-static func _center(m: MeshInstance3D, ref: Node3D) -> Vector3:
-	return _mesh_bounds(m, ref).get_center()
+static func _center(n: Node3D, ref: Node3D) -> Vector3:
+	return _node_bounds(n, ref).get_center()
+
+
+## Boîte d'un nœud et de tous les maillages qu'il contient, dans le repère de `ref`.
+static func _node_bounds(n: Node3D, ref: Node3D) -> AABB:
+	var meshes: Array = n.find_children("*", "MeshInstance3D", true, false)
+	if n is MeshInstance3D:
+		meshes.append(n)
+	var out := AABB()
+	var first := true
+	for m in meshes:
+		var b := _mesh_bounds(m, ref)
+		out = b if first else out.merge(b)
+		first = false
+	return out
 
 
 static func _bounds(visual: Node3D, ref: Node3D) -> AABB:

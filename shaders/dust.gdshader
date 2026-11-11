@@ -3,6 +3,8 @@
 // vitesse de départ ; INSTANCE_CUSTOM = (moment, durée, taille, graine). Panneau face caméra,
 // ralenti par l'air, grossit en vieillissant, éclairé à contre-jour par le soleil.
 shader_type spatial;
+// Horloge du jeu (secondes), donnée par effects.gd : la même que celle des poses.
+uniform float now = 0.0;
 render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
 
 uniform vec3 sun_dir = vec3(0.0, 0.3, 1.0);
@@ -17,7 +19,7 @@ varying float back;
 void vertex() {
 	vec3 origin = MODEL_MATRIX[3].xyz;
 	vec3 v0 = MODEL_MATRIX[0].xyz;
-	float age = TIME - INSTANCE_CUSTOM.x;
+	float age = now - INSTANCE_CUSTOM.x;
 	float life = max(INSTANCE_CUSTOM.y, 0.01);
 	float k = clamp(age / life, 0.0, 1.0);
 	// Position : vitesse amortie par l'air, la poussière monte un peu.

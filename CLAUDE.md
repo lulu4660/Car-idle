@@ -31,6 +31,7 @@ Le prototype 2D (dépôt lulu4660/garage-spotter) sert de référence : formules
 - `shaders/` : `terrain` (hauteurs lues en texelFetch, sols photographiés, rides du vent), `sea` (houle, profondeur précalculée, écume), `stamps` (traces), `dust` (poussière à contre-jour).
 - `assets/balade/world.bin` : monde précalculé par `tools/bake_world.gd` (relief 1025², sols 512², profondeur de la mer). À relancer après tout changement de `world_layout.gd`.
 - `assets/ground/` : textures de sol et ciel HDR (Poly Haven, CC0 ; brillance rangée dans l'alpha des couleurs). Le soleil suit la position du soleil dans la photo (`world_builder.SKY_SUN_U`).
+- `assets/cars/concept/` : « Car Concept » (Khronos glTF Sample Assets, CC-BY 4.0 : crédit obligatoire, plaque et emblème masqués par `car.gd`), voiture réaliste sans marque, par défaut.
 - `assets/cars/kenney/` : voitures low poly du Car Kit de Kenney (CC0), provisoires pour régler la physique.
 - Pas de `class_name` : les scripts se chargent avec `preload`/`load`. Les nombres d'argent sont des `float` (double).
 

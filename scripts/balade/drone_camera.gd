@@ -12,7 +12,7 @@ const MODE_NAMES: Array[String] = ["Poursuite", "Travelling", "Plongée"]
 
 # Par plan : recul (m), recul à fond, hauteur, hauteur à fond, angle autour de la voiture (°), champ (°).
 const SHOTS := {
-	Mode.CHASE: [11.0, 17.0, 6.5, 9.0, 18.0, 52.0],
+	Mode.CHASE: [10.0, 15.0, 4.6, 6.5, 22.0, 48.0],
 	Mode.SIDE: [13.0, 16.0, 4.0, 5.0, 95.0, 45.0],
 	Mode.TOP: [6.0, 10.0, 26.0, 32.0, 25.0, 50.0],
 }

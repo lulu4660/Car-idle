@@ -1,10 +1,10 @@
 # Graph Report - car-idle  (2026-11-11)
 
 ## Corpus Check
-- 4 files · ~2,057 words
+- 4 files · ~2,103 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 44 file(s) not represented in the graph (top: .uid 18, .gd 16, .gdshader 4)
-- WARNING: 44 of 49 files seen (90%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
+- Unclassified: 46 file(s) not represented in the graph (top: .uid 20, .gd 16, .gdshader 4)
+- WARNING: 46 of 51 files seen (90%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
 
 ## Summary
 - 134 nodes · 71 edges · 69 communities (8 shown, 61 thin omitted)
@@ -12,7 +12,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f172856f`
+- Built from commit: `0baead28`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -28,15 +28,15 @@
 
 ## God Nodes (most connected - your core abstractions)
 1. `Car Idle` - 9 edges
-2. `steps` - 7 edges
+2. `Car Idle` - 7 edges
 3. `steps` - 7 edges
-4. `Car Idle` - 7 edges
+4. `steps` - 7 edges
 5. `deploy` - 5 edges
-6. `tests` - 4 edges
-7. `permissions` - 4 edges
-8. `export` - 4 edges
-9. `with` - 4 edges
-10. `on` - 3 edges
+6. `export` - 4 edges
+7. `with` - 4 edges
+8. `permissions` - 4 edges
+9. `tests` - 4 edges
+10. `environment` - 3 edges
 
 ## Surprising Connections (you probably didn't know these)
 - None detected - all connections are within the same source files.
