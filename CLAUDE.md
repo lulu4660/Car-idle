@@ -1,0 +1,40 @@
+# Car Idle
+
+Idle game mobile de garage au rendu 3D réaliste : on fait tourner son garage dans une ville vivante, on améliore ses voitures pièce par pièce, et l'on part en balade en 3D, filmée comme par un drone, pour spotter les voitures rares qui complètent la collection.
+Le document de game design (GDD) fait foi : https://claude.ai/artifact/WgkvZZaTt9JrZg6hYERz9r (onglets « GDD » et « Courses & balade »).
+Le prototype Godot (dépôt lulu4660/garage-spotter) sert de référence : formules, simulations, map, catalogue. Il n'est plus développé.
+
+## Stack
+- Unity 6 (C#), rendu URP 3D, pour iPhone d'abord. Dev sur PC Windows ; essais sur iPhone par une build web, puis TestFlight (build iOS depuis un Mac ou un service de build en ligne).
+- Balade : terrain Unity, physique de véhicule, Cinemachine (caméra de drone), VFX Graph.
+- Serveur (plus tard) : Supabase (Auth, Postgres + RLS, Edge Functions). Pubs : AdMob pour Unity. Achats : RevenueCat (SDK Unity).
+- Voitures : modèles 3D de boutiques d'assets (Unity Asset Store, Sketchfab, CGTrader), licence commerciale vérifiée pour chacun.
+
+## Règles non négociables
+- L'appli affiche, le serveur décide : tout calcul d'argent qui fait foi se fera côté serveur.
+- Revenus idle calculés depuis l'heure de la dernière récolte, jamais en continu.
+- Aucune clé d'API dans l'appli.
+- Aucune marque réelle : logos, badges, textes et plaques retirés de chaque modèle 3D ; noms de voitures modifiés (base de noms du GDD), le nom réel n'est jamais affiché.
+- Économie : coût ×1,10 par niveau, revenu linéaire, ×2 aux paliers 25/50/100/150/200 ; les échelles s'additionnent, jamais ne se multiplient. Tout changement d'équilibrage passe par une simulation.
+- Les voitures spottées arrivent neuves (plus de mise à neuf) ; le rythme vient du déblocage des voitures au fil du temps.
+- DA : rendu réaliste et sombre, course de rue de nuit, noir charbon + orange/rouge/or, pas de bleu dominant.
+
+## Code
+- `Assets/Scripts/Core/` (assemblage `CarIdle.Core`, sans Unity) : règles pures, portées du prototype.
+  - `Economy.cs` : coûts, revenus, paliers, places, hors ligne, spot, SERVIR, formatage des nombres.
+  - `Progression.cs` : réputation (prestige), arbre de compétences (4 × 6), collections, missions du jour, succès.
+  - `Catalog.cs` : 32 modèles provisoires (noms modifiés).
+  - Aucune règle d'économie ailleurs que dans ce dossier ; il sera porté tel quel côté serveur.
+- `Assets/Tests/EditMode/` : tests NUnit. `ReferenceValuesTests.cs` vérifie que le portage redonne les valeurs du prototype Godot (seule différence voulue : 9,96 s'affiche « 10 »).
+- `tools/CoreTests/` : fait tourner les mêmes tests sans Unity (`dotnet test tools/CoreTests/CoreTests.csproj`, C# 9 comme Unity).
+- Les nombres sont des `double` : le plus gros revenu possible reste très loin de 1e308.
+
+## Vérifier un changement
+- `dotnet test tools/CoreTests/CoreTests.csproj` doit passer (aussi lancé par GitHub Actions à chaque envoi).
+- Dans Unity : Window > General > Test Runner > EditMode > Run All.
+
+## Roadmap (GDD)
+1. Socle : projet Unity, économie et progression en C# avec tests. (fait)
+2. Prototype de balade 3D : une voiture achetée, dunes et plage, caméra de drone, dérapages, traces et sable ; beau et fluide sur iPhone.
+3. Voitures : 3 à 5 modèles nettoyés, matériaux, lumières, présentation sur plateau, révélation.
+4. Ville et garage. 5. Balade complète et spotting. 6. Progression et rythme. 7. Serveur et monétisation. 8. Plus tard : drag race, clubs, saisons.
