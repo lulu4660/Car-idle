@@ -39,11 +39,15 @@ func _ready() -> void:
 
 func open() -> void:
 	visible = true
+	# Le jeu lit les doigts directement (commandes multi-doigts) ; l'interface du menu a
+	# besoin que le toucher soit aussi vu comme une souris.
+	Input.emulate_mouse_from_touch = true
 	_rebuild()
 
 
 func close() -> void:
 	visible = false
+	Input.emulate_mouse_from_touch = false
 	settings.save_file()
 
 
@@ -312,6 +316,8 @@ func _show(key: String, v: float, step: float) -> String:
 			return ["4x4", "Propulsion", "Traction"][clampi(int(v), 0, 2)]
 		"msaa":
 			return ["Non", "×2", "×4"][clampi(int(v), 0, 2)]
+		"fog":
+			return "Aucun" if v < 0.05 else "×%.1f" % v
 		"scale", "range", "grass", "life":
 			return "%d %%" % roundi(v * 100.0)
 	return Settings.fmt(v, step)

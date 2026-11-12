@@ -39,6 +39,9 @@ var _vignette: TextureRect
 ## iPhone et web : pas de halo plein écran (glow), trop coûteux (28 ms la nuit au banc
 ## d'essai) ; les lumières ont leurs propres petits halos (shaders/halo.gdshader).
 var no_glow := false
+## Brouillard (réglages) : 1 = brume d'origine, 0 = aucune, jusqu'à 8 = brouillard épais
+## (plus gris et plus blanc quand il s'épaissit).
+var fog_amount := 1.0
 
 
 func setup(environment: Environment, sun_light: DirectionalLight3D, parent: Node) -> void:
@@ -101,8 +104,12 @@ func _apply(k: float) -> void:
 	sky.ground_horizon_color = _v("ground_horizon", e)
 	sky.ground_bottom_color = _v("ground_bottom", e)
 	sky.sun_angle_max = lerpf(20.0, 4.0, e)
-	env.fog_light_color = _v("fog", e)
-	env.fog_density = _v("fog_density", e)
+	var thick := clampf((fog_amount - 1.0) / 3.0, 0.0, 1.0)
+	var fog_grey := Color(0.78, 0.78, 0.8).lerp(Color(0.1, 0.1, 0.13), e)
+	env.fog_enabled = fog_amount > 0.01
+	env.fog_light_color = (_v("fog", e) as Color).lerp(fog_grey, thick * 0.7)
+	env.fog_density = _v("fog_density", e) * fog_amount
+	env.fog_sky_affect = lerpf(0.35, 1.0, thick)
 	env.tonemap_exposure = _v("exposure", e)
 	env.glow_enabled = not no_glow
 	env.glow_intensity = _v("glow", e)

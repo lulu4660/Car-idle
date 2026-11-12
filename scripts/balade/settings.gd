@@ -22,6 +22,8 @@ const GRAPHICS := [
 	["halos", "Halos des lumières", 0.0, 1.0, 0.0, [0.0, 1.0, 1.0, 1.0, 1.0]],
 	["glow", "Bloom plein écran (coûteux)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 1.0, 1.0]],
 	["ssao", "Occlusion ambiante (PC)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 0.0, 1.0]],
+	# Ambiance (hors préréglages : null) : 0 = aucun, 1 = brume légère d'origine, 8 = purée de pois.
+	["fog", "Brouillard", 0.0, 8.0, 0.1, null],
 ]
 
 ## Conduite : clé (propriété de car.gd, ou mass / susp_* pour la caisse et les roues),
@@ -62,7 +64,10 @@ func _init(default_preset: int) -> void:
 func set_preset(i: int) -> void:
 	preset = clampi(i, 0, PRESETS.size() - 1)
 	for g in GRAPHICS:
-		graphics[g[0]] = float(g[5][preset])
+		if g[5] != null:
+			graphics[g[0]] = float(g[5][preset])
+		elif not graphics.has(g[0]):
+			graphics[g[0]] = 1.0
 
 
 ## Le préréglage dont toutes les valeurs correspondent, ou -1 (réglage personnalisé).
@@ -70,7 +75,7 @@ func matching_preset() -> int:
 	for i in PRESETS.size():
 		var same := true
 		for g in GRAPHICS:
-			if not is_equal_approx(float(graphics[g[0]]), float(g[5][i])):
+			if g[5] != null and not is_equal_approx(float(graphics[g[0]]), float(g[5][i])):
 				same = false
 		if same:
 			return i
@@ -113,6 +118,7 @@ func apply_graphics(game: Node) -> void:
 	if sh > 0.0:
 		sun.directional_shadow_max_distance = sh
 	game.lighting.no_glow = g["glow"] < 0.5
+	game.lighting.fog_amount = float(g["fog"])
 	game.lighting.refresh()
 	var is_forward: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
 	game.lighting.env.ssao_enabled = g["ssao"] > 0.5 and is_forward

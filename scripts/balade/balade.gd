@@ -593,6 +593,8 @@ func _update_car_shadow() -> void:
 	var head := xf * Vector3(c.x, bottom + 0.35, c.z + h.z + 0.2)
 	RenderingServer.global_shader_parameter_set("head_pos", head)
 	RenderingServer.global_shader_parameter_set("head_dir", (fwd - Vector3.UP * 0.12).normalized())
+	# Deux phares, au même écart que les feux dessinés (add_lamps_to).
+	RenderingServer.global_shader_parameter_set("head_side", xf.basis.x.normalized() * h.x * 0.62)
 	for m in _shadow_mats:
 		m.set_shader_parameter("car_inv", Projection(inv))
 		m.set_shader_parameter("car_sun", sun_l)
