@@ -46,7 +46,9 @@ const CAR := [
 	["upright_assist", "Anti-tonneau", 0.0, 6.0, 0.1],
 	["throttle_angle", "Angle réglé aux gaz (en glisse)", 0.0, 1.0, 0.01],
 	["drift_steer", "Volant qui pivote en glisse", 0.0, 2.0, 0.05],
-	["body_roll", "Caisse : roulis (°/g)", 0.0, 25.0, 0.5],
+	["roll_physics", "Roulis physique (force des pneus)", 0.0, 1.0, 0.01],
+	["com_height", "Hauteur du centre de gravité (m)", 0.1, 0.8, 0.01],
+	["body_roll", "Caisse (visuel) : roulis en plus (°/g)", 0.0, 25.0, 0.5],
 	["body_pitch", "Caisse : tangage (°/g)", 0.0, 15.0, 0.5],
 	["body_freq", "Caisse : raideur des ressorts (Hz)", 0.6, 3.0, 0.05],
 	["body_wobble", "Caisse : rebond (peu amortie)", 0.0, 1.0, 0.01],
@@ -68,6 +70,7 @@ const GRIP := {
 	"drift_yaw_assist": 1.0, "lateral_assist": 1.0, "slide_keep": 0.5, "throttle_angle": 0.0,
 	"drift_steer": 0.0, "max_steer_deg": 32.0, "min_steer_deg": 7.0,
 	"susp_stiffness": 40.0, "susp_damping": 0.9, "susp_travel": 0.28,
+	"roll_physics": 0.45, "com_height": 0.34,
 }
 var mode := 0
 ## Valeurs de conduite changées par le joueur, par mode (les autres restent celles du mode).
@@ -223,6 +226,13 @@ static func set_car_value(car: VehicleBody3D, key: String, v: float) -> void:
 					wv.suspension_travel = v
 		"drive":
 			car.set("drive", int(v))
+		"roll_physics":
+			car.roll_physics = v
+			for w in car.wheels:
+				(w as VehicleWheel3D).wheel_roll_influence = v
+		"com_height":
+			car.com_height = v
+			car.center_of_mass = Vector3(0.0, v, 0.1)
 		_:
 			car.set(key, v)
 

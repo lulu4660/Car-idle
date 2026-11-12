@@ -9,6 +9,9 @@ const WorldData = preload("res://scripts/balade/world_data.gd")
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
+## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
+## version web peut rester en cache quelques minutes après une mise en ligne).
+const VERSION := "0.4.3"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -234,7 +237,7 @@ func _process(delta: float) -> void:
 	ruts.follow(car.global_position, car.linear_velocity / 15.0)
 	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
 	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
-	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Settings.MODES[settings.mode].capitalize(), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
+	_hud_info.text = ("%s  ·  %s  ·  %s  ·  %s  ·  %s  ·  %d i/s  ·  v" + VERSION) % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Settings.MODES[settings.mode].capitalize(), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
 
 
 ## Ornières : creusées au rythme fixe de la physique (60 fois par seconde), pour un tracé

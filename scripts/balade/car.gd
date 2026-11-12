@@ -84,11 +84,18 @@ static func model_path(_model: String) -> String:
 @export_range(0.0, 1.0) var throttle_angle := 0.3
 ## … et le volant fait pivoter la voiture en travers (on « dessine » la ligne au doigt).
 @export var drift_steer := 0.0
+@export_group("Roulis (physique)")
+## Part de la force des pneus qui fait rouler le châssis (Godot : wheel_roll_influence).
+## 0 = la voiture ne penche jamais, 1 = physique réelle : la force de virage au sol, sous le
+## centre de gravité, fait pencher la voiture vers l'extérieur sur ses suspensions.
+@export_range(0.0, 1.0) var roll_physics := 0.7
+## Hauteur du centre de gravité (m) : plus haut = plus de transfert de masse et de roulis.
+@export var com_height := 0.42
 @export_group("Caisse (visuel)")
 ## Roulis de la caisse (degrés par g d'accélération latérale) : penche vers l'extérieur.
-@export var body_roll := 9.0
+@export var body_roll := 3.0
 ## Tangage (degrés par g) : s'assoit à l'accélération, plonge au freinage.
-@export var body_pitch := 6.0
+@export var body_pitch := 3.0
 ## Fréquence des ressorts de caisse (Hz) : bas = très tendre, la caisse bouge lentement.
 @export var body_freq := 1.3
 ## 0 = bien amortie, 1 = la caisse oscille longtemps avant de se poser.
@@ -265,7 +272,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	car.physics_material_override = pm
 	# Centre de gravité bas : la voiture se renverse moins.
 	car.center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
-	car.center_of_mass = Vector3(0.0, axle * 0.6, 0.1)
+	car.center_of_mass = Vector3(0.0, car.com_height, 0.1)
 	car.continuous_cd = true
 
 	for i in 4:
@@ -280,7 +287,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		w.suspension_max_force = 80000.0
 		w.damping_compression = 0.3
 		w.damping_relaxation = 0.4
-		w.wheel_roll_influence = 0.04
+		w.wheel_roll_influence = car.roll_physics
 		w.wheel_friction_slip = 3.2
 		w.use_as_steering = i < 2
 		car.add_child(w)
@@ -554,9 +561,15 @@ func _physics_process(delta: float) -> void:
 		if drifting > 0.0 and drift_steer > 0.0 and kmh > 15.0:
 			apply_torque(up * (-steer) * drift_steer * drifting * mass * YAW_INERTIA)
 		# Roulis : la caisse est ramenée vers la verticale, le roulis est amorti.
+		# N'agit qu'au-delà de 14° de penché : en dessous, la caisse roule librement sur ses
+		# suspensions (vraie prise de roulis dans les virages, sur les bosses).
 		var tilt_axis := up.cross(Vector3.UP)
+		var tilt := tilt_axis.length()
+		var excess := 0.0
+		if tilt > 0.001:
+			excess = maxf(0.0, asin(minf(tilt, 1.0)) - deg_to_rad(14.0)) / asin(minf(tilt, 1.0))
 		var roll_rate := angular_velocity.dot(fwd)
-		apply_torque((tilt_axis * upright_assist * 4.0 - fwd * roll_rate * upright_assist) * mass * YAW_INERTIA)
+		apply_torque((tilt_axis * excess * upright_assist * 4.0 - fwd * roll_rate * upright_assist * 0.35) * mass * YAW_INERTIA)
 		# Garde-fou : au-delà de l'angle maxi, on freine la rotation.
 		var over := absf(slip_angle) - max_drift_deg
 		if over > 0.0:
