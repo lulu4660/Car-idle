@@ -51,39 +51,61 @@ static func model_path(_model: String) -> String:
 	return PACK
 
 @export_group("Moteur et freins")
-@export var engine_force_total := 11500.0
+@export var engine_force_total := 16500.0
 @export var brake_force := 40.0
 @export var handbrake_force := 10.0
-@export var top_speed_kmh := 150.0
+@export var top_speed_kmh := 185.0
 @export var reverse_speed_kmh := 35.0
 @export_group("Transmission")
 @export var drive := Drivetrain.REAR_WHEEL
 @export_range(0.0, 1.0) var awd_rear_share := 0.65
 @export_group("Direction")
-@export var max_steer_deg := 32.0
-@export var min_steer_deg := 8.0
+@export var max_steer_deg := 45.0
+@export var min_steer_deg := 12.5
 @export var steer_fade_kmh := 120.0
 @export_group("Adhérence et dérapage")
 ## Adhérence des pneus sur le bitume (friction_slip de Godot) ; multipliée par le sol.
-@export var tyre_grip := 2.6
+@export var tyre_grip := 1.0
 ## 0 = sage, 1 = très joueur : perte d'adhérence de l'arrière sous les gaz et au frein à main.
 @export_range(0.0, 1.0) var drift := 0.75
 ## Les roues avant suivent la glisse : dérapages rattrapables au doigt.
-@export_range(0.0, 1.0) var counter_steer := 0.55
-@export var max_drift_deg := 54.0
-@export var drift_yaw_assist := 1.2
+@export_range(0.0, 1.0) var counter_steer := 0.79
+@export var max_drift_deg := 80.0
+@export var drift_yaw_assist := 2.2
 @export var lateral_assist := 0.65
 ## Glisse qui garde la vitesse : en travers, gaz appuyé, la voiture est poussée dans le sens
 ## où elle va (compense le frottement des pneus de côté), comme dans un jeu de rallye.
 @export var slide_keep := 1.4
 @export var downforce := 2.0
 ## Aide à rester sur ses roues : redresse doucement la caisse et amortit le roulis.
-@export var upright_assist := 2.5
+@export var upright_assist := 3.5
+## Façon jeux de drift : en glisse, les gaz règlent l'angle (plus de gaz = l'arrière sort
+## plus, lever le pied = la voiture se redresse) …
+@export_range(0.0, 1.0) var throttle_angle := 0.5
+## … et le volant fait pivoter la voiture en travers (on « dessine » la ligne au doigt).
+@export var drift_steer := 0.6
+@export_group("Caisse (visuel)")
+## Roulis exagéré de la caisse (degrés par g d'accélération latérale) : penche dans les virages.
+@export var body_roll := 22.0
+## Tangage (degrés par g) : se cabre à l'accélération, pique du nez au freinage.
+@export var body_pitch := 9.0
+## 0 = amorti, 1 = gélatine : la caisse rebondit et oscille avant de se stabiliser.
+@export_range(0.0, 1.0) var body_wobble := 0.6
 
 ## Couple → accélération angulaire : inertie de lacet d'une voiture ≈ 1,9 × sa masse (m²).
 const YAW_INERTIA := 1.9
 
 var controls: Node
+## Pivot de la caisse dessinée (penche, se cabre, s'écrase à la réception).
+var body_node: Node3D
+var _roll := 0.0
+var _roll_v := 0.0
+var _pitch := 0.0
+var _pitch_v := 0.0
+var _squash := 0.0
+var _squash_v := 0.0
+var _acc := Vector3.ZERO
+var _last_vel := Vector3.ZERO
 var wheels: Array[VehicleWheel3D] = []
 var model_name := ""
 
@@ -139,7 +161,13 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	car.model_name = model
 	car.controls = controls_node
 	car.mass = 1400.0
-	car.add_child(visual)
+	# La caisse dessinée est sous un pivot à part : elle penche et rebondit (visuel seulement)
+	# pendant que les roues restent posées.
+	var body_node := Node3D.new()
+	body_node.name = "Caisse"
+	car.add_child(body_node)
+	car.body_node = body_node
+	body_node.add_child(visual)
 
 	# Les matériaux du pack sont « sans éclairage » (toujours en pleine lumière) : on les
 	# éclaire vraiment, avec un léger brillant de carrosserie (ombres, nuit, phares).
@@ -244,11 +272,11 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		w.position = c + Vector3.UP * WHEEL_REST * 0.6
 		w.wheel_radius = radius
 		w.wheel_rest_length = WHEEL_REST
-		w.suspension_travel = 0.28
-		w.suspension_stiffness = 38.0
+		w.suspension_travel = 0.5
+		w.suspension_stiffness = 15.0
 		w.suspension_max_force = 80000.0
-		w.damping_compression = 0.9
-		w.damping_relaxation = 1.2
+		w.damping_compression = 0.3
+		w.damping_relaxation = 0.4
 		w.wheel_roll_influence = 0.04
 		w.wheel_friction_slip = 3.2
 		w.use_as_steering = i < 2
@@ -352,6 +380,48 @@ func _process(delta: float) -> void:
 		_wheel_fix[i] = lerpf(_wheel_fix[i], want, minf(1.0, delta * 20.0))
 		var base: Vector3 = _wheel_base[i] if i < _wheel_base.size() else Vector3.ZERO
 		mesh.position = base + w.global_basis.orthonormalized().inverse() * (up * _wheel_fix[i])
+	_body_motion(delta)
+
+
+## Caisse « cartoon » : roulis et tangage exagérés suivant l'accélération (ressort peu
+## amorti : elle dépasse, oscille et revient), écrasement à la réception d'un saut.
+func _body_motion(delta: float) -> void:
+	if body_node == null or delta <= 0.0:
+		return
+	var inv := global_basis.orthonormalized().inverse()
+	var vel := inv * linear_velocity
+	var raw := (vel - _last_vel) / delta
+	_last_vel = vel
+	# Choc vertical (réception) : la caisse s'écrase puis rebondit.
+	if raw.y > 25.0:
+		_squash_v -= minf(raw.y, 120.0) * 0.012
+	raw.y = 0.0
+	_acc = _acc.lerp(raw.limit_length(30.0), minf(1.0, delta * 8.0))
+	var grounded := false
+	for w in wheels:
+		if w.is_in_contact():
+			grounded = true
+	var g := 9.8
+	# Accélération vers +X (centre du virage à gauche) : le haut part vers -X.
+	# + une part liée au volant : la caisse penche dès qu'on braque, même quand les pneus
+	# glissent (peu de force latérale), façon dessin animé.
+	var st: float = controls.steer if controls else 0.0
+	var by_steer := -st * body_roll * 0.45 * clampf(absf(forward_speed) / 12.0, 0.0, 1.0)
+	var roll_target := clampf(_acc.x / g * body_roll + by_steer, -30.0, 30.0) if grounded else 0.0
+	var pitch_target := clampf(-_acc.z / g * body_pitch, -16.0, 16.0) if grounded else 0.0
+	var stiff := 110.0
+	var damp := lerpf(18.0, 4.5, body_wobble)
+	_roll_v += ((roll_target - _roll) * stiff - _roll_v * damp) * delta
+	_roll += _roll_v * delta
+	_pitch_v += ((pitch_target - _pitch) * stiff - _pitch_v * damp) * delta
+	_pitch += _pitch_v * delta
+	_squash_v += (-_squash * 180.0 - _squash_v * lerpf(16.0, 6.0, body_wobble)) * delta
+	_squash = clampf(_squash + _squash_v * delta, -0.25, 0.2)
+	var basis := Basis.from_euler(Vector3(deg_to_rad(_pitch), 0.0, deg_to_rad(_roll)))
+	basis = basis * Basis.from_scale(Vector3(1.0 - _squash * 0.5, 1.0 + _squash, 1.0 - _squash * 0.5))
+	# Pivot au niveau des essieux.
+	var pivot := Vector3(0.0, body_bottom * 0.8, 0.0)
+	body_node.transform = Transform3D(basis, pivot - basis * pivot)
 
 
 func _physics_process(delta: float) -> void:
@@ -435,7 +505,14 @@ func _physics_process(delta: float) -> void:
 				loss = lerpf(0.45, 0.25, drift)
 			loss *= 1.0 - 0.5 * power_oversteer
 			loss *= 1.0 - 0.25 * drift * drifting
-		w.wheel_friction_slip = tyre_grip * grip * loss
+			# En glisse, l'angle se règle aux gaz.
+			loss *= 1.0 - 0.3 * throttle_angle * drifting * maxf(drive_in, 0.0) * rear_share
+		var slip_k := tyre_grip * grip * loss
+		# Motricité dans le sable et la terre en ligne droite : avec des pneus réglés pour
+		# glisser, les roues patineraient sur place ; l'aide s'efface dès que ça glisse.
+		if WL.is_soft(wheel_surface[i]) and not handbrake:
+			slip_k = maxf(slip_k, 1.8 * grip * (1.0 - drifting))
+		w.wheel_friction_slip = slip_k
 		var share := (1.0 - rear_share) if front else rear_share
 		# Force répartie entre les deux roues de l'essieu ; un peu moins sur sol mou.
 		w.engine_force = drive_in * engine_force_total * share * 0.5 * lerpf(0.92, 1.0, grip)
@@ -464,16 +541,21 @@ func _physics_process(delta: float) -> void:
 		var kick := (1.0 if handbrake else 0.0) + power_oversteer * 0.6
 		if kick > 0.0 and kmh > 15.0:
 			apply_torque(up * (-steer) * drift_yaw_assist * minf(1.0, kick) * mass * YAW_INERTIA)
+		# En travers : le volant pivote la voiture (garder ou ouvrir l'angle au doigt).
+		if drifting > 0.0 and drift_steer > 0.0 and kmh > 15.0:
+			apply_torque(up * (-steer) * drift_steer * drifting * mass * YAW_INERTIA)
 		# Roulis : la caisse est ramenée vers la verticale, le roulis est amorti.
 		var tilt_axis := up.cross(Vector3.UP)
 		var roll_rate := angular_velocity.dot(fwd)
 		apply_torque((tilt_axis * upright_assist * 4.0 - fwd * roll_rate * upright_assist) * mass * YAW_INERTIA)
 		# Garde-fou : au-delà de l'angle maxi, on freine la rotation.
-		var over := absf(slip_angle) - max_drift_deg
+		# Il agit un peu avant l'angle maxi et plus fort : on évite le tête-à-queue (comme dans
+		# les jeux de drift, très permissifs) sans brider les grands angles.
+		var over := absf(slip_angle) - (max_drift_deg - 12.0)
 		if over > 0.0:
 			var yaw_rate := angular_velocity.dot(up)
 			if signf(yaw_rate) == -signf(slip_angle):
-				apply_torque(-up * yaw_rate * minf(1.0, over / 12.0) * 12.0 * mass * YAW_INERTIA)
+				apply_torque(-up * yaw_rate * minf(1.0, over / 10.0) * 16.0 * mass * YAW_INERTIA)
 
 	_ground_resistance(delta)
 	_float(delta)

@@ -498,7 +498,8 @@ func _add_car_lights() -> void:
 	var c0: Vector3 = shape.position if shape else Vector3(0, 0.9, 0)
 	var h: Vector3 = car.body_half
 	var y: float = car.body_bottom + 0.25
-	add_lamps_to(car, Vector3(c0.x, y, c0.z), h)
+	# Feux sur la caisse : ils penchent avec elle.
+	add_lamps_to(car.body_node if car.body_node else car, Vector3(c0.x, y, c0.z), h)
 
 
 ## Feux d'une voiture (joueur ou circulation) : deux blancs à l'avant, deux rouges à
