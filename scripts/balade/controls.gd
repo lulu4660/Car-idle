@@ -46,6 +46,7 @@ const KEYS := {
 }
 
 var _buttons: Array[TouchScreenButton] = []
+const FONT = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 var _mouse_action := ""
 
 
@@ -68,9 +69,10 @@ func _ready() -> void:
 		lbl.text = b[1]
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
-		lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
-		lbl.add_theme_constant_override("outline_size", 4)
+		lbl.add_theme_font_override("font", FONT)
+		lbl.add_theme_color_override("font_color", Color(0.96, 0.93, 0.88, 0.95))
+		lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.4))
+		lbl.add_theme_constant_override("outline_size", 3)
 		t.add_child(lbl)
 		add_child(t)
 		_buttons.append(t)
@@ -89,11 +91,11 @@ func _layout() -> void:
 		var y := z.position.y * u if corner.y == 0 else size.y - (z.position.y + z.size.y) * u
 		t.position = Vector2(x, y)
 		var arrow: int = t.get_meta("arrow")
-		t.texture_normal = _box(Vector2i(bs), Color(1, 1, 1, 0.18), arrow)
-		t.texture_pressed = _box(Vector2i(bs), Color(1.0, 0.55, 0.15, 0.65), arrow)
+		t.texture_normal = _box(Vector2i(bs), Color(0.07, 0.065, 0.07, 0.42), arrow)
+		t.texture_pressed = _box(Vector2i(bs), Color(1.0, 0.52, 0.12, 0.85), arrow)
 		var lbl := t.get_child(0) as Label
 		lbl.size = bs
-		lbl.add_theme_font_size_override("font_size", maxi(12, int(u * 0.042)))
+		lbl.add_theme_font_size_override("font_size", maxi(13, int(u * 0.046)))
 
 
 ## Fond du bouton (cadre) ; `arrow` = -1 ou 1 : flèche gauche ou droite dessinée dedans
@@ -101,24 +103,33 @@ func _layout() -> void:
 func _box(s: Vector2i, c: Color, arrow := 0) -> ImageTexture:
 	s = s.max(Vector2i(8, 8))
 	var img := Image.create(s.x, s.y, false, Image.FORMAT_RGBA8)
-	img.fill(c)
-	var border := Color(c.r, c.g, c.b, minf(1.0, c.a + 0.35))
-	for x in s.x:
-		for w in 2:
-			img.set_pixel(x, w, border)
-			img.set_pixel(x, s.y - 1 - w, border)
+	img.fill(Color(0, 0, 0, 0))
+	# Coins coupés (facettes, comme le décor low poly), liseré clair, trait orange en bas.
+	var cut := int(minf(s.x, s.y) * 0.22)
+	var rim := Color(1, 1, 1, 0.22)
+	var accent := Color(1.0, 0.52, 0.12, 0.9)
 	for y in s.y:
-		for w in 2:
-			img.set_pixel(w, y, border)
-			img.set_pixel(s.x - 1 - w, y, border)
+		for x in s.x:
+			var dx := mini(x, s.x - 1 - x)
+			var dy := mini(y, s.y - 1 - y)
+			var d := dx + dy - cut
+			if d < 0:
+				continue
+			var edge := mini(mini(dx, dy), d)
+			var col := c
+			if edge < 2:
+				col = rim if c.a < 0.6 else Color(1, 0.8, 0.5, 0.9)
+			elif s.y - 1 - y < 6 and dx > cut and c.a < 0.6:
+				col = accent
+			img.set_pixel(x, y, col)
 	if arrow != 0:
-		var half := minf(s.x, s.y) * 0.22
+		var half := minf(s.x, s.y) * 0.2
 		var cx := s.x * 0.5
 		var cy := s.y * 0.5
-		var ink := Color(1, 1, 1, 0.9)
+		var ink := Color(0.96, 0.93, 0.88, 0.95)
 		for y in range(int(cy - half), int(cy + half) + 1):
-			var span := half * (1.0 - absf(y - cy) / half) * 1.6
-			for x in range(int(cx - half * 0.8), int(cx - half * 0.8 + span) + 1):
+			var span := half * (1.0 - absf(y - cy) / half) * 1.5
+			for x in range(int(cx - half * 0.7), int(cx - half * 0.7 + span) + 1):
 				var xx := x if arrow > 0 else int(2.0 * cx) - x
 				if xx >= 0 and xx < s.x and y >= 0 and y < s.y:
 					img.set_pixel(xx, y, ink)

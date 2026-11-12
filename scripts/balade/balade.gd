@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.4.5"
+const VERSION := "0.5.0"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -66,9 +66,7 @@ var _air_time := 0.0
 var _fall_speed := 0.0
 var _was_airborne := false
 
-var _hud_speed: Label
-var _hud_info: Label
-var _hud_box: VBoxContainer
+var hud: CanvasLayer
 
 
 func _ready() -> void:
@@ -235,9 +233,6 @@ func _process(delta: float) -> void:
 	_wheel_effects(delta)
 	_splash(delta)
 	ruts.follow(car.global_position, car.linear_velocity / 15.0)
-	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
-	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
-	_hud_info.text = ("%s  ·  %s  ·  %s  ·  %s  ·  %s  ·  %d i/s  ·  v" + VERSION) % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Settings.MODES[settings.mode].capitalize(), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
 
 
 ## Ornières : creusées au rythme fixe de la physique (60 fois par seconde), pour un tracé
@@ -624,35 +619,6 @@ func car_display_name() -> String:
 
 
 func _build_hud() -> void:
-	var layer := CanvasLayer.new()
-	add_child(layer)
-	var box := VBoxContainer.new()
-	box.alignment = BoxContainer.ALIGNMENT_BEGIN
-	layer.add_child(box)
-	_hud_speed = Label.new()
-	_hud_speed.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud_speed.add_theme_font_size_override("font_size", 44)
-	_hud_speed.add_theme_color_override("font_color", Color(1.0, 0.62, 0.15))
-	_hud_speed.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
-	_hud_speed.add_theme_constant_override("outline_size", 6)
-	box.add_child(_hud_speed)
-	_hud_info = Label.new()
-	_hud_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud_info.add_theme_font_size_override("font_size", 16)
-	_hud_info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
-	_hud_info.add_theme_constant_override("outline_size", 4)
-	box.add_child(_hud_info)
-	_hud_box = box
-	get_viewport().size_changed.connect(_layout_hud)
-	_layout_hud()
-
-
-## Affichage à la taille de l'écran ; en portrait, sous les boutons du haut.
-func _layout_hud() -> void:
-	var size := get_viewport().get_visible_rect().size
-	var u := minf(size.x, size.y)
-	var portrait := size.x < size.y
-	_hud_box.size = Vector2(size.x, u * 0.2)
-	_hud_box.position = Vector2(0, u * (0.42 if portrait else 0.02))
-	_hud_speed.add_theme_font_size_override("font_size", maxi(24, int(u * 0.075)))
-	_hud_info.add_theme_font_size_override("font_size", maxi(12, int(u * 0.03)))
+	hud = load("res://scripts/balade/hud.gd").new()
+	hud.game = self
+	add_child(hud)
