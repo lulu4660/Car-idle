@@ -67,6 +67,8 @@ func build(data: RefCounted, town: Node) -> void:
 	var mesh := _lamp_mesh()
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/lamp.gdshader")
+	var halo_mat := ShaderMaterial.new()
+	halo_mat.shader = load("res://shaders/halo.gdshader")
 	var cells := {}
 	for l in list:
 		var p: Vector3 = l[0]
@@ -92,6 +94,23 @@ func build(data: RefCounted, town: Node) -> void:
 		mmi.position = origin
 		mmi.visibility_range_end = 220.0
 		add_child(mmi)
+		# Halos des ampoules (la nuit), sous chaque tête de réverbère.
+		var hm := MultiMesh.new()
+		hm.transform_format = MultiMesh.TRANSFORM_3D
+		hm.mesh = QuadMesh.new()
+		hm.instance_count = xs.size()
+		for i in xs.size():
+			var xf: Transform3D = xs[i]
+			var bulb := xf * Vector3(0, HEIGHT - 0.45, 1.4) - origin
+			hm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * 3.2), bulb))
+		hm.custom_aabb = AABB(Vector3(-CELL, -5, -CELL), Vector3(CELL * 2, 60, CELL * 2))
+		var hmi := MultiMeshInstance3D.new()
+		hmi.multimesh = hm
+		hmi.material_override = halo_mat
+		hmi.position = origin
+		hmi.visibility_range_end = 220.0
+		hmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(hmi)
 
 
 ## Réverbère low poly : mât, bras vers +Z, tête. UV.x = 1 sur l'ampoule (s'allume).

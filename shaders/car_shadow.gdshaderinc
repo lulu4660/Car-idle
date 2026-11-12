@@ -7,6 +7,10 @@ uniform sampler2D static_shadow_tex : filter_linear, repeat_disable;
 uniform sampler2D night_light_tex : filter_linear, repeat_disable;
 uniform vec3 lamp_color : source_color = vec3(1.0, 0.72, 0.42);
 global uniform float night;
+// Phares de la voiture, calculés sans vraie lumière : cône devant la voiture.
+uniform vec3 head_pos = vec3(0.0, -1000.0, 0.0);
+uniform vec3 head_dir = vec3(0.0, 0.0, 1.0);
+uniform vec3 head_color : source_color = vec3(1.0, 0.9, 0.72);
 uniform mat4 car_inv = mat4(0.0);          // monde -> repère de la voiture
 uniform vec3 car_sun = vec3(0.0, 1.0, 0.0); // direction du soleil dans ce repère
 uniform vec3 car_pos = vec3(0.0, -1000.0, 0.0);
@@ -47,4 +51,21 @@ vec3 lamp_glow(vec3 wp, float ws) {
 	}
 	float l = texture(night_light_tex, (wp.xz + vec2(ws * 0.5)) / ws).r;
 	return lamp_color * l * l * night * 1.6;
+}
+
+
+// Lumière des phares en ce point (0 le jour ou hors du cône).
+float headlight(vec3 wp) {
+	if (night < 0.01) {
+		return 0.0;
+	}
+	vec3 v = wp - head_pos;
+	float d = length(v);
+	if (d > 45.0 || d < 0.1) {
+		return 0.0;
+	}
+	float c = dot(v / d, head_dir);
+	float cone = smoothstep(0.85, 0.97, c);
+	float fall = pow(clamp(1.0 - d / 45.0, 0.0, 1.0), 1.4) * smoothstep(0.5, 3.0, d);
+	return cone * fall * night;
 }

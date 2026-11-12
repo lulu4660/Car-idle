@@ -36,9 +36,9 @@ var night := 0.0
 var glow := 0.0
 var _target := 0.0
 var _vignette: TextureRect
-## iPhone et web : le halo (glow) seulement la nuit, là où il fait briller les lumières ;
-## le jour son effet est discret et il coûte une passe d'image.
-var glow_only_at_night := false
+## iPhone et web : pas de halo plein écran (glow), trop coûteux (28 ms la nuit au banc
+## d'essai) ; les lumières ont leurs propres petits halos (shaders/halo.gdshader).
+var no_glow := false
 
 
 func setup(environment: Environment, sun_light: DirectionalLight3D, parent: Node) -> void:
@@ -99,7 +99,7 @@ func _apply(k: float) -> void:
 	env.fog_light_color = _v("fog", e)
 	env.fog_density = _v("fog_density", e)
 	env.tonemap_exposure = _v("exposure", e)
-	env.glow_enabled = not glow_only_at_night or e > 0.05
+	env.glow_enabled = not no_glow
 	env.glow_intensity = _v("glow", e)
 	env.glow_bloom = _v("glow_bloom", e)
 	env.glow_hdr_threshold = _v("glow_threshold", e)

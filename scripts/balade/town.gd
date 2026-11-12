@@ -12,15 +12,18 @@ const WL = preload("res://scripts/core/world_layout.gd")
 const MeshMerge = preload("res://scripts/balade/mesh_merge.gd")
 
 const CELL := 120.0
-const RANGE := 260.0
+const RANGE := 180.0
 const CITY := "res://assets/props/city/"
 const SUBURB := "res://assets/props/suburb/"
 const NATURE := "res://assets/props/nature/"
 const BUILDING_SHADER = preload("res://shaders/building.gdshader")
 
-const TOWERS := ["building-skyscraper-a", "building-skyscraper-b", "building-skyscraper-c", "building-skyscraper-d", "building-skyscraper-e"]
-const SHOPS := ["building-a", "building-b", "building-c", "building-d", "building-e", "building-f", "building-g", "building-h", "building-i", "building-j", "building-k", "building-l", "building-m", "building-n"]
-const HOUSES := ["building-type-a", "building-type-b", "building-type-c", "building-type-d", "building-type-e", "building-type-f", "building-type-g", "building-type-h", "building-type-i", "building-type-j", "building-type-k", "building-type-l", "building-type-m", "building-type-n", "building-type-o", "building-type-p"]
+## Modèles par quartier : 6 par quartier au plus (chaque modèle coûte un appel de dessin par
+## case de 120 m ; avec moins de modèles, la ville reste fluide et chaque quartier a son style).
+const TOWERS := ["building-skyscraper-a", "building-skyscraper-c", "building-skyscraper-e"]
+const DOWNTOWN_SHOPS := ["building-h", "building-k", "building-n"]
+const SHOPS := ["building-a", "building-c", "building-d", "building-f", "building-g", "building-j"]
+const HOUSES := ["building-type-a", "building-type-c", "building-type-f", "building-type-i", "building-type-m", "building-type-p"]
 
 ## Fermes (x, z, largeur, profondeur) : la forêt ne pousse pas dessus (vegetation.gd).
 const FARMS := [Rect2(-165.0, 140.0, 95.0, 130.0), Rect2(-160.0, -330.0, 85.0, 110.0), Rect2(-165.0, -40.0, 70.0, 80.0)]
@@ -77,7 +80,7 @@ func _city(rng: RandomNumberGenerator) -> void:
 					for j in 2:
 						var c := Vector2(x0 + w * (0.25 + 0.5 * i), z0 + w * (0.25 + 0.5 * j))
 						match district:
-							0: _building(CITY + (TOWERS[rng.randi() % TOWERS.size()] if rng.randf() < 0.55 else SHOPS[rng.randi() % SHOPS.size()]), c, w * 0.42, rng, 1.0 + rng.randf() * 0.6)
+							0: _building(CITY + (TOWERS[rng.randi() % TOWERS.size()] if rng.randf() < 0.55 else DOWNTOWN_SHOPS[rng.randi() % DOWNTOWN_SHOPS.size()]), c, w * 0.42, rng, 1.0 + rng.randf() * 0.6)
 							1: _building(CITY + SHOPS[rng.randi() % SHOPS.size()], c, w * 0.42, rng, 1.0)
 							2: _house(c, w * 0.5, rng)
 			# Trottoirs (bord du pâté) et places de stationnement le long des rues.
@@ -92,6 +95,9 @@ func _city(rng: RandomNumberGenerator) -> void:
 				var out := (b - a).normalized().orthogonal() * -2.6
 				for n in rng.randi_range(1, 3):
 					var p := a.lerp(b, rng.randf_range(0.15, 0.85)) + out
+					# Une place sur deux occupée (moins d'objets à dessiner).
+					if rng.randf() < 0.5:
+						continue
 					parking.append([Vector3(p.x, WL.GROUND_LEVEL, p.y), atan2((b - a).x, (b - a).y)])
 			bz += WL.BLOCK_SIZE
 		bx += WL.BLOCK_SIZE

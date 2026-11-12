@@ -14,7 +14,7 @@ const Town = preload("res://scripts/balade/town.gd")
 
 const DIR := "res://assets/props/nature/"
 const CELL := 96.0
-const RANGE := 170.0
+const RANGE := 150.0
 
 ## Couleur de chaque matériau du kit (par nom), dans la palette de la balade.
 const PALETTE := {

@@ -24,7 +24,7 @@ void fragment() {
 	SPECULAR = 0.0;
 	BACKLIGHT = COLOR.rgb * 0.25;
 	sun_vis = sun_visibility(wpos, world_size);
-	EMISSION = COLOR.rgb * lamp_glow(wpos, world_size);
+	EMISSION = COLOR.rgb * (lamp_glow(wpos, world_size) + head_color * headlight(wpos) * 1.4);
 }
 
 void light() {

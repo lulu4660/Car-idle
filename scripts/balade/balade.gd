@@ -28,6 +28,16 @@ var effects: Node3D
 var ruts: Node3D
 ## Largeur d'un pneu (m) pour les ornières.
 const TYRE_WIDTH := 0.28
+const HALO = preload("res://shaders/halo.gdshader")
+static var LIGHTS_MAT: ShaderMaterial = _make_mat("res://shaders/car_light.gdshader")
+static var HALO_MAT: ShaderMaterial = _make_mat("res://shaders/halo.gdshader")
+
+
+static func _make_mat(path: String) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = load(path)
+	m.set_shader_parameter("use_vertex_color", true)
+	return m
 var decor: Node3D
 var vegetation: Node3D
 var town: Node3D
@@ -60,7 +70,7 @@ func _ready() -> void:
 	lighting = load("res://scripts/balade/lighting.gd").new()
 	lighting.name = "Lumiere"
 	add_child(lighting)
-	lighting.glow_only_at_night = low_quality
+	lighting.no_glow = low_quality
 	for n in get_children():
 		if n is WorldEnvironment:
 			lighting.setup((n as WorldEnvironment).environment, sun, self)
@@ -188,11 +198,7 @@ func _process(delta: float) -> void:
 	if controls.night_requested:
 		lighting.set_night(not lighting.is_night())
 		controls.set_label("ci_night", "JOUR" if lighting.is_night() else "NUIT")
-	var glow: float = lighting.glow
-	for l in _car_lights:
-		if is_instance_valid(l):
-			(l as SpotLight3D).light_energy = 9.0 * glow
-			(l as SpotLight3D).visible = glow > 0.02
+
 	for m in _sea_materials:
 		m.set_shader_parameter("now", Waves.now())
 	_wheel_effects(delta)
@@ -452,8 +458,9 @@ func _follow_wake_patch(delta: float) -> void:
 		m.set_shader_parameter("sim_tex", water_sim.texture())
 
 
-## Phares de la voiture du joueur : deux vrais projecteurs (la nuit seulement) qui éclairent
-## la route devant elle, et des feux qui brillent (blancs devant, rouges derrière).
+## Feux de la voiture du joueur (blancs devant, rouges derrière, avec halo). Le faisceau des
+## phares au sol est calculé par le terrain et l'herbe (car_shadow.gdshaderinc), sans vraie
+## lumière : une vraie lumière redessine chaque objet qu'elle touche (trop cher sur iPhone).
 func _add_car_lights() -> void:
 	_car_lights.clear()
 	var shape: CollisionShape3D = null
@@ -465,39 +472,51 @@ func _add_car_lights() -> void:
 	var h: Vector3 = car.body_half
 	var y: float = car.body_bottom + 0.25
 	add_lamps_to(car, Vector3(c0.x, y, c0.z), h)
-	for side in [-1.0, 1.0]:
-		var spot := SpotLight3D.new()
-		spot.position = Vector3(c0.x + side * h.x * 0.6, y + 0.1, c0.z + h.z + 0.1)
-		spot.rotation = Vector3(deg_to_rad(-12.0), PI, 0.0)
-		spot.spot_range = 42.0
-		spot.spot_angle = 30.0
-		spot.spot_attenuation = 0.8
-		spot.light_color = Color(1.0, 0.92, 0.78)
-		spot.light_energy = 0.0
-		spot.shadow_enabled = false
-		spot.visible = false
-		car.add_child(spot)
-		_car_lights.append(spot)
 
 
-## Feux d'une voiture (joueur ou circulation) : deux blancs à l'avant, deux rouges à l'arrière.
+## Feux d'une voiture (joueur ou circulation) : deux blancs à l'avant, deux rouges à
+## l'arrière, et leurs halos. Deux objets en tout (un maillage pour les quatre feux, un
+## MultiMesh pour les quatre halos) : deux appels de dessin par voiture.
 static func add_lamps_to(node: Node3D, center: Vector3, half: Vector3) -> void:
-	var front := ShaderMaterial.new()
-	front.shader = load("res://shaders/car_light.gdshader")
-	var back := ShaderMaterial.new()
-	back.shader = front.shader
-	back.set_shader_parameter("color", Color(1.0, 0.12, 0.08))
-	back.set_shader_parameter("power", 3.0)
-	var box := BoxMesh.new()
-	box.size = Vector3(0.32, 0.14, 0.06)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var spots: Array = []
 	for side in [-1.0, 1.0]:
 		for f in [1.0, -1.0]:
-			var mi := MeshInstance3D.new()
-			mi.mesh = box
-			mi.material_override = front if f > 0.0 else back
-			mi.position = center + Vector3(side * half.x * 0.62, 0.0, f * (half.z + 0.02))
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			node.add_child(mi)
+			var p: Vector3 = center + Vector3(side * half.x * 0.62, 0.0, f * (half.z + 0.02))
+			var col := Color(1.0, 0.95, 0.85) if f > 0.0 else Color(1.0, 0.12, 0.08)
+			_light_box(st, p, Vector3(0.32, 0.14, 0.06), col)
+			spots.append([p + Vector3(0, 0, f * 0.15), col, 1.6 if f > 0.0 else 1.1])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = LIGHTS_MAT
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(mi)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = QuadMesh.new()
+	mm.instance_count = spots.size()
+	for i in spots.size():
+		mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * float(spots[i][2])), spots[i][0]))
+		mm.set_instance_color(i, spots[i][1])
+	mm.custom_aabb = AABB(center - half * 2.0 - Vector3.ONE * 2.0, half * 4.0 + Vector3.ONE * 4.0)
+	var hmi := MultiMeshInstance3D.new()
+	hmi.multimesh = mm
+	hmi.material_override = HALO_MAT
+	hmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(hmi)
+
+
+static func _light_box(st: SurfaceTool, c: Vector3, size: Vector3, col: Color) -> void:
+	var b := BoxMesh.new()
+	b.size = size
+	var arr := b.get_mesh_arrays()
+	var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+	for i in idx:
+		st.set_color(col)
+		st.add_vertex(verts[i] + c)
 
 
 ## Matériaux qui reçoivent les ombres (terrain, pièce des ornières, herbe).
@@ -543,7 +562,11 @@ func _update_car_shadow() -> void:
 	var b1_max := Vector3(c.x + h.x, bottom + (top - bottom) * 0.5, c.z + h.z)
 	var b2_min := Vector3(c.x - h.x * 0.86, bottom, c.z - h.z * 0.55)
 	var b2_max := Vector3(c.x + h.x * 0.86, top, c.z + h.z * 0.3)
+	var fwd: Vector3 = xf.basis.z.normalized()
+	var head := xf * Vector3(c.x, bottom + 0.35, c.z + h.z + 0.2)
 	for m in _shadow_mats:
+		m.set_shader_parameter("head_pos", head)
+		m.set_shader_parameter("head_dir", (fwd - Vector3.UP * 0.12).normalized())
 		m.set_shader_parameter("car_inv", Projection(inv))
 		m.set_shader_parameter("car_sun", sun_l)
 		m.set_shader_parameter("car_pos", xf.origin)

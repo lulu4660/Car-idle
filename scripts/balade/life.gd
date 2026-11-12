@@ -102,7 +102,7 @@ func _vehicle(model: String, kinematic: bool) -> Node3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = v[0]
 	mi.transform = v[1]
-	mi.visibility_range_end = 180.0
+	mi.visibility_range_end = 180.0 if kinematic else 120.0
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mi)
 	var cs := CollisionShape3D.new()
@@ -112,7 +112,9 @@ func _vehicle(model: String, kinematic: bool) -> Node3D:
 	cs.shape = b
 	cs.position = Vector3(0, half.y, 0)
 	body.add_child(cs)
-	load("res://scripts/balade/balade.gd").add_lamps_to(body, Vector3(0, half.y * 0.75, 0), half)
+	if kinematic:
+		# Feux seulement sur les voitures qui roulent (les voitures garées sont éteintes).
+		load("res://scripts/balade/balade.gd").add_lamps_to(body, Vector3(0, half.y * 0.75, 0), half)
 	add_child(body)
 	return body
 
