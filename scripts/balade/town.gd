@@ -219,6 +219,21 @@ func _prototype(path: String) -> Array:
 					sm.shader = BUILDING_SHADER
 					sm.set_shader_parameter("albedo_tex", m.albedo_texture)
 					mesh.surface_set_material(si, sm)
+		# Cultures : le kit les donne turquoise et blanches ; on les met aux couleurs du
+		# décor (vert de champ, blé doré, épis jaunes).
+		if path.contains("crops_"):
+			var cmesh: ArrayMesh = merged[0]
+			var wheat := path.contains("wheat")
+			for si in cmesh.get_surface_count():
+				var cm := cmesh.surface_get_material(si) as BaseMaterial3D
+				if cm == null:
+					continue
+				if wheat:
+					cm.albedo_color = Color(0.85, 0.66, 0.27)
+				elif cm.albedo_color.g > cm.albedo_color.r:
+					cm.albedo_color = Color(0.36, 0.55, 0.22)
+				else:
+					cm.albedo_color = Color(0.93, 0.76, 0.3)
 		_proto[path] = merged
 	return _proto[path]
 

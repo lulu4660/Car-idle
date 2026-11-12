@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.5.1"
+const VERSION := "0.6.0"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -67,6 +67,7 @@ var _fall_speed := 0.0
 var _was_airborne := false
 
 var hud: CanvasLayer
+var audio: Node
 
 
 func _ready() -> void:
@@ -211,6 +212,7 @@ func _process(delta: float) -> void:
 	if menu.visible == controls.visible:
 		controls.set_enabled(not menu.visible)
 	if controls.settings_requested:
+		audio.shot("click")
 		menu.open()
 		controls.set_enabled(false)
 	if controls.camera_requested:
@@ -337,6 +339,7 @@ func _physics_process(delta: float) -> void:
 ## rapide), la caisse marque aussi le sable si le choc est très fort, gerbe, secousse.
 func _land(speed: float) -> void:
 	var k := clampf((speed - 4.5) / 10.0, 0.0, 1.0)
+	audio.land(k)
 	var depth := lerpf(0.08, 0.5, k)
 	var radius := lerpf(0.8, 1.8, k)
 	for i in 4:
@@ -619,6 +622,10 @@ func car_display_name() -> String:
 
 
 func _build_hud() -> void:
+	audio = load("res://scripts/balade/audio.gd").new()
+	audio.name = "Sons"
+	audio.game = self
+	add_child(audio)
 	hud = load("res://scripts/balade/hud.gd").new()
 	hud.game = self
 	add_child(hud)

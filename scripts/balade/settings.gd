@@ -24,6 +24,7 @@ const GRAPHICS := [
 	["ssao", "Occlusion ambiante (PC)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 0.0, 1.0]],
 	# Ambiance (hors préréglages : null) : 0 = aucun, 1 = brume légère d'origine, 8 = purée de pois.
 	["fog", "Brouillard", 0.0, 8.0, 0.1, null],
+	["volume", "Volume du son", 0.0, 1.0, 0.05, null],
 ]
 
 ## Conduite : clé (propriété de car.gd, ou mass / susp_* pour la caisse et les roues),
@@ -152,6 +153,9 @@ func apply_graphics(game: Node) -> void:
 		sun.directional_shadow_max_distance = sh
 	game.lighting.no_glow = g["glow"] < 0.5
 	game.lighting.fog_amount = float(g["fog"])
+	var vol := float(g["volume"])
+	AudioServer.set_bus_mute(0, vol < 0.01)
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.01)))
 	game.lighting.refresh()
 	var is_forward: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
 	game.lighting.env.ssao_enabled = g["ssao"] > 0.5 and is_forward

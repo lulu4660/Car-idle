@@ -341,7 +341,7 @@ func _show(key: String, v: float, step: float) -> String:
 			return ["Non", "×2", "×4"][clampi(int(v), 0, 2)]
 		"fog":
 			return "Aucun" if v < 0.05 else "×%.1f" % v
-		"scale", "range", "grass", "life":
+		"scale", "range", "grass", "life", "volume":
 			return "%d %%" % roundi(v * 100.0)
 	return Settings.fmt(v, step)
 

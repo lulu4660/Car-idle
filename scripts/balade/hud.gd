@@ -32,6 +32,7 @@ var _time := 0.0
 var _intro := 0.0               # 0 -> 1 à l'apparition
 var _speed_shown := 0.0
 var _block_glow: PackedFloat32Array = PackedFloat32Array()
+var _gear_bump := 0.0
 
 # Dérapage.
 var _drift_points := 0.0
@@ -73,6 +74,7 @@ func _process(delta: float) -> void:
 	_update_blocks(car, delta)
 	_update_drift(car, delta)
 	_update_fx(delta)
+	_gear_bump = move_toward(_gear_bump, 0.0, delta * 4.0)
 	_canvas.queue_redraw()
 
 
@@ -117,6 +119,8 @@ func _update_drift(car: VehicleBody3D, delta: float) -> void:
 			var gained := roundi(_drift_points)
 			if gained >= 50:
 				_pops.append(["+" + _thousands(gained), GOLD, 0.0])
+				if game.audio:
+					game.audio.shot("score", 0.7)
 				_burst(GOLD, 14 + _drift_mult * 4)
 				if gained > _best:
 					_best = gained
@@ -184,7 +188,7 @@ func _draw_hud() -> void:
 
 func _draw_gauge(c: Vector2, r: float, car: VehicleBody3D) -> void:
 	var top: float = ceilf(car.top_speed_kmh / 20.0) * 20.0
-	var redline := clampf(_speed_shown / top, 0.0, 1.0) > 0.92
+	var redline: bool = car.rpm > 0.92
 	var pulse := 0.5 + 0.5 * sin(_time * 14.0) if redline else 0.0
 	# Fond : disque charbon à facettes.
 	var bg := PackedVector2Array()
@@ -221,6 +225,12 @@ func _draw_gauge(c: Vector2, r: float, car: VehicleBody3D) -> void:
 	var v := str(roundi(_speed_shown))
 	_text_center(_big, v, c + Vector2(0, r * 0.2), int(r * 0.66), INK, r * 0.05)
 	_text_center(_text, "KM/H", c + Vector2(0, r * 0.44), int(r * 0.2), Color(INK.r, INK.g, INK.b, 0.55), 0.0)
+	# Rapport engagé, au-dessus de la vitesse ; il « saute » à chaque changement.
+	if car.shifted:
+		_gear_bump = 1.0
+	var gt := "R" if car.gear == 0 else str(car.gear)
+	var gcol := GOLD.lerp(Color.WHITE, _gear_bump * 0.8)
+	_text_center(_big, gt, c + Vector2(0, -r * 0.3), int(r * 0.26 * (1.0 + 0.5 * _gear_bump)), gcol, r * 0.03)
 	# Mode : petite pastille dans l'ouverture de l'arc.
 	var drift_mode: bool = game.settings.mode == 0
 	var pill := Rect2(c + Vector2(-r * 0.4, r * 0.66), Vector2(r * 0.8, r * 0.26))

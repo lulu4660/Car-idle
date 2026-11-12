@@ -152,6 +152,15 @@ var body_half := Vector3(0.9, 0.5, 2.1)
 var body_bottom := 0.35
 var wheel_surface: Array[int] = [WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND, WL.Surface.SAND]
 var wheel_slip: Array[float] = [0.0, 0.0, 0.0, 0.0]
+## Boîte de vitesses simulée (son et affichage ; la poussée, elle, reste continue).
+## rpm : 0 = ralenti, 1 = zone rouge. gear : 1 à 5, 0 = marche arrière.
+const GEAR_TOPS := [0.2, 0.36, 0.55, 0.77, 1.02]
+var rpm := 0.0
+var gear := 1
+var engine_load := 0.0
+var shifted := false          # vrai pendant l'image d'un changement de rapport
+var grounded_wheels := 0
+var _shift_t := 0.0
 ## Profondeur de l'ornière sous chaque roue (m), donnée par balade.gd : freine un peu plus.
 var wheel_sink: Array[float] = [0.0, 0.0, 0.0, 0.0]
 const WHEEL_REST := 0.32
@@ -620,6 +629,7 @@ func _physics_process(delta: float) -> void:
 				apply_torque(-up * yaw_rate * minf(1.0, over / 12.0) * 12.0 * mass * YAW_INERTIA)
 
 	_last_fwd = forward_speed
+	_gearbox(delta, drive_in, grounded, handbrake)
 	_ground_resistance(delta)
 	_float(delta)
 
@@ -715,6 +725,47 @@ func _ground_resistance(delta: float) -> void:
 			var water := clampf(Waves.surface(p.x, p.z, depth) - p.y, 0.0, 0.8)
 			if water > 0.0:
 				apply_force(-dir * speed * speed * 260.0 * water, offset)
+
+
+## Régime et rapport d'après la vitesse : le rapport monte près de la zone rouge, descend
+## quand le régime tombe ; le moteur s'emballe quand les roues patinent ou en l'air.
+func _gearbox(delta: float, drive_in: float, grounded: int, handbrake: bool) -> void:
+	shifted = false
+	grounded_wheels = grounded
+	engine_load = move_toward(engine_load, maxf(drive_in, 0.0) if drive_in >= 0.0 else -drive_in, delta * 6.0)
+	var top := maxf(top_speed_kmh, 1.0)
+	var kmh := absf(forward_speed) * 3.6
+	if forward_speed < -0.5 and drive_in < 0.0:
+		gear = 0
+		rpm = lerpf(rpm, clampf(kmh / maxf(reverse_speed_kmh, 1.0), 0.0, 1.0) * 0.7 + 0.1 * engine_load, minf(1.0, delta * 8.0))
+		return
+	if gear == 0:
+		gear = 1
+	_shift_t = maxf(0.0, _shift_t - delta)
+	var lo: float = GEAR_TOPS[gear - 2] * top * 0.62 if gear > 1 else 0.0
+	var hi: float = GEAR_TOPS[gear - 1] * top
+	var by_speed := clampf(kmh / hi, 0.0, 1.05)
+	if _shift_t <= 0.0:
+		if by_speed > 0.94 and gear < 5 and drive_in > 0.1:
+			gear += 1
+			_shift_t = 0.22
+			shifted = true
+		elif kmh < lo and gear > 1:
+			gear -= 1
+			_shift_t = 0.15
+			shifted = true
+	var target := clampf(kmh / (float(GEAR_TOPS[gear - 1]) * top), 0.0, 1.0)
+	# Patinage (dérapage sous les gaz, frein à main) ou roues en l'air : le régime grimpe.
+	var spin := clampf(absf(slip_angle) / 35.0, 0.0, 1.0) * engine_load
+	if grounded == 0:
+		spin = engine_load
+	target = maxf(target, spin * 0.88)
+	if handbrake and engine_load > 0.1:
+		target = maxf(target, 0.75 * engine_load)
+	# Limiteur : petite oscillation en zone rouge.
+	if target > 0.97:
+		target = 0.94 + 0.04 * sin(Time.get_ticks_msec() * 0.045)
+	rpm = lerpf(rpm, target, minf(1.0, delta * (5.0 if target > rpm else 7.0)))
 
 
 func respawn(pos: Vector3, yaw: float) -> void:
