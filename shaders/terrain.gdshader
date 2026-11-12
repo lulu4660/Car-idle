@@ -160,7 +160,7 @@ void fragment() {
 	}
 	ALBEDO = c;
 	sun_vis = sun_visibility(wpos, world_size);
-	EMISSION = c * (lamp_glow(wpos, world_size) + head_color * headlight(wpos) * 1.4);
+	EMISSION = c * (lamp_glow(wpos, world_size) + head_color * headlight(wpos, vec3(0.0, 1.0, 0.0)) * 1.4);
 	// Facettes low poly : la normale est celle du triangle de 1 m (calculée, pas dérivée de
 	// l'écran : identique sur le terrain, la pièce des ornières et les niveaux de détail).
 	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));

@@ -12,6 +12,7 @@ var reset_requested := false
 var next_car_requested := false
 var camera_requested := false
 var night_requested := false
+var settings_requested := false
 
 var _steer_smooth := 0.0
 
@@ -28,6 +29,7 @@ const BUTTONS := [
 	["ci_night", "NUIT", Vector2(0, 0), Rect2(0.03, 0.16, 0.28, 0.11)],
 	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.03, 0.03, 0.28, 0.11)],
 	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.03, 0.16, 0.28, 0.11)],
+	["ci_settings", "RÉGLAGES", Vector2(1, 0), Rect2(0.03, 0.29, 0.28, 0.11)],
 ]
 
 const KEYS := {
@@ -40,6 +42,7 @@ const KEYS := {
 	"ci_camera": [KEY_V],
 	"ci_car": [KEY_C],
 	"ci_night": [KEY_N],
+	"ci_settings": [KEY_ESCAPE, KEY_P],
 }
 
 var _buttons: Array[TouchScreenButton] = []
@@ -124,6 +127,8 @@ func _box(s: Vector2i, c: Color, arrow := 0) -> ImageTexture:
 
 ## La souris joue le rôle d'un doigt (PC) : bouton pressé sous le pointeur.
 func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_mouse_action = _action_at(event.position)
@@ -154,6 +159,22 @@ func _process(delta: float) -> void:
 	next_car_requested = Input.is_action_just_pressed("ci_car")
 	camera_requested = Input.is_action_just_pressed("ci_camera")
 	night_requested = Input.is_action_just_pressed("ci_night")
+	settings_requested = Input.is_action_just_pressed("ci_settings")
+
+
+## Masque ou montre les boutons (écran des réglages) ; relâche tout ce qui était appuyé.
+func set_enabled(on: bool) -> void:
+	visible = on
+	set_process(on)
+	for action in KEYS:
+		Input.action_release(action)
+	_mouse_action = ""
+	throttle = 0.0
+	brake = 0.0
+	steer = 0.0
+	_steer_smooth = 0.0
+	handbrake = false
+	settings_requested = false
 
 
 ## Change le texte d'un bouton (ex. NUIT / JOUR).

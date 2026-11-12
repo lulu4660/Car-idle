@@ -8,11 +8,19 @@ const WL = preload("res://scripts/core/world_layout.gd")
 const WorldData = preload("res://scripts/balade/world_data.gd")
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
+const Settings = preload("res://scripts/balade/settings.gd")
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
 @export var force_quality := -1
 var low_quality := false
+var sun: DirectionalLight3D
+## Réglages (graphismes, conduite) et leur écran.
+var settings: RefCounted
+var menu: CanvasLayer
+## Valeurs de conduite d'origine de la voiture actuelle (pour « Réinitialiser »).
+var car_base := {}
+var water_sim_enabled := true
 var _sea_materials: Array[ShaderMaterial] = []
 var _wake_patch: MeshInstance3D
 var water_sim: Node
@@ -65,7 +73,7 @@ func _ready() -> void:
 	if data == null:
 		return
 	low_quality = force_quality == 0 or (force_quality < 0 and (OS.has_feature("web") or OS.has_feature("mobile")))
-	var sun := WorldBuilder.build_environment(self)
+	sun = WorldBuilder.build_environment(self)
 	_apply_quality(sun)
 	lighting = load("res://scripts/balade/lighting.gd").new()
 	lighting.name = "Lumiere"
@@ -129,11 +137,20 @@ func _ready() -> void:
 	vegetation.build(data)
 
 	_build_hud()
+	# Réglages : Moyen par défaut sur iPhone et le web, Haut sur PC.
+	settings = Settings.new(2 if low_quality else 3)
+	if force_quality < 0:
+		settings.load_file()
+	menu = load("res://scripts/balade/settings_menu.gd").new()
+	menu.game = self
+	menu.settings = settings
+	add_child(menu)
 	model_index = maxi(0, Car.MODELS.find(start_model))
 	var y: float = data.height_at(WL.SPAWN_X, WL.SPAWN_Z) + 1.2
 	# Départ au bord de la plage, vers le nord, le long du rivage : la caméra drone, côté
 	# dunes, voit la voiture, la plage et la mer d'un seul coup d'œil.
 	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
+	settings.apply_graphics(self)
 
 
 ## Réglages selon l'appareil. iPhone et web : pleine résolution, pas de MSAA (FXAA à la place), ombres sur 90 m
@@ -166,12 +183,17 @@ func _apply_quality(sun: DirectionalLight3D) -> void:
 func _spawn(pos: Vector3, yaw: float) -> void:
 	car = Car.create(Car.MODELS[model_index], controls)
 	car.world_data = data
+	car_base.clear()
+	for c in Settings.CAR:
+		car_base[c[0]] = Settings.car_value(car, c[0])
+	settings.apply_car(car)
 	add_child(car)
 	car.global_transform = Transform3D(Basis(Vector3.UP, yaw), pos)
 	camera.target = car
 	if life:
 		life.target = car
 	_add_car_lights()
+	settings.apply_halos(car)
 	camera.snap()
 	if decor.data == null:
 		decor.low_quality = low_quality
@@ -184,6 +206,11 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 func _process(delta: float) -> void:
 	if car == null:
 		return
+	if menu.visible == controls.visible:
+		controls.set_enabled(not menu.visible)
+	if controls.settings_requested:
+		menu.open()
+		controls.set_enabled(false)
 	if controls.camera_requested:
 		camera.next_mode()
 	if controls.next_car_requested:
@@ -425,7 +452,7 @@ func _follow_wake_patch(delta: float) -> void:
 		var c := Vector3(snappedf(p.x, g), WL.SEA_LEVEL, snappedf(p.z, g))
 		_wake_patch.position = c
 		near_rect = Vector4(c.x - NEAR_SEA / 2.0, c.z - NEAR_SEA / 2.0, NEAR_SEA, NEAR_SEA)
-		var in_reach: bool = data.height_at(p.x, p.z) < WL.SEA_LEVEL + 1.0
+		var in_reach: bool = water_sim_enabled and data.height_at(p.x, p.z) < WL.SEA_LEVEL + 1.0
 		if in_reach:
 			var depth: float = WL.SEA_LEVEL - data.height_at(p.x, p.z)
 			var surf := Waves.surface(p.x, p.z, depth)
@@ -564,9 +591,9 @@ func _update_car_shadow() -> void:
 	var b2_max := Vector3(c.x + h.x * 0.86, top, c.z + h.z * 0.3)
 	var fwd: Vector3 = xf.basis.z.normalized()
 	var head := xf * Vector3(c.x, bottom + 0.35, c.z + h.z + 0.2)
+	RenderingServer.global_shader_parameter_set("head_pos", head)
+	RenderingServer.global_shader_parameter_set("head_dir", (fwd - Vector3.UP * 0.12).normalized())
 	for m in _shadow_mats:
-		m.set_shader_parameter("head_pos", head)
-		m.set_shader_parameter("head_dir", (fwd - Vector3.UP * 0.12).normalized())
 		m.set_shader_parameter("car_inv", Projection(inv))
 		m.set_shader_parameter("car_sun", sun_l)
 		m.set_shader_parameter("car_pos", xf.origin)
@@ -574,6 +601,10 @@ func _update_car_shadow() -> void:
 		m.set_shader_parameter("box1_max", b1_max)
 		m.set_shader_parameter("box2_min", b2_min)
 		m.set_shader_parameter("box2_max", b2_max)
+
+
+func car_display_name() -> String:
+	return Car.DISPLAY_NAMES.get(car.model_name, car.model_name)
 
 
 func _build_hud() -> void:
@@ -606,6 +637,6 @@ func _layout_hud() -> void:
 	var u := minf(size.x, size.y)
 	var portrait := size.x < size.y
 	_hud_box.size = Vector2(size.x, u * 0.2)
-	_hud_box.position = Vector2(0, u * (0.29 if portrait else 0.02))
+	_hud_box.position = Vector2(0, u * (0.42 if portrait else 0.02))
 	_hud_speed.add_theme_font_size_override("font_size", maxi(24, int(u * 0.075)))
 	_hud_info.add_theme_font_size_override("font_size", maxi(12, int(u * 0.03)))

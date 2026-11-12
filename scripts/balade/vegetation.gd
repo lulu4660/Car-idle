@@ -38,7 +38,7 @@ const KINDS := {
 
 var data: RefCounted
 var _proto := {}        # modèle -> [maillage, hauteur, bas]
-var _material: StandardMaterial3D
+var _material: ShaderMaterial
 var _cells := {}        # [case, modèle] -> Array[Transform3D]
 var _body: StaticBody3D
 var count := 0
@@ -216,11 +216,10 @@ func _prototype(kind: String) -> Array:
 
 
 func _commit() -> void:
-	_material = StandardMaterial3D.new()
-	_material.vertex_color_use_as_albedo = true
-	_material.vertex_color_is_srgb = true
-	_material.roughness = 1.0
-	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	# Shader léger : couleur par sommet, mat, et lumières de nuit (réverbères, phares).
+	_material = ShaderMaterial.new()
+	_material.shader = load("res://shaders/vegetation.gdshader")
+	_material.set_shader_parameter("night_light_tex", load("res://assets/balade/lights.png"))
 	for key in _cells:
 		var cell: Vector2i = key[0]
 		var list: Array = _cells[key]

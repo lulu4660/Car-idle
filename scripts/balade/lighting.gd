@@ -56,6 +56,11 @@ func set_night(on: bool, instant := false) -> void:
 		_apply(night)
 
 
+## Réapplique l'éclairage (après un changement de réglage graphique).
+func refresh() -> void:
+	_apply(night)
+
+
 func is_night() -> bool:
 	return _target > 0.5
 

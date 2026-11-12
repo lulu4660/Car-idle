@@ -12,6 +12,7 @@ const BIRDS := 9
 
 var data: RefCounted
 var low_quality := false
+var _grass_nodes: Array[MultiMeshInstance3D] = []
 var target: Node3D
 var _birds: Array[Dictionary] = []
 var _bird_mat: ShaderMaterial
@@ -72,8 +73,16 @@ func _build_grass() -> void:
 		if not cells.has(key):
 			cells[key] = []
 		cells[key].append(xf)
+	var shuffle := RandomNumberGenerator.new()
+	shuffle.seed = 7
 	for key in cells:
 		var list: Array = cells[key]
+		# Mélangées : une densité réduite (réglages) garde les premières, réparties partout.
+		for i in range(list.size() - 1, 0, -1):
+			var j := shuffle.randi_range(0, i)
+			var tmp: Variant = list[i]
+			list[i] = list[j]
+			list[j] = tmp
 		var center := Vector3((key.x + 0.5) * GRASS_CELL, 0.0, (key.y + 0.5) * GRASS_CELL)
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -93,6 +102,7 @@ func _build_grass() -> void:
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mmi.visibility_range_end = GRASS_RANGE * (0.75 if low_quality else 1.0)
 		add_child(mmi)
+		_grass_nodes.append(mmi)
 
 
 ## Touffe d'herbe low poly : 7 lames larges et pointues, taillées en facettes (chaque
@@ -316,3 +326,11 @@ func _process(delta: float) -> void:
 		var dir := Vector3(-sin(a), 0, cos(a)) * signf(float(b["speed"]))
 		var node: MeshInstance3D = b["node"]
 		node.global_transform = Transform3D(Basis.looking_at(-dir, Vector3.UP).rotated(dir, 0.25 * signf(float(b["speed"]))), pos)
+
+
+## Densité de l'herbe (0 à 1, réglages graphiques) : seule une part des touffes est dessinée.
+func set_grass_density(f: float) -> void:
+	for mmi in _grass_nodes:
+		var mm := mmi.multimesh
+		mm.visible_instance_count = -1 if f >= 0.999 else int(mm.instance_count * f)
+		mmi.visible = f > 0.001

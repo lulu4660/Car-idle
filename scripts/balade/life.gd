@@ -259,6 +259,8 @@ func _physics_process(delta: float) -> void:
 	var my_vel: Vector3 = target.linear_velocity if target is RigidBody3D else Vector3.ZERO
 	for tr in _traffic:
 		var body: Node3D = tr[0]
+		if not body.visible:
+			continue
 		var lane: PackedVector2Array = tr[1]
 		var dist: PackedFloat32Array = tr[2]
 		var total: float = tr[3]
@@ -292,6 +294,8 @@ func _physics_process(delta: float) -> void:
 	for pe in _people:
 		var node: Node3D = pe[0]
 		var player: AnimationPlayer = pe[1]
+		if not node.visible:
+			continue
 		var d := node.global_position.distance_to(me)
 		var awake := d < ACTIVE
 		if player:
@@ -353,3 +357,21 @@ func _physics_process(delta: float) -> void:
 		var bx := up.cross(heading).normalized()
 		var bz := bx.cross(up).normalized()
 		mi.global_transform = Transform3D(Basis(bx, up, bz).scaled(mi.scale), Vector3(x, h - 0.15, z))
+
+
+## Part de la circulation et des passants gardée (0 à 1, réglages graphiques) : les autres
+## sont cachés, sans collision ni animation.
+func set_density(f: float) -> void:
+	for list in [_traffic, _people]:
+		for i in list.size():
+			var node: Node3D = list[i][0]
+			# Suite de Weyl : la part gardée est répartie sur toute la carte.
+			var on: bool = fposmod(i * 0.618034, 1.0) < f
+			node.visible = on
+			if node is CollisionObject3D:
+				var co := node as CollisionObject3D
+				if not co.has_meta("layer"):
+					co.set_meta("layer", co.collision_layer)
+				co.collision_layer = int(co.get_meta("layer")) if on else 0
+			if list == _people and list[i][1]:
+				(list[i][1] as AnimationPlayer).active = on

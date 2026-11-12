@@ -3,7 +3,7 @@
 shader_type spatial;
 render_mode specular_disabled;
 
-global uniform float night;
+#include "res://shaders/night_light.gdshaderinc"
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
 uniform vec3 window_light : source_color = vec3(1.0, 0.76, 0.42);
 
@@ -32,7 +32,8 @@ void fragment() {
 		float g4 = 1.0 - smoothstep(0.04, 0.1, distance(c, vec3(0.404, 0.58, 0.851)));
 		float glass = max(max(g1, g2), max(g3, g4));
 		float lit = step(0.45, hash3(floor(wpos / vec3(3.0, 3.2, 3.0))));
-		EMISSION = window_light * glass * lit * night * 1.4;
+		vec3 nw = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+		EMISSION = window_light * glass * lit * night * 1.4 + c * head_color * headlight(wpos, nw) * 1.6;
 		ALBEDO = mix(c, c * 0.4, glass * night);
 	}
 }
