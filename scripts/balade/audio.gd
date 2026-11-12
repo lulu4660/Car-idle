@@ -36,10 +36,9 @@ func _ready() -> void:
 		p.volume_db = -80.0
 		add_child(p)
 		p.play()
-		p.stream_paused = true
 		_loops[n] = p
 		_vol[n] = 0.0
-	for n in ["impact", "land", "splash", "shift", "click", "score", "backfire"]:
+	for n in ["impact", "land", "splash", "shift", "click", "score"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load(DIR + n + ".wav")
 		add_child(p)
@@ -60,14 +59,10 @@ func _loop(n: String, target: float, delta: float, pitch := -1.0, speed := 8.0) 
 	var v: float = lerpf(_vol[n], clampf(target, 0.0, 1.0), minf(1.0, delta * speed))
 	_vol[n] = v
 	var p: AudioStreamPlayer = _loops[n]
-	# Une boucle inaudible est mise en pause : le mélangeur ne la calcule plus (sur la
-	# version web, le son est calculé sur le même fil que le jeu).
-	var audible := v > 0.003
-	if p.stream_paused == audible:
-		p.stream_paused = not audible
-	if not audible:
-		return
-	var db := linear_to_db(v)
+	# Les boucles tournent en continu (les mettre en pause coupait le moteur sur la version
+	# web) ; on ne touche au volume et à la hauteur que quand ils changent vraiment : sur le
+	# web, chaque changement est un appel au navigateur.
+	var db := linear_to_db(maxf(v, 0.0001))
 	if absf(p.volume_db - db) > 0.2:
 		p.volume_db = db
 	if pitch > 0.0:
@@ -108,14 +103,6 @@ func _process(delta: float) -> void:
 		var pitch := r / float(ENGINE_RPMS[i])
 		_loop("engine_on_%d" % ENGINE_RPMS[i], gain * share * _load_s, delta, pitch, 20.0)
 		_loop("engine_off_%d" % ENGINE_RPMS[i], gain * share * (1.0 - _load_s) * 0.8, delta, pitch, 20.0)
-	# Lever de pied brusque à haut régime : claquements d'échappement.
-	_pop_cool = maxf(0.0, _pop_cool - delta)
-	if _last_load - car.engine_load > 0.04 and r > 4000.0 and _pop_cool <= 0.0:
-		_pop_cool = 0.12
-		shot("backfire", randf_range(0.35, 0.7), randf_range(0.85, 1.2))
-	elif car.engine_load < 0.05 and r > 4500.0 and randf() < delta * 3.0:
-		shot("backfire", randf_range(0.15, 0.35), randf_range(0.9, 1.3))
-	_last_load = car.engine_load
 	if car.shifted:
 		shot("shift", 0.5, randf_range(0.9, 1.1))
 

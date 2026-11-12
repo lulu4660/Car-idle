@@ -99,7 +99,7 @@ def engine(name, rpm, on_load, sr=22050, cycles=None):
     mech /= np.max(np.abs(mech)) + 1e-9
     x += mech * env * 0.06
     # Lever de pied à haut régime : petits claquements dans l'échappement.
-    if not on_load and rpm > 3000:
+    if False:  # claquements retirés (jugés peu réalistes)
         for _ in range(int(cycles / fire * 5)):
             i0 = rng.integers(0, n)
             ln = int(sr * 0.012)
@@ -220,9 +220,6 @@ def main():
     for r in ENGINE_RPMS:
         engine("engine_on_%d" % r, r, True)
         engine("engine_off_%d" % r, r, False)
-    # Claquement d'échappement isolé (lever de pied à haut régime).
-    shot("backfire", 0.25, 22050, lambda n, t, sr:
-         bp_noise(n, sr, 150, 2500) * np.exp(-t * 30) + np.sin(2 * np.pi * 90 * t) * np.exp(-t * 25) * 0.8)
     skid()
     gravel()
     wind()

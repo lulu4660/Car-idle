@@ -23,7 +23,7 @@ const GRAPHICS := [
 	["halos", "Halos des lumières", 0.0, 1.0, 0.0, [0.0, 1.0, 1.0, 1.0, 1.0]],
 	["glow", "Bloom plein écran (coûteux)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 1.0, 1.0]],
 	["ssao", "Occlusion ambiante (PC)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 0.0, 1.0]],
-	["post", "Effets cinéma (0 non, 1 étalonnage, 2 maquette + rayons)", 0.0, 2.0, 1.0, [0.0, 0.0, 0.0, 1.0, 2.0]],
+	["varnish", "Vernis brillant sur la carrosserie", 0.0, 1.0, 0.0, [0.0, 0.0, 1.0, 1.0, 1.0]],
 	["pc_fx", "Rendu avancé PC (reflets, lumière indirecte, brume volumétrique)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 0.0, 1.0]],
 	# Ambiance (hors préréglages : null) : 0 = aucun, 1 = brume légère d'origine, 8 = purée de pois.
 	["fog", "Brouillard", 0.0, 8.0, 0.1, null],
@@ -184,7 +184,7 @@ func apply_graphics(game: Node) -> void:
 	env.volumetric_fog_enabled = pc
 	env.volumetric_fog_density = 0.004
 	env.volumetric_fog_albedo = Color(0.95, 0.85, 0.78)
-	game.set_post_level(int(g["post"]))
+	game.set_varnish(float(g["varnish"]) > 0.5)
 	game.water_sim_enabled = g["water"] > 0.5
 	# Relief : seuil entre la grille fine (2 m) et la grossière (4 m).
 	var near := float(g["terrain"])

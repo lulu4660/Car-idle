@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.8.0"
+const VERSION := "0.8.1"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -25,8 +25,6 @@ var menu: CanvasLayer
 var car_base := {}
 var water_sim_enabled := true
 ## Post-traitement « cinéma » (réglages Haut et Ultra) : rectangle collé à la caméra.
-var _post: MeshInstance3D
-var _post_mat: ShaderMaterial
 var post_level := 0
 ## Résolution dynamique : la résolution 3D baisse un peu (jusqu'à 60 % du réglage) quand
 ## l'image prend plus de 18 ms, et remonte dès que ça redevient fluide.
@@ -238,7 +236,6 @@ func _process(delta: float) -> void:
 		_spawn(pos, yaw)
 		return
 	_follow_wake_patch(delta)
-	_update_post()
 	_dynamic_resolution(delta)
 	_update_car_shadow()
 	if controls.night_requested:
@@ -635,30 +632,12 @@ func rebuild_car() -> void:
 	settings.apply_halos(car)
 
 
-## Effets cinéma : 0 = aucun, 1 = étalonnage et netteté, 2 = + effet maquette et rayons.
-## Au niveau 1 et plus, la carrosserie prend un vernis brillant.
-func set_post_level(level: int) -> void:
-	post_level = level
-	if _post == null:
-		_post_mat = ShaderMaterial.new()
-		_post_mat.shader = load("res://shaders/post.gdshader")
-		_post_mat.render_priority = 127
-		var q := QuadMesh.new()
-		q.size = Vector2(1, 1)
-		_post = MeshInstance3D.new()
-		_post.name = "PostTraitement"
-		_post.mesh = q
-		_post.material_override = _post_mat
-		_post.extra_cull_margin = 16384.0
-		_post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		camera.add_child(_post)
-		_post.position = Vector3(0, 0, -1)
-	_post.visible = level > 0
-	_post_mat.set_shader_parameter("level", level)
+## Vernis de carrosserie (couche brillante) dans les réglages Moyen à Ultra.
+func set_varnish(on: bool) -> void:
+	post_level = 1 if on else 0
 	_apply_varnish()
 
 
-## Vernis de carrosserie (couche brillante) selon les effets cinéma.
 func _apply_varnish() -> void:
 	if car == null:
 		return
@@ -672,22 +651,6 @@ func _apply_varnish() -> void:
 			mat.clearcoat = 0.8
 			mat.clearcoat_roughness = 0.12
 			mat.roughness = 0.32 if post_level > 0 else 0.45
-
-
-func _update_post() -> void:
-	if _post == null or not _post.visible:
-		return
-	_post_mat.set_shader_parameter("focus_distance", camera.global_position.distance_to(car.global_position))
-	_post_mat.set_shader_parameter("time", Waves.now())
-	_post_mat.set_shader_parameter("night", lighting.glow)
-	var sun_world: Vector3 = camera.global_position + lighting.light_direction() * 2000.0
-	var vis := 0.0
-	var sp := Vector2(0.5, -0.5)
-	if not camera.is_position_behind(sun_world):
-		sp = camera.unproject_position(sun_world) / get_viewport().get_visible_rect().size
-		vis = 1.0 - smoothstep(0.6, 1.4, (sp - Vector2(0.5, 0.5)).length())
-	_post_mat.set_shader_parameter("sun_screen", sp)
-	_post_mat.set_shader_parameter("sun_visible", vis)
 
 
 func _dynamic_resolution(delta: float) -> void:
