@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.7.0"
+const VERSION := "0.7.1"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -318,7 +318,8 @@ func _wheel_effects(delta: float) -> void:
 		for k in count:
 			# Soulevée par la roue, elle garde un peu de l'élan de la voiture puis traîne derrière.
 			var v := car.linear_velocity * randf_range(0.12, 0.25) + Vector3.UP * randf_range(0.4, 1.2) + car.global_basis.x * randf_range(-1.5, 1.5) * (0.6 + drift)
-			var size := randf_range(1.6, 2.4) * lerpf(0.8, 1.8, fast) * (1.2 if s == WL.Surface.SAND else 1.0) * (1.0 + drift * 0.6)
+			# Petite à basse vitesse, ample à grande vitesse.
+			var size := randf_range(1.4, 2.2) * lerpf(0.3, 1.8, pow(fast, 0.8)) * (1.2 if s == WL.Surface.SAND else 1.0) * (1.0 + drift * 0.6)
 			effects.dust(p + Vector3.UP * 0.25, v, Color(c.r, c.g, c.b, c.a * randf_range(0.7, 1.0)), size, randf_range(1.8, 2.6) * lerpf(1.0, 1.5, fast))
 
 

@@ -4,7 +4,11 @@
 // Même codage que dust.gdshader : 1re colonne = vitesse, 2e = (départ, type, sol, -),
 // INSTANCE_CUSTOM = (naissance, durée de vie, taille, graine).
 shader_type spatial;
-render_mode cull_back, skip_vertex_transform, specular_disabled;
+render_mode blend_mix, depth_draw_never, cull_back, skip_vertex_transform, specular_disabled;
+
+// Transparence : la terre soulevée est en partie transparente, et s'efface en fin de vie.
+uniform float opacity = 0.62;
+varying float fade;
 
 uniform float now = 0.0;
 uniform float drag = 2.2;
@@ -34,6 +38,7 @@ void vertex() {
 	if (age < 0.0 || age > life) {
 		size = 0.0;
 	}
+	fade = smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.45, 1.0, k));
 	vec3 axis = normalize(vec3(sin(seed * 12.9), cos(seed * 7.3), sin(seed * 3.1 + 1.0)));
 	float ang = seed * 6.28 + t * (1.5 + seed * 2.0);
 	vec3 local = rotate_axis(VERTEX * vec3(1.0, 0.8 + seed * 0.4, 1.0), axis, ang) * size;
@@ -45,4 +50,5 @@ void vertex() {
 void fragment() {
 	ALBEDO = COLOR.rgb;
 	ROUGHNESS = 1.0;
+	ALPHA = opacity * fade;
 }
