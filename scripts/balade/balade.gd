@@ -183,6 +183,7 @@ func _apply_quality(sun: DirectionalLight3D) -> void:
 func _spawn(pos: Vector3, yaw: float) -> void:
 	car = Car.create(Car.MODELS[model_index], controls)
 	car.world_data = data
+	settings.apply_mode(car)
 	car_base.clear()
 	for c in Settings.CAR:
 		car_base[c[0]] = Settings.car_value(car, c[0])
@@ -233,7 +234,7 @@ func _process(delta: float) -> void:
 	ruts.follow(car.global_position, car.linear_velocity / 15.0)
 	_hud_speed.text = "%d km/h" % roundi(car.speed_kmh)
 	var ground: String = "Eau" if car.in_water else WL.SURFACE_NAMES[car.wheel_surface[2]]
-	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
+	_hud_info.text = "%s  ·  %s  ·  %s  ·  %s  ·  %s  ·  %d i/s" % [ground, Car.DISPLAY_NAMES.get(car.model_name, car.model_name), Settings.MODES[settings.mode].capitalize(), Car.DRIVE_NAMES[car.drive], camera.MODE_NAMES[camera.mode], Engine.get_frames_per_second()]
 
 
 ## Ornières : creusées au rythme fixe de la physique (60 fois par seconde), pour un tracé
@@ -604,6 +605,15 @@ func _update_car_shadow() -> void:
 		m.set_shader_parameter("box1_max", b1_max)
 		m.set_shader_parameter("box2_min", b2_min)
 		m.set_shader_parameter("box2_max", b2_max)
+
+
+## Refait la voiture actuelle sur place (changement de mode de conduite).
+func rebuild_car() -> void:
+	var pos := car.global_position + Vector3.UP * 0.3
+	var yaw := car.rotation.y
+	car.queue_free()
+	_spawn(pos, yaw)
+	settings.apply_halos(car)
 
 
 func car_display_name() -> String:

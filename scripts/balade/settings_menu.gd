@@ -210,7 +210,21 @@ func _refresh_presets() -> void:
 
 func _fill_car(u: float) -> void:
 	var car: VehicleBody3D = game.car
-	_content.add_child(_label("Voiture : %s — réglages appliqués en direct, gardés pour toutes les voitures." % game.car_display_name(), false))
+	_content.add_child(_label("Mode de conduite", true))
+	var modes := HBoxContainer.new()
+	modes.add_theme_constant_override("separation", int(u * 0.02))
+	_content.add_child(modes)
+	for i in Settings.MODES.size():
+		var b := _button(Settings.MODES[i], u)
+		b.toggle_mode = true
+		b.button_pressed = i == settings.mode
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(_choose_mode.bind(i))
+		modes.add_child(b)
+	var hint := _label("Drift : la voiture glisse, l'angle se tient aux gaz et au volant. Grip : elle accroche, ne part en travers qu'au frein à main.", false)
+	hint.add_theme_color_override("font_color", Color(0.7, 0.66, 0.6))
+	_content.add_child(hint)
+	_content.add_child(_label("Voiture : %s — réglages du mode %s, appliqués en direct, gardés pour toutes les voitures." % [game.car_display_name(), Settings.MODES[settings.mode]], false))
 	for c in Settings.CAR:
 		_add_row(c[0], c[1], c[2], c[3], c[4], Settings.car_value(car, c[0]), _on_car, u)
 	var row := HBoxContainer.new()
@@ -230,6 +244,15 @@ func _fill_car(u: float) -> void:
 	_text.add_theme_font_size_override("font_size", maxi(12, int(_font * 0.8)))
 	_text.visible = false
 	_content.add_child(_text)
+
+
+func _choose_mode(i: int) -> void:
+	settings.mode = i
+	game.rebuild_car()
+	_save_timer = 0.1
+	# La voiture est refaite à l'image suivante : on remplit l'onglet ensuite.
+	await get_tree().process_frame
+	_select_tab(1)
 
 
 func _on_car(key: String, v: float) -> void:

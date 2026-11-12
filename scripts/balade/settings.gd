@@ -58,8 +58,22 @@ const CAR := [
 
 var preset := 2
 var graphics := {}
-## Valeurs de conduite changées par le joueur (les autres restent celles du modèle).
-var car_tuning := {}
+## Mode de conduite : 0 = Drift (réglages de car.gd), 1 = Grip (pneus qui accrochent).
+const MODES: Array[String] = ["DRIFT", "GRIP"]
+## Ce que le mode Grip change par rapport au réglage Drift : une conduite de course classique,
+## la voiture tient la route et ne part en travers qu'au frein à main.
+const GRIP := {
+	"tyre_grip": 2.6, "drift": 0.3, "counter_steer": 0.5, "max_drift_deg": 45.0,
+	"drift_yaw_assist": 1.0, "lateral_assist": 1.0, "slide_keep": 0.5, "throttle_angle": 0.0,
+	"drift_steer": 0.0, "max_steer_deg": 32.0, "min_steer_deg": 7.0,
+	"susp_stiffness": 40.0, "susp_damping": 0.9, "susp_travel": 0.28,
+}
+var mode := 0
+## Valeurs de conduite changées par le joueur, par mode (les autres restent celles du mode).
+var tunings: Array[Dictionary] = [{}, {}]
+var car_tuning: Dictionary:
+	get:
+		return tunings[mode]
 
 
 func _init(default_preset: int) -> void:
@@ -94,9 +108,12 @@ func load_file() -> void:
 	set_preset(int(cf.get_value("graphismes", "preset", preset)))
 	for g in GRAPHICS:
 		graphics[g[0]] = float(cf.get_value("graphismes", g[0], graphics[g[0]]))
+	mode = clampi(int(cf.get_value("conduite_mode", "mode", 0)), 0, 1)
 	for c in CAR:
-		if cf.has_section_key("conduite", c[0]):
-			car_tuning[c[0]] = float(cf.get_value("conduite", c[0]))
+		for m in 2:
+			var sec := "conduite" if m == 0 else "conduite_grip"
+			if cf.has_section_key(sec, c[0]):
+				tunings[m][c[0]] = float(cf.get_value(sec, c[0]))
 
 
 func save_file() -> void:
@@ -104,8 +121,10 @@ func save_file() -> void:
 	cf.set_value("graphismes", "preset", preset)
 	for k in graphics:
 		cf.set_value("graphismes", k, graphics[k])
-	for k in car_tuning:
-		cf.set_value("conduite", k, car_tuning[k])
+	cf.set_value("conduite_mode", "mode", mode)
+	for m in 2:
+		for k in tunings[m]:
+			cf.set_value("conduite" if m == 0 else "conduite_grip", k, tunings[m][k])
 	cf.save(PATH)
 
 
@@ -207,6 +226,13 @@ static func set_car_value(car: VehicleBody3D, key: String, v: float) -> void:
 			car.set(key, v)
 
 
+## Réglage du mode (avant ceux du joueur) sur une voiture qui vient d'apparaître.
+func apply_mode(car: VehicleBody3D) -> void:
+	if mode == 1:
+		for k in GRIP:
+			set_car_value(car, k, float(GRIP[k]))
+
+
 ## Applique les réglages du joueur à une voiture qui vient d'apparaître.
 func apply_car(car: VehicleBody3D) -> void:
 	for k in car_tuning:
@@ -215,7 +241,7 @@ func apply_car(car: VehicleBody3D) -> void:
 
 ## Texte à copier et à envoyer : toutes les valeurs, celles changées marquées d'un « * ».
 func car_text(car: VehicleBody3D, base: Dictionary) -> String:
-	var lines: Array[String] = ["Réglages conduite (%s) :" % car.model_name]
+	var lines: Array[String] = ["Réglages conduite (%s, mode %s) :" % [car.model_name, MODES[mode]]]
 	for c in CAR:
 		var k: String = c[0]
 		var v := car_value(car, k)

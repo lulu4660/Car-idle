@@ -78,15 +78,15 @@ static func model_path(_model: String) -> String:
 @export var slide_keep := 1.4
 @export var downforce := 2.0
 ## Aide à rester sur ses roues : redresse doucement la caisse et amortit le roulis.
-@export var upright_assist := 3.5
+@export var upright_assist := 2.5
 ## Façon jeux de drift : en glisse, les gaz règlent l'angle (plus de gaz = l'arrière sort
 ## plus, lever le pied = la voiture se redresse) …
-@export_range(0.0, 1.0) var throttle_angle := 0.5
+@export_range(0.0, 1.0) var throttle_angle := 0.3
 ## … et le volant fait pivoter la voiture en travers (on « dessine » la ligne au doigt).
-@export var drift_steer := 0.6
+@export var drift_steer := 0.0
 @export_group("Caisse (visuel)")
 ## Roulis exagéré de la caisse (degrés par g d'accélération latérale) : penche dans les virages.
-@export var body_roll := 22.0
+@export var body_roll := 26.0
 ## Tangage (degrés par g) : se cabre à l'accélération, pique du nez au freinage.
 @export var body_pitch := 9.0
 ## 0 = amorti, 1 = gélatine : la caisse rebondit et oscille avant de se stabiliser.
@@ -298,6 +298,8 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	car.drive = _drivetrain_of(model)
 	if model in ["fourgon", "berline_longue"]:
 		car.drift = 0.6
+		# Longues et hautes : un peu plus d'aide pour rester sur leurs roues.
+		car.upright_assist = 3.5
 	return car
 
 
@@ -396,19 +398,18 @@ func _body_motion(delta: float) -> void:
 	if raw.y > 25.0:
 		_squash_v -= minf(raw.y, 120.0) * 0.012
 	raw.y = 0.0
-	_acc = _acc.lerp(raw.limit_length(30.0), minf(1.0, delta * 8.0))
+	_acc = _acc.lerp(raw.limit_length(30.0), minf(1.0, delta * 5.0))
 	var grounded := false
 	for w in wheels:
 		if w.is_in_contact():
 			grounded = true
 	var g := 9.8
 	# Accélération vers +X (centre du virage à gauche) : le haut part vers -X.
-	# + une part liée au volant : la caisse penche dès qu'on braque, même quand les pneus
-	# glissent (peu de force latérale), façon dessin animé.
-	var st: float = controls.steer if controls else 0.0
-	var by_steer := -st * body_roll * 0.45 * clampf(absf(forward_speed) / 12.0, 0.0, 1.0)
-	var roll_target := clampf(_acc.x / g * body_roll + by_steer, -30.0, 30.0) if grounded else 0.0
-	var pitch_target := clampf(-_acc.z / g * body_pitch, -16.0, 16.0) if grounded else 0.0
+	# Suit la vraie force sur les pneus (aussi en dérapage : la caisse part vers l'extérieur
+	# de la trajectoire, pas du côté du volant) ; presque rien à basse vitesse.
+	var fast := smoothstep(12.0, 55.0, speed_kmh)
+	var roll_target := clampf(_acc.x / g * body_roll * fast, -18.0, 18.0) if grounded else 0.0
+	var pitch_target := clampf(-_acc.z / g * body_pitch * lerpf(0.35, 1.0, fast), -10.0, 10.0) if grounded else 0.0
 	var stiff := 110.0
 	var damp := lerpf(18.0, 4.5, body_wobble)
 	_roll_v += ((roll_target - _roll) * stiff - _roll_v * damp) * delta
@@ -507,12 +508,7 @@ func _physics_process(delta: float) -> void:
 			loss *= 1.0 - 0.25 * drift * drifting
 			# En glisse, l'angle se règle aux gaz.
 			loss *= 1.0 - 0.3 * throttle_angle * drifting * maxf(drive_in, 0.0) * rear_share
-		var slip_k := tyre_grip * grip * loss
-		# Motricité dans le sable et la terre en ligne droite : avec des pneus réglés pour
-		# glisser, les roues patineraient sur place ; l'aide s'efface dès que ça glisse.
-		if WL.is_soft(wheel_surface[i]) and not handbrake:
-			slip_k = maxf(slip_k, 1.8 * grip * (1.0 - drifting))
-		w.wheel_friction_slip = slip_k
+		w.wheel_friction_slip = tyre_grip * grip * loss
 		var share := (1.0 - rear_share) if front else rear_share
 		# Force répartie entre les deux roues de l'essieu ; un peu moins sur sol mou.
 		w.engine_force = drive_in * engine_force_total * share * 0.5 * lerpf(0.92, 1.0, grip)
@@ -533,6 +529,11 @@ func _physics_process(delta: float) -> void:
 			loose += 0.25 if WL.is_soft(ws) else 0.0
 		assist *= lerpf(1.0, 0.6, loose)
 		apply_central_force(-right * lateral * assist * mass)
+		# Sable et terre : les roues patinent beaucoup avec des pneus glissants ; une petite
+		# poussée vers l'avant sous les gaz garde la voiture vive, sans toucher à l'adhérence
+		# de côté (le dérapage reste le même).
+		if drive_in > 0.0 and loose > 0.0 and kmh < 90.0:
+			apply_central_force(fwd * drive_in * loose * 3.0 * (1.0 - kmh / 90.0) * mass)
 		# En travers sous les gaz : on garde l'élan au lieu de le perdre dans le frottement.
 		if slide_keep > 0.0 and drive_in > 0.0 and flat.length() > 5.0:
 			var keep := slide_keep * 9.8 * clampf((absf(slip_angle) - 5.0) / 25.0, 0.0, 1.0) * drive_in
@@ -549,13 +550,11 @@ func _physics_process(delta: float) -> void:
 		var roll_rate := angular_velocity.dot(fwd)
 		apply_torque((tilt_axis * upright_assist * 4.0 - fwd * roll_rate * upright_assist) * mass * YAW_INERTIA)
 		# Garde-fou : au-delà de l'angle maxi, on freine la rotation.
-		# Il agit un peu avant l'angle maxi et plus fort : on évite le tête-à-queue (comme dans
-		# les jeux de drift, très permissifs) sans brider les grands angles.
-		var over := absf(slip_angle) - (max_drift_deg - 12.0)
+		var over := absf(slip_angle) - max_drift_deg
 		if over > 0.0:
 			var yaw_rate := angular_velocity.dot(up)
 			if signf(yaw_rate) == -signf(slip_angle):
-				apply_torque(-up * yaw_rate * minf(1.0, over / 10.0) * 16.0 * mass * YAW_INERTIA)
+				apply_torque(-up * yaw_rate * minf(1.0, over / 12.0) * 12.0 * mass * YAW_INERTIA)
 
 	_ground_resistance(delta)
 	_float(delta)

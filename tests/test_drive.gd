@@ -1,7 +1,9 @@
 ## Banc d'essai de la conduite, sans affichage : la balade tourne en vrai (monde, physique),
 ## avec des commandes simulées. Mesure l'accélération sur bitume et sur sable, le freinage,
 ## un dérapage au frein à main, et vérifie que la voiture ne se retourne pas.
-##   godot --headless --path . -s tests/test_drive.gd [-- modèle]
+##   godot --headless --path . -s tests/test_drive.gd [-- modèle [drift|grip]]
+## Mode Grip : tout est vérifié. Mode Drift (par défaut dans le jeu) : on accepte le
+## tête-à-queue au frein à main braqué à fond et moins de motricité dans le sable.
 extends SceneTree
 
 const WL = preload("res://scripts/core/world_layout.gd")
@@ -16,6 +18,7 @@ var _mark := 0.0
 var _start := Vector3.ZERO
 var _max_slip := 0.0
 var _min_up := 1.0
+var mode := 1
 
 
 func _init() -> void:
@@ -23,6 +26,8 @@ func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		model = args[0]
+	if args.size() > 1:
+		mode = 0 if args[1] == "drift" else 1
 	balade = load("res://scenes/balade.tscn").instantiate()
 	balade.start_model = model
 	root.add_child(balade)
@@ -58,7 +63,13 @@ func _tick() -> void:
 	_min_up = minf(_min_up, car.global_basis.y.y)
 	match phase:
 		0:  # Bitume : rue nord-sud de la ville (x = -412, au milieu de la rue), vers +z.
-			if t > 0.1:
+			if t > 0.1 and balade.settings.mode != mode:
+				balade.settings.mode = mode
+				for d in balade.settings.tunings:
+					d.clear()
+				balade.rebuild_car()
+				return
+			if t > 0.2:
 				_place(-412.0, -300.0, 0.0)
 				_press(1, 0, 0, false)
 				phase = 1; _mark = t
@@ -96,7 +107,8 @@ func _tick() -> void:
 				check(_min_up > 0.5, "pas de tonneau pendant le dérapage")
 				_min_up = 1.0
 				check(_max_slip > 20.0, "le frein à main fait déraper (%d°)" % roundi(_max_slip))
-				check(_max_slip < 85.0, "pas de tête-à-queue (%d°)" % roundi(_max_slip))
+				if mode == 1:
+					check(_max_slip < 85.0, "pas de tête-à-queue (%d°)" % roundi(_max_slip))
 				check(car.global_basis.y.y > 0.8, "pas de tonneau en dérapage")
 				# Sable : départ des dunes, vers l'ouest.
 				_place(WL.SPAWN_X, WL.SPAWN_Z, -PI / 2.0)
@@ -109,12 +121,12 @@ func _tick() -> void:
 		7:
 			if t - _mark >= 5.0:
 				log_lines.append("sable : %d km/h après 5 s (%s)" % [roundi(car.speed_kmh), WL.SURFACE_NAMES[car.wheel_surface[2]]])
-				check(car.speed_kmh > 35.0, "on avance dans le sable (%d km/h en 5 s)" % roundi(car.speed_kmh))
+				check(car.speed_kmh > (35.0 if mode == 1 else 25.0), "on avance dans le sable (%d km/h en 5 s)" % roundi(car.speed_kmh))
 				phase = 8
 		8:
 			log_lines.append("le plus penché dans les dunes : droite = %.2f" % _min_up)
 			check(_min_up > 0.3, "pas de tonneau dans les dunes")
 			for l in log_lines:
 				print(l)
-			print("%s : %d échec(s)" % [car.model_name, failures])
+			print("%s (%s) : %d échec(s)" % [car.model_name, "grip" if mode == 1 else "drift", failures])
 			quit(1 if failures > 0 else 0)
