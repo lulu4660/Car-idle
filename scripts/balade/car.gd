@@ -91,15 +91,17 @@ static func model_path(_model: String) -> String:
 @export_range(0.0, 1.0) var roll_physics := 0.7
 ## Hauteur du centre de gravité (m) : plus haut = plus de transfert de masse et de roulis.
 @export var com_height := 0.42
+## Amortissement du roulis et du tangage : plus haut = la voiture penche plus doucement.
+@export var roll_damping := 2.4
 @export_group("Caisse (visuel)")
 ## Roulis de la caisse (degrés par g d'accélération latérale) : penche vers l'extérieur.
 @export var body_roll := 3.0
 ## Tangage (degrés par g) : s'assoit à l'accélération, plonge au freinage.
 @export var body_pitch := 3.0
 ## Fréquence des ressorts de caisse (Hz) : bas = très tendre, la caisse bouge lentement.
-@export var body_freq := 1.3
+@export var body_freq := 1.0
 ## 0 = bien amortie, 1 = la caisse oscille longtemps avant de se poser.
-@export_range(0.0, 1.0) var body_wobble := 0.55
+@export_range(0.0, 1.0) var body_wobble := 0.3
 
 ## Couple → accélération angulaire : inertie de lacet d'une voiture ≈ 1,9 × sa masse (m²).
 const YAW_INERTIA := 1.9
@@ -116,6 +118,7 @@ var _heave_v := 0.0
 var _last_vel := Vector3.ZERO
 var _last_ang := Vector3.ZERO
 var _motion_ready := false
+var _acc_f := Vector3.ZERO
 var wheels: Array[VehicleWheel3D] = []
 var model_name := ""
 
@@ -414,7 +417,10 @@ func _body_motion(delta: float) -> void:
 	if not _motion_ready:
 		_motion_ready = true
 		return
-	var a := (inv * a_world).limit_length(80.0)
+	# Accélérations lissées (≈ 0,15 s) : pas d'à-coup quand la caisse change de côté.
+	_acc_f = _acc_f.lerp((inv * a_world).limit_length(80.0), minf(1.0, delta / 0.15))
+	var a := _acc_f
+	var fast := lerpf(0.1, 1.0, smoothstep(12.0, 90.0, speed_kmh))
 	var alpha := inv * w_acc
 	alpha = alpha.limit_length(60.0)
 	var g := 9.8
@@ -423,11 +429,11 @@ func _body_motion(delta: float) -> void:
 	var c := 2.0 * zeta * sqrt(k)
 	# Roulis (autour de l'axe avant, +Z) : accélération vers +X (virage à gauche) -> le haut
 	# de la caisse part vers -X, angle positif. Pente d'équilibre : body_roll degrés par g.
-	var roll_eq := a.x / g * body_roll
+	var roll_eq := a.x / g * body_roll * fast
 	_roll_v += (k * (roll_eq - _roll) - c * _roll_v - rad_to_deg(alpha.z)) * delta
 	_roll = clampf(_roll + _roll_v * delta, -14.0, 14.0)
 	# Tangage (autour de +X ; positif = nez qui plonge) : accélérer -> nez qui se lève.
-	var pitch_eq := -a.z / g * body_pitch
+	var pitch_eq := -a.z / g * body_pitch * fast
 	_pitch_v += (k * (pitch_eq - _pitch) - c * _pitch_v - rad_to_deg(alpha.x)) * delta
 	_pitch = clampf(_pitch + _pitch_v * delta, -9.0, 9.0)
 	# Pompage : le châssis monte d'un coup (bosse, réception) -> la caisse s'enfonce.
@@ -448,6 +454,10 @@ func _physics_process(delta: float) -> void:
 	forward_speed = vel.dot(fwd)
 	speed_kmh = vel.length() * 3.6
 	var kmh := absf(forward_speed) * 3.6
+	# Le roulis vient avec la vitesse : presque rien en manœuvre, plein effet vers 80 km/h.
+	var roll_k := roll_physics * lerpf(0.08, 1.0, smoothstep(12.0, 90.0, kmh))
+	for w in wheels:
+		w.wheel_roll_influence = roll_k
 
 	var throttle := 0.0
 	var brake_in := 0.0
@@ -568,8 +578,10 @@ func _physics_process(delta: float) -> void:
 		var excess := 0.0
 		if tilt > 0.001:
 			excess = maxf(0.0, asin(minf(tilt, 1.0)) - deg_to_rad(14.0)) / asin(minf(tilt, 1.0))
+		# Amortisseurs de caisse : le roulis et le tangage s'installent doucement, sans à-coup.
 		var roll_rate := angular_velocity.dot(fwd)
-		apply_torque((tilt_axis * excess * upright_assist * 4.0 - fwd * roll_rate * upright_assist * 0.35) * mass * YAW_INERTIA)
+		var pitch_rate := angular_velocity.dot(right)
+		apply_torque((tilt_axis * excess * upright_assist * 4.0 - fwd * roll_rate * roll_damping - right * pitch_rate * roll_damping * 0.6) * mass * YAW_INERTIA)
 		# Garde-fou : au-delà de l'angle maxi, on freine la rotation.
 		var over := absf(slip_angle) - max_drift_deg
 		if over > 0.0:
@@ -676,6 +688,7 @@ func _ground_resistance(delta: float) -> void:
 
 func respawn(pos: Vector3, yaw: float) -> void:
 	_motion_ready = false
+	_acc_f = Vector3.ZERO
 	_roll = 0.0
 	_roll_v = 0.0
 	_pitch = 0.0

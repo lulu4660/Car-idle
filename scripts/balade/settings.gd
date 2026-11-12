@@ -48,6 +48,7 @@ const CAR := [
 	["drift_steer", "Volant qui pivote en glisse", 0.0, 2.0, 0.05],
 	["roll_physics", "Roulis physique (force des pneus)", 0.0, 1.0, 0.01],
 	["com_height", "Hauteur du centre de gravité (m)", 0.1, 0.8, 0.01],
+	["roll_damping", "Douceur du roulis (amortisseurs)", 0.0, 6.0, 0.1],
 	["body_roll", "Caisse (visuel) : roulis en plus (°/g)", 0.0, 25.0, 0.5],
 	["body_pitch", "Caisse : tangage (°/g)", 0.0, 15.0, 0.5],
 	["body_freq", "Caisse : raideur des ressorts (Hz)", 0.6, 3.0, 0.05],
