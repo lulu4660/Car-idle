@@ -73,10 +73,12 @@ func _init() -> void:
 	var lamps: Array = load("res://scripts/balade/lamps.gd").positions(data, town)
 	var light := PackedFloat32Array()
 	light.resize(RES * RES)
+	var Lamps = load("res://scripts/balade/lamps.gd")
 	for l in lamps:
 		var p: Vector3 = l[0]
 		var d: Vector2 = l[1]
-		_glow(light, Vector2(p.x, p.z) + d * 1.4, 11.0)
+		var style: int = l[2]
+		_glow(light, Vector2(p.x, p.z) + d * Lamps.LAMP_REACH[style], Lamps.GLOW_RADIUS[style])
 	var limg := Image.create(RES, RES, false, Image.FORMAT_L8)
 	for i in RES * RES:
 		var v := clampf(light[i], 0.0, 1.0)

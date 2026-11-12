@@ -36,6 +36,12 @@ uniform vec3 dirt_light : source_color = vec3(0.62, 0.42, 0.32);
 uniform vec3 dirt_dark : source_color = vec3(0.52, 0.35, 0.27);
 uniform vec3 asphalt_color : source_color = vec3(0.30, 0.30, 0.33);
 uniform vec3 wet_color : source_color = vec3(0.70, 0.55, 0.39);
+// Biomes : prairie (entre la ville et la forêt), roche et neige des montagnes.
+uniform vec3 grass_light : source_color = vec3(0.52, 0.58, 0.30);
+uniform vec3 grass_dark : source_color = vec3(0.40, 0.48, 0.25);
+uniform vec3 rock_light : source_color = vec3(0.56, 0.50, 0.50);
+uniform vec3 rock_dark : source_color = vec3(0.42, 0.37, 0.39);
+uniform vec3 snow_color : source_color = vec3(0.93, 0.92, 0.95);
 
 varying vec3 wpos;
 
@@ -137,6 +143,19 @@ void fragment() {
 		}
 	}
 	vec3 c = asphalt * w.r + dirt * w.g + sand * w.b + wet_color * w.a;
+	// Biomes : prairie verte des fermes à la lisière de la forêt (et au pied des montagnes),
+	// garrigue plus sèche vers les dunes, roche puis neige en altitude.
+	vec3 tg = tri_height_grad(wpos.xz);
+	float slope = length(tg.yz);
+	vec3 grass = mix(grass_dark, grass_light, smoothstep(0.25, 0.8, macro));
+	float meadow = smoothstep(-30.0, -85.0, wpos.x + (macro - 0.5) * 30.0) * w.g;
+	c = mix(c, grass, meadow);
+	float alt = wpos.y + (vnoise(wpos.xz / 21.0) - 0.5) * 6.0;
+	float rock_k = clamp(smoothstep(27.0, 36.0, alt) + smoothstep(0.6, 1.0, slope) * smoothstep(19.0, 27.0, alt), 0.0, 1.0);
+	vec3 rock = mix(rock_dark, rock_light, smoothstep(0.2, 0.8, vnoise(wpos.xz / 13.0)));
+	c = mix(c, rock, rock_k);
+	float snow_k = smoothstep(63.0, 70.0, alt) * (1.0 - 0.7 * smoothstep(0.9, 1.5, slope));
+	c = mix(c, snow_color, snow_k);
 	// Piste : terre tassée plus sombre, bords usés, deux ornières creusées par les passages.
 	float rd = texture(road_tex, (wpos.xz + vec2(world_size * 0.5)) / world_size).r * 12.75;
 	float on_road = smoothstep(road_half + 0.6, road_half - 0.8, rd + (vnoise(wpos.xz * 0.7) - 0.5) * 1.2);
@@ -150,7 +169,6 @@ void fragment() {
 	float wet_band = smoothstep(sea_level + 0.6, sea_level + 0.05, wpos.y);
 	c *= mix(1.0, 0.72, wet_band);
 	// Ornières : relief fin et fond tassé un peu plus sombre (pièce fine seulement).
-	vec3 tg = tri_height_grad(wpos.xz);
 	vec2 grad = tg.yz;
 	if (is_patch) {
 		float e = 0.05;

@@ -1,4 +1,4 @@
-// Réverbère : mât sombre, ampoule qui s'allume la nuit (UV.x = 1 sur l'ampoule).
+// Réverbère : mât (couleur par sommet), ampoule qui s'allume la nuit (UV.x = 1 sur l'ampoule).
 shader_type spatial;
 render_mode cull_disabled, specular_disabled;
 
@@ -13,7 +13,8 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = mix(pole_color, vec3(0.9, 0.85, 0.75), bulb);
+	// Couleur du mât par sommet (métal, fonte, bois selon le modèle).
+	ALBEDO = mix(COLOR.rgb, vec3(0.9, 0.85, 0.75), bulb);
 	EMISSION = bulb_color * bulb * night * 6.0;
 	ROUGHNESS = 0.8;
 }

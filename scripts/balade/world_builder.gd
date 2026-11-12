@@ -136,24 +136,84 @@ static func _sea_mesh(parent: Node, mat: Material, r: Rect2, step_x: float, step
 	parent.add_child(mi)
 
 
-## Sable à perte de vue au nord, au sud et à l'ouest, à la hauteur des bords du terrain.
+## Montagnes à l'horizon : la chaîne qui ferme la vallée continue au-delà des bords de la
+## carte (nord, sud, ouest) en low poly à facettes, roche puis neige, et descend dans la mer
+## à l'est. Un seul maillage, couleurs par sommet, brume par-dessus.
 static func build_far_ground(parent: Node) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.85, 0.69, 0.48)
-	mat.roughness = 1.0
 	var half := WL.SIZE / 2.0
-	var far := 2500.0
-	var east := WL.BEACH_END - 15.0
-	var y := WL.GROUND_LEVEL - 0.05
-	for r in [Rect2(-far, half - 1.0, east + far, far), Rect2(-far, -half - far + 1.0, east + far, far), Rect2(-far, -half, far - half + 1.0, WL.SIZE)]:
-		var pm := PlaneMesh.new()
-		pm.size = r.size
-		var mi := MeshInstance3D.new()
-		mi.mesh = pm
-		mi.material_override = mat
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.position = Vector3(r.get_center().x, y, r.get_center().y)
-		parent.add_child(mi)
+	var step := 24.0
+	var reach := 1400.0
+	var n := int(ceil((reach * 2.0) / step))
+	var x0 := -reach
+	var z0 := -reach
+	var hs := PackedFloat32Array()
+	hs.resize((n + 1) * (n + 1))
+	for j in n + 1:
+		for i in n + 1:
+			var x := x0 + i * step
+			var z := z0 + j * step
+			var inside := absf(x) <= half and absf(z) <= half
+			# Au bord de la carte, la même hauteur que le terrain (pas de marche).
+			var cx := clampf(x, -half, half)
+			var cz := clampf(z, -half, half)
+			var h: float
+			if inside:
+				h = WL.height(x, z) - 2.0
+			elif absf(x) <= half + step and absf(z) <= half + step:
+				h = lerpf(WL.height(cx, cz), WL.far_height(x, z), 0.35)
+			else:
+				h = WL.far_height(x, z)
+			hs[j * (n + 1) + i] = h
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in n:
+		for i in n:
+			var x := x0 + i * step
+			var z := z0 + j * step
+			# Rien sous la carte elle-même (le terrain la couvre).
+			if x >= -half and x + step <= half and z >= -half and z + step <= half:
+				continue
+			var p00 := Vector3(x, hs[j * (n + 1) + i], z)
+			var p10 := Vector3(x + step, hs[j * (n + 1) + i + 1], z)
+			var p01 := Vector3(x, hs[(j + 1) * (n + 1) + i], z + step)
+			var p11 := Vector3(x + step, hs[(j + 1) * (n + 1) + i + 1], z + step)
+			if maxf(maxf(p00.y, p10.y), maxf(p01.y, p11.y)) < WL.SEA_LEVEL - 1.0:
+				continue
+			for tri in [[p00, p11, p10], [p00, p01, p11]]:
+				var a: Vector3 = tri[0]
+				var b: Vector3 = tri[1]
+				var c: Vector3 = tri[2]
+				var nrm := (c - a).cross(b - a).normalized()
+				if nrm.y < 0.0:
+					nrm = -nrm
+				var hy := (a.y + b.y + c.y) / 3.0
+				st.set_normal(nrm)
+				st.set_color(_mountain_color(hy, 1.0 - nrm.y, a.x * 0.37 + a.z * 0.71))
+				st.add_vertex(a)
+				st.add_vertex(b)
+				st.add_vertex(c)
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.vertex_color_is_srgb = true
+	mat.roughness = 1.0
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	var mi := MeshInstance3D.new()
+	mi.name = "Horizon"
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+
+
+## Couleur d'une facette de montagne : forêt au pied, roche, neige au sommet.
+static func _mountain_color(h: float, steep: float, seed: float) -> Color:
+	var j := fposmod(sin(seed) * 437.585, 1.0)
+	var c := Color(0.36, 0.45, 0.25).lerp(Color(0.30, 0.38, 0.22), j)
+	if h > 30.0 or steep > 0.35:
+		c = Color(0.52, 0.47, 0.47).lerp(Color(0.42, 0.37, 0.39), j)
+	if h > 68.0 + j * 10.0 and steep < 0.55:
+		c = Color(0.93, 0.92, 0.95)
+	return c
 
 
 ## Murs invisibles au nord, au sud et à l'ouest (la mer, à l'est, ramène au sec).

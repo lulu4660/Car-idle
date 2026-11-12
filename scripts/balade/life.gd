@@ -139,8 +139,8 @@ func _road_traffic() -> void:
 func _city_traffic() -> void:
 	var half := WL.SIZE / 2.0
 	for k in 12:
-		var bx := (_rng.randi_range(-8, -6) * WL.BLOCK_SIZE) + WL.STREET_WIDTH * 0.5
-		var bz := (_rng.randi_range(-8, 6) * WL.BLOCK_SIZE) + WL.STREET_WIDTH * 0.5
+		var bx := (_rng.randi_range(-7, -5) * WL.BLOCK_SIZE) + WL.STREET_WIDTH * 0.5
+		var bz := (_rng.randi_range(-7, 5) * WL.BLOCK_SIZE) + WL.STREET_WIDTH * 0.5
 		var span := WL.BLOCK_SIZE * _rng.randi_range(1, 2)
 		var corners := [Vector2(bx, bz), Vector2(bx + span, bz), Vector2(bx + span, bz + span), Vector2(bx, bz + span)]
 		if bz + span > half - 20.0:

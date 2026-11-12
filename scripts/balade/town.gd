@@ -65,14 +65,15 @@ static func in_farm(x: float, z: float, margin := 0.0) -> bool:
 
 func _city(rng: RandomNumberGenerator) -> void:
 	var half := WL.SIZE / 2.0
-	var bx := ceilf(-half / WL.BLOCK_SIZE) * WL.BLOCK_SIZE
+	# La ville reste dans la vallée, au pied des montagnes.
+	var bx := WL.CITY_START
 	while bx + WL.BLOCK_SIZE <= WL.CITY_END + 1.0:
-		var bz := ceilf(-half / WL.BLOCK_SIZE) * WL.BLOCK_SIZE
-		while bz + WL.BLOCK_SIZE < half - 10.0:
+		var bz := -WL.VALLEY_HALF
+		while bz + WL.BLOCK_SIZE <= WL.VALLEY_HALF:
 			var x0 := bx + WL.STREET_WIDTH
 			var z0 := bz + WL.STREET_WIDTH
 			var w := WL.BLOCK_SIZE - WL.STREET_WIDTH
-			var district := 0 if bx < -400.0 else (1 if bx < -260.0 else 2)
+			var district := 0 if bx < -340.0 else (1 if bx < -260.0 else 2)
 			if rng.randf() < 0.1:
 				_park(x0, z0, w, rng)
 			else:

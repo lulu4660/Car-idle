@@ -163,20 +163,25 @@ func _test_world_layout() -> void:
 	while x < half - 2.0:
 		var z := -half
 		while z < half - 2.0:
-			var h := WL.height(x, z)
-			worst = maxf(worst, absf(WL.height(x + 2.0, z) - h))
-			worst = maxf(worst, absf(WL.height(x, z + 2.0) - h))
+			# Les montagnes du bord (fin de carte) peuvent être raides ; la vallée, non.
+			if WL.mountain_factor(x, z) < 0.02 and WL.mountain_factor(x + 2.0, z + 2.0) < 0.02:
+				var h := WL.height(x, z)
+				worst = maxf(worst, absf(WL.height(x + 2.0, z) - h))
+				worst = maxf(worst, absf(WL.height(x, z + 2.0) - h))
 			z += 6.0
 		x += 2.0
 	check(worst < 1.6, "pas de falaise (pire dénivelé sur 2 m : %.2f)" % worst)
-	x = -half
+	x = WL.CITY_START
 	while x < WL.CITY_END - 30.0:
-		var z := -half
-		while z < half:
-			check(absf(WL.height(x, z) - WL.GROUND_LEVEL) < 1e-4, "ville plate")
+		var z := -WL.VALLEY_HALF + 20.0
+		while z < WL.VALLEY_HALF - 20.0:
+			check(absf(WL.height(x, z) - WL.GROUND_LEVEL) < 1e-4, "ville plate (%d, %d)" % [x, z])
 			z += 41.0
 		x += 37.0
-	check(_at(-400.0, 0.0) == WL.Surface.ASPHALT and _at(-20.0, 0.0) == WL.Surface.DIRT and _at(250.0, 0.0) == WL.Surface.SAND and _at(480.0, 0.0) == WL.Surface.WATER, "zones dans l'ordre d'ouest en est")
+	# Fin de carte : montagnes à l'ouest, au nord et au sud.
+	for e in [Vector2(-half + 10.0, 0.0), Vector2(0.0, -half + 10.0), Vector2(-100.0, half - 10.0)]:
+		check(WL.height(e.x, e.y) > WL.GROUND_LEVEL + 35.0, "montagnes au bord (%d, %d)" % [e.x, e.y])
+	check(_at(-380.0, 0.0) == WL.Surface.ASPHALT and _at(-20.0, 0.0) == WL.Surface.DIRT and _at(250.0, 0.0) == WL.Surface.SAND and _at(480.0, 0.0) == WL.Surface.WATER, "zones dans l'ordre d'ouest en est")
 	var z2 := -half
 	while z2 < half:
 		check(WL.height(half - 5.0, z2) < WL.SEA_LEVEL - 1.0, "mer à l'est")

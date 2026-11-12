@@ -53,6 +53,10 @@ func build(world_data: RefCounted) -> void:
 	_forest(rng)
 	_dunes(rng)
 	_beach(rng)
+	# Tirage à part : le reste du décor garde exactement les mêmes places.
+	var rng_hills := RandomNumberGenerator.new()
+	rng_hills.seed = 78
+	_foothills(rng_hills)
 	_commit()
 	# Le corps n'entre dans la scène qu'une fois toutes ses formes posées (sinon la physique
 	# le reconstruit à chaque forme ajoutée).
@@ -87,6 +91,9 @@ func _forest(rng: RandomNumberGenerator) -> void:
 			continue
 		if corridor_distance(x, z) < 13.0:
 			continue
+		# Limite des arbres : rien au-dessus de 22 m au-dessus de la vallée (roche, neige).
+		if data.height_at(x, z) > WL.GROUND_LEVEL + 22.0:
+			continue
 		var open := false
 		for c in CLEARINGS:
 			if Vector2(x - c.x, z - c.y).length() < c.z * rng.randf_range(0.85, 1.0):
@@ -99,6 +106,30 @@ func _forest(rng: RandomNumberGenerator) -> void:
 			_add(["rock_largeA", "rock_largeC", "rock_tallE"][rng.randi() % 3], x, z, rng)
 		else:
 			_add(pines[rng.randi() % pines.size()], x, z, rng)
+
+
+## Contreforts des montagnes : forêt de pins côté vallée verte (jusqu'à la limite des
+## arbres), rochers épars côté désert. Pas de collision (pentes où l'on ne roule guère) :
+## la physique reste légère.
+func _foothills(rng: RandomNumberGenerator) -> void:
+	var pines := ["tree_pineTallA", "tree_pineTallC", "tree_pineRoundA", "tree_pineDefaultA"]
+	var half := WL.SIZE / 2.0
+	for i in 14000:
+		var x := rng.randf_range(WL.CITY_START - 90.0, WL.BEACH_END)
+		var z := rng.randf_range(-half + 8.0, half - 8.0)
+		var m := WL.mountain_factor(x, z)
+		if m < 0.03 or m > 0.75:
+			continue
+		var g: float = data.height_at(x, z)
+		if g > WL.GROUND_LEVEL + 22.0 + 6.0 * WL.fbm(x / 30.0, z / 30.0):
+			continue
+		var green := x < WL.DIRT_END + 30.0 + 40.0 * (WL.fbm(x / 80.0, z / 80.0) - 0.5)
+		if green:
+			if WL.fbm(x / 70.0 - 9.0, z / 70.0 + 2.0) * (1.0 - m * 0.6) < rng.randf_range(0.28, 0.42):
+				continue
+			_add(pines[rng.randi() % pines.size()], x, z, rng, false)
+		elif rng.randf() < 0.18:
+			_add(["rock_largeA", "rock_largeC", "rock_tallE", "rock_tallB"][rng.randi() % 4], x, z, rng, false)
 
 
 func _dunes(rng: RandomNumberGenerator) -> void:
@@ -132,9 +163,12 @@ func _beach(rng: RandomNumberGenerator) -> void:
 
 
 ## Ajoute un objet : son maillage rejoint celui de sa case, son pied une forme de collision.
-func _add(kind: String, x: float, z: float, rng: RandomNumberGenerator) -> void:
+func _add(kind: String, x: float, z: float, rng: RandomNumberGenerator, collide := true) -> void:
 	var ground: float = data.height_at(x, z)
 	if ground < WL.SEA_LEVEL + 0.6:
+		return
+	# Ligne droite de départ (vers l'ouest depuis la plage) toujours dégagée.
+	if absf(z - WL.SPAWN_Z) < 9.0 and x > WL.SPAWN_X - 70.0 and x < WL.SPAWN_X + 12.0:
 		return
 	# Rien sur la piste ni sur ses bas-côtés, ni dans les fermes.
 	if data.road_distance(x, z) < WL.ROAD_HALF + 3.5 or Town.in_farm(x, z, 5.0):
@@ -150,7 +184,7 @@ func _add(kind: String, x: float, z: float, rng: RandomNumberGenerator) -> void:
 	(_cells[key] as Array).append(xf)
 	count += 1
 	var r: float = float(spec[1]) * s / (float(spec[0]) / maxf(p[1], 0.01))
-	if r > 0.0:
+	if r > 0.0 and collide:
 		var cs := CollisionShape3D.new()
 		var cyl := CylinderShape3D.new()
 		cyl.radius = r
