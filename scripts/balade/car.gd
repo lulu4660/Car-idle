@@ -93,11 +93,19 @@ static func model_path(_model: String) -> String:
 @export var com_height := 0.42
 ## Amortissement du roulis et du tangage : plus haut = la voiture penche plus doucement.
 @export var roll_damping := 2.4
+## Amortissement du tangage (accélération, freinage) : plus haut = plus doux.
+@export var pitch_damping := 3.5
+## Part du transfert de masse avant/arrière reprise par les trains (0 = caisse qui cabre et
+## plonge à fond, 1 = reste à plat).
+@export_range(0.0, 1.0) var anti_pitch := 0.55
+## Temps pour mettre les gaz à fond / freiner à fond (s).
+@export var gas_rise := 0.35
+@export var brake_rise := 0.18
 @export_group("Caisse (visuel)")
 ## Roulis de la caisse (degrés par g d'accélération latérale) : penche vers l'extérieur.
 @export var body_roll := 3.0
 ## Tangage (degrés par g) : s'assoit à l'accélération, plonge au freinage.
-@export var body_pitch := 3.0
+@export var body_pitch := 2.0
 ## Fréquence des ressorts de caisse (Hz) : bas = très tendre, la caisse bouge lentement.
 @export var body_freq := 1.0
 ## 0 = bien amortie, 1 = la caisse oscille longtemps avant de se poser.
@@ -119,6 +127,10 @@ var _last_vel := Vector3.ZERO
 var _last_ang := Vector3.ZERO
 var _motion_ready := false
 var _acc_f := Vector3.ZERO
+var _gas_s := 0.0
+var _brake_s := 0.0
+var _last_fwd := 0.0
+var _a_long_f := 0.0
 var wheels: Array[VehicleWheel3D] = []
 var model_name := ""
 
@@ -418,7 +430,11 @@ func _body_motion(delta: float) -> void:
 		_motion_ready = true
 		return
 	# Accélérations lissées (≈ 0,15 s) : pas d'à-coup quand la caisse change de côté.
-	_acc_f = _acc_f.lerp((inv * a_world).limit_length(80.0), minf(1.0, delta / 0.15))
+	var raw := (inv * a_world).limit_length(80.0)
+	_acc_f.x = lerpf(_acc_f.x, raw.x, minf(1.0, delta / 0.15))
+	_acc_f.y = lerpf(_acc_f.y, raw.y, minf(1.0, delta / 0.08))
+	# Avant/arrière plus lissé : le report de masse s'installe sur ≈ 0,3 s.
+	_acc_f.z = lerpf(_acc_f.z, raw.z, minf(1.0, delta / 0.3))
 	var a := _acc_f
 	var fast := lerpf(0.1, 1.0, smoothstep(12.0, 90.0, speed_kmh))
 	var alpha := inv * w_acc
@@ -468,6 +484,12 @@ func _physics_process(delta: float) -> void:
 		brake_in = controls.brake
 		steer = controls.steer
 		handbrake = controls.handbrake
+	# Gaz et frein montent progressivement (couple qui s'établit, pression de frein qui
+	# monte) : la masse se reporte en douceur au lieu d'un coup.
+	_gas_s = move_toward(_gas_s, throttle, delta / (gas_rise if throttle > _gas_s else 0.15))
+	_brake_s = move_toward(_brake_s, brake_in, delta / (brake_rise if brake_in > _brake_s else 0.12))
+	throttle = _gas_s
+	brake_in = _brake_s
 
 	# Le bouton frein freine en avançant, puis passe en marche arrière à l'arrêt.
 	var drive_in := 0.0
@@ -581,7 +603,15 @@ func _physics_process(delta: float) -> void:
 		# Amortisseurs de caisse : le roulis et le tangage s'installent doucement, sans à-coup.
 		var roll_rate := angular_velocity.dot(fwd)
 		var pitch_rate := angular_velocity.dot(right)
-		apply_torque((tilt_axis * excess * upright_assist * 4.0 - fwd * roll_rate * roll_damping - right * pitch_rate * roll_damping * 0.6) * mass * YAW_INERTIA)
+		apply_torque((tilt_axis * excess * upright_assist * 4.0 - fwd * roll_rate * roll_damping - right * pitch_rate * pitch_damping) * mass * YAW_INERTIA)
+		# Transfert de masse avant/arrière : la force d'accélération ou de freinage agit au
+		# sol, sous le centre de gravité ; ce bras de levier fait cabrer ou plonger la caisse.
+		# Les trains roulants d'une vraie voiture en reprennent une partie (anti-plongée,
+		# anti-cabrage) : on applique le couple inverse, en part `anti_pitch`.
+		var a_long := (forward_speed - _last_fwd) / delta
+		_a_long_f = lerpf(_a_long_f, clampf(a_long, -15.0, 15.0), minf(1.0, delta / 0.1))
+		var lever := up.cross(fwd) * com_height * mass * _a_long_f
+		apply_torque(lever * anti_pitch)
 		# Garde-fou : au-delà de l'angle maxi, on freine la rotation.
 		var over := absf(slip_angle) - max_drift_deg
 		if over > 0.0:
@@ -589,6 +619,7 @@ func _physics_process(delta: float) -> void:
 			if signf(yaw_rate) == -signf(slip_angle):
 				apply_torque(-up * yaw_rate * minf(1.0, over / 12.0) * 12.0 * mass * YAW_INERTIA)
 
+	_last_fwd = forward_speed
 	_ground_resistance(delta)
 	_float(delta)
 

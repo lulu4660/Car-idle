@@ -49,6 +49,10 @@ const CAR := [
 	["roll_physics", "Roulis physique (force des pneus)", 0.0, 1.0, 0.01],
 	["com_height", "Hauteur du centre de gravité (m)", 0.1, 0.8, 0.01],
 	["roll_damping", "Douceur du roulis (amortisseurs)", 0.0, 6.0, 0.1],
+	["pitch_damping", "Douceur du tangage (accél./freinage)", 0.0, 8.0, 0.1],
+	["anti_pitch", "Anti-cabrage / anti-plongée", 0.0, 1.0, 0.01],
+	["gas_rise", "Montée des gaz (s)", 0.0, 1.0, 0.05],
+	["brake_rise", "Montée du freinage (s)", 0.0, 1.0, 0.05],
 	["body_roll", "Caisse (visuel) : roulis en plus (°/g)", 0.0, 25.0, 0.5],
 	["body_pitch", "Caisse : tangage (°/g)", 0.0, 15.0, 0.5],
 	["body_freq", "Caisse : raideur des ressorts (Hz)", 0.6, 3.0, 0.05],
@@ -71,7 +75,7 @@ const GRIP := {
 	"drift_yaw_assist": 1.0, "lateral_assist": 1.0, "slide_keep": 0.5, "throttle_angle": 0.0,
 	"drift_steer": 0.0, "max_steer_deg": 32.0, "min_steer_deg": 7.0,
 	"susp_stiffness": 40.0, "susp_damping": 0.9, "susp_travel": 0.28,
-	"roll_physics": 0.45, "com_height": 0.34,
+	"roll_physics": 0.45, "com_height": 0.34, "brake_force": 50.0,
 }
 var mode := 0
 ## Valeurs de conduite changées par le joueur, par mode (les autres restent celles du mode).
