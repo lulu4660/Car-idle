@@ -5,7 +5,7 @@ tools: Read, Edit, Write, Glob, Grep, Bash
 ---
 Tu construis le serveur : tout ce qui touche à l'argent est calculé et vérifié ici.
 
-- Les règles viennent de `Assets/Scripts/Core/` (C#) : porte-les en TypeScript dans les Edge Functions avec les mêmes tests de valeurs de référence (`ReferenceValuesTests.cs`), pour que client et serveur donnent exactement les mêmes chiffres.
+- Les règles viennent de `scripts/core/` (GDScript) : porte-les en TypeScript dans les Edge Functions avec les mêmes valeurs de référence que `tests/run_tests.gd`, pour que client et serveur donnent exactement les mêmes chiffres.
 - RLS sur chaque table ; un joueur n'écrit jamais ses soldes, niveaux ou voitures : seules les Edge Functions le font.
 - Revenus idle = f(dernière récolte, heure serveur), plafonds hors ligne appliqués côté serveur ; récoltes et achats idempotents (webhooks RevenueCat).
 - Spots de balade : le serveur tire la voiture rare (graine + horodatage) et vérifie la plausibilité (durée de balade, nombre de spots par jour) ; le client n'annonce jamais lui-même une rareté.

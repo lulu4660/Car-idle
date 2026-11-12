@@ -1,182 +1,38 @@
 {
-  ".github/workflows/core-tests.yml": {
-    "mtime": 1794362619.681445,
-    "seen": 1794395523.0348697,
-    "ast_hash": "1e4b01cfe8e96b13c6057df6ee9809e9",
-    "semantic_hash": ""
-  },
   ".github/workflows/web.yml": {
-    "mtime": 1794364297.8038902,
-    "seen": 1794395523.0348775,
-    "ast_hash": "2d1d517e087e9d82fff7e8357d089312",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Core/Catalog.cs": {
-    "mtime": 1794362535.823637,
-    "seen": 1794395523.0348804,
-    "ast_hash": "9b019e79fff76f66f3dfce52468e1478",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Core/Economy.cs": {
-    "mtime": 1794362469.7076333,
-    "seen": 1794395523.0348818,
-    "ast_hash": "0a3d920b16c0eaa44150818c2f192337",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Core/Progression.cs": {
-    "mtime": 1794362521.3676362,
-    "seen": 1794395523.0348833,
-    "ast_hash": "4830b7b53585f5aaac595d7ff4ff230d",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Core/WorldLayout.cs": {
-    "mtime": 1794397148.725862,
-    "seen": 1794397508.4368412,
-    "ast_hash": "317cf92430c21dbc4b99dc1fdad027df",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/BaladeBootstrap.cs": {
-    "mtime": 1794398824.610908,
-    "seen": 1794398850.4382331,
-    "ast_hash": "6e0883c0af07de5d3640b18913f6bec1",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/CarController.cs": {
-    "mtime": 1794397383.625802,
-    "seen": 1794397508.436844,
-    "ast_hash": "0ce9d1b6aa94e837a8c5c71cc2aa9ab4",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/CarEffects.cs": {
-    "mtime": 1794398824.609348,
-    "seen": 1794398850.4382362,
-    "ast_hash": "18c01c9a67254e00944211db0776d192",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/DriveInput.cs": {
-    "mtime": 1794397406.8276937,
-    "seen": 1794397508.4368463,
-    "ast_hash": "a7838662ffb7e9f50aa40cabcafcaa1d",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/DroneCamera.cs": {
-    "mtime": 1794398824.610073,
-    "seen": 1794398850.4382386,
-    "ast_hash": "f6f05743b004838818611d5f51d85a30",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/Materials.cs": {
-    "mtime": 1794398790.1098268,
-    "seen": 1794398850.43824,
-    "ast_hash": "171ce30ea3771a6b0accb2876b40cfc4",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/VehicleFactory.cs": {
-    "mtime": 1794398824.6105156,
-    "seen": 1794398850.4382443,
-    "ast_hash": "9451627ed83bf04154e49dc39b59419c",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/WorldBuilder.cs": {
-    "mtime": 1794398790.1092737,
-    "seen": 1794398850.4382453,
-    "ast_hash": "abf875e6821206e1e119b77f71b65f57",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Editor/BaladeSceneMenu.cs": {
-    "mtime": 1794364286.5473979,
-    "seen": 1794395523.034894,
-    "ast_hash": "3610e461fa681968300469bd1dd2937c",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Editor/WebBuild.cs": {
-    "mtime": 1794398824.6182184,
-    "seen": 1794398850.4382505,
-    "ast_hash": "cdf67c9fc472dbaad1a4754879726645",
-    "semantic_hash": ""
-  },
-  "Assets/Tests/EditMode/ReferenceValuesTests.cs": {
-    "mtime": 1794362551.6254969,
-    "seen": 1794395523.0348961,
-    "ast_hash": "ba1b3edcc0b6c2f18a2b6749d9c95f10",
-    "semantic_hash": ""
-  },
-  "Assets/Tests/EditMode/RulesTests.cs": {
-    "mtime": 1794362572.4556394,
-    "seen": 1794395523.034897,
-    "ast_hash": "22c8f2923c5d7a2adf02acd2269d9f57",
-    "semantic_hash": ""
-  },
-  "Assets/Tests/EditMode/WorldLayoutTests.cs": {
-    "mtime": 1794397140.7849438,
-    "seen": 1794397508.4368594,
-    "ast_hash": "8260f0d444838bcbcdffb065ec3e5a61",
-    "semantic_hash": ""
-  },
-  "Packages/manifest.json": {
-    "mtime": 1794396745.5965652,
-    "seen": 1794397508.4368606,
-    "ast_hash": "429e5178ae6dd8ebac2765f8863bcf7a",
-    "semantic_hash": ""
-  },
-  "tools/CoreTests/CoreTests.csproj": {
-    "mtime": 1794362577.002624,
-    "seen": 1794395523.0349,
-    "ast_hash": "c60c9ee87f4ed13dfba5bdf14e3c3914",
+    "mtime": 1794400125.6194634,
+    "seen": 1794400595.6509535,
+    "ast_hash": "49af4476aa187ed2ab4131557a589314",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1794398848.9189856,
-    "seen": 1794398850.4382608,
-    "ast_hash": "04604aae0790346b23ed0d7d7a8658ec",
-    "semantic_hash": ""
-  },
-  "ProjectSettings/ProjectVersion.txt": {
-    "mtime": 1794396745.5965652,
-    "seen": 1794397508.436866,
-    "ast_hash": "5ba2580fe228338a0c3f5fbf84517da0",
+    "mtime": 1794491842.8372202,
+    "seen": 1794491846.1887295,
+    "ast_hash": "5cef42c5f021826d7077efc6d31bfb8f",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794397502.9491978,
-    "seen": 1794397508.436867,
-    "ast_hash": "f6c075e043f09ba67ddeface9dc2dcc9",
+    "mtime": 1794440777.3346813,
+    "seen": 1794440777.9805906,
+    "ast_hash": "194a39d9a2087cc07bc05087f4564f2d",
     "semantic_hash": ""
   },
-  "Assets/Scripts/Drive/PostFx.cs": {
-    "mtime": 1794398796.0406966,
-    "seen": 1794398850.4382415,
-    "ast_hash": "1f130064595a635ab6378783a8241ca7",
+  ".github/workflows/tests.yml": {
+    "mtime": 1794400125.617102,
+    "seen": 1794400595.650945,
+    "ast_hash": "994ce74ab816ef594724471772700c80",
     "semantic_hash": ""
   },
-  "Assets/Scripts/Editor/RenderSetup.cs": {
-    "mtime": 1794397450.8969622,
-    "seen": 1794397508.436855,
-    "ast_hash": "78be4d786089ff910c085f8e9e89a6fb",
+  "icon.svg": {
+    "mtime": 1794399557.2834504,
+    "seen": 1794400595.6509628,
+    "ast_hash": "f6bce8258a1a00043f0f287c9474f8eb",
     "semantic_hash": ""
   },
-  "Packages/packages-lock.json": {
-    "mtime": 1794396745.5965652,
-    "seen": 1794397508.4368615,
-    "ast_hash": "506fe4de6f1b35463c5dba65f78f8979",
-    "semantic_hash": ""
-  },
-  "ProjectSettings/SceneTemplateSettings.json": {
-    "mtime": 1794396745.5965652,
-    "seen": 1794397508.4368625,
-    "ast_hash": "eeb26e313b89cd9334b828428a4847ef",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Drive/TerrainImpacts.cs": {
-    "mtime": 1794398811.7260354,
-    "seen": 1794398850.4382432,
-    "ast_hash": "6f07fdf5f417e753db5cfad32db1e3d6",
-    "semantic_hash": ""
-  },
-  "Assets/Scripts/Editor/GroundTextureImporter.cs": {
-    "mtime": 1794398752.7156658,
-    "seen": 1794398850.438248,
-    "ast_hash": "068acd80d741c3a570a8c762bf0b75cd",
+  "tools/web_check.js": {
+    "mtime": 1794428849.0491023,
+    "seen": 1794428849.912467,
+    "ast_hash": "6366e4d6d52602b9d1d4510f1aef0095",
     "semantic_hash": ""
   }
 }
