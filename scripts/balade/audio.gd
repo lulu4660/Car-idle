@@ -36,6 +36,7 @@ func _ready() -> void:
 		p.volume_db = -80.0
 		add_child(p)
 		p.play()
+		p.stream_paused = true
 		_loops[n] = p
 		_vol[n] = 0.0
 	for n in ["impact", "land", "splash", "shift", "click", "score", "backfire"]:
@@ -59,9 +60,20 @@ func _loop(n: String, target: float, delta: float, pitch := -1.0, speed := 8.0) 
 	var v: float = lerpf(_vol[n], clampf(target, 0.0, 1.0), minf(1.0, delta * speed))
 	_vol[n] = v
 	var p: AudioStreamPlayer = _loops[n]
-	p.volume_db = linear_to_db(maxf(v, 0.0001))
+	# Une boucle inaudible est mise en pause : le mélangeur ne la calcule plus (sur la
+	# version web, le son est calculé sur le même fil que le jeu).
+	var audible := v > 0.003
+	if p.stream_paused == audible:
+		p.stream_paused = not audible
+	if not audible:
+		return
+	var db := linear_to_db(v)
+	if absf(p.volume_db - db) > 0.2:
+		p.volume_db = db
 	if pitch > 0.0:
-		p.pitch_scale = clampf(pitch, 0.3, 3.0)
+		var ps := clampf(pitch, 0.3, 3.0)
+		if absf(p.pitch_scale - ps) > 0.003:
+			p.pitch_scale = ps
 
 
 func _process(delta: float) -> void:

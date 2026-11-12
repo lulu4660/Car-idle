@@ -244,6 +244,7 @@ func _draw_info(top_center: Vector2, u: float, car: VehicleBody3D) -> void:
 		ground.to_upper(),
 		String(Car.DISPLAY_NAMES.get(car.model_name, car.model_name)).to_upper(),
 		"%d I/S" % Engine.get_frames_per_second(),
+		_perf_text(),
 		"V" + String(game.VERSION),
 	]
 	var t := " · ".join(parts)
@@ -393,3 +394,29 @@ static func _thousands(n: int) -> String:
 		out = " " + s.substr(s.length() - 3) + out
 		s = s.substr(0, s.length() - 3)
 	return ("-" if n < 0 else "") + s + out
+
+
+## Où part le temps d'une image (pour trouver ce qui ralentit) : scripts, physique, et
+## dessin côté processeur et côté carte graphique, en millisecondes.
+var _perf_on := false
+var _perf_acc := Vector4.ZERO
+var _perf_n := 0
+var _perf_label := ""
+
+
+func _perf_text() -> String:
+	var vp := _canvas.get_viewport()
+	if not _perf_on:
+		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
+		_perf_on = true
+	_perf_acc += Vector4(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+		RenderingServer.viewport_get_measured_render_time_cpu(vp.get_viewport_rid()),
+		RenderingServer.viewport_get_measured_render_time_gpu(vp.get_viewport_rid()))
+	_perf_n += 1
+	if _perf_n >= 30:
+		var a := _perf_acc / _perf_n
+		_perf_label = "IMAGE %.1f · PHYS %.1f · DESSIN %.1f · GPU %.1f MS" % [a.x, a.y, a.z, a.w]
+		_perf_acc = Vector4.ZERO
+		_perf_n = 0
+	return _perf_label
