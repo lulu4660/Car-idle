@@ -20,16 +20,16 @@ var _steer_smooth := 0.0
 # mesurée depuis ce coin, en fraction du petit côté de l'écran : même taille au doigt en
 # portrait et en paysage, rien ne se chevauche sur un téléphone tenu droit.
 const BUTTONS := [
-	["ci_left", "", Vector2(0, 1), Rect2(0.04, 0.04, 0.20, 0.26)],
-	["ci_right", "", Vector2(0, 1), Rect2(0.26, 0.04, 0.20, 0.26)],
-	["ci_gas", "GAZ", Vector2(1, 1), Rect2(0.04, 0.04, 0.24, 0.32)],
-	["ci_brake", "FREIN", Vector2(1, 1), Rect2(0.30, 0.04, 0.20, 0.20)],
-	["ci_drift", "DÉRAPAGE", Vector2(1, 1), Rect2(0.04, 0.38, 0.24, 0.14)],
-	["ci_reset", "REPLACER", Vector2(0, 0), Rect2(0.03, 0.03, 0.28, 0.11)],
-	["ci_night", "NUIT", Vector2(0, 0), Rect2(0.03, 0.16, 0.28, 0.11)],
-	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.03, 0.03, 0.28, 0.11)],
-	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.03, 0.16, 0.28, 0.11)],
-	["ci_settings", "RÉGLAGES", Vector2(1, 0), Rect2(0.03, 0.29, 0.28, 0.11)],
+	["ci_left", "", Vector2(0, 1), Rect2(0.035, 0.035, 0.17, 0.2)],
+	["ci_right", "", Vector2(0, 1), Rect2(0.215, 0.035, 0.17, 0.2)],
+	["ci_gas", "GAZ", Vector2(1, 1), Rect2(0.035, 0.035, 0.19, 0.24)],
+	["ci_brake", "FREIN", Vector2(1, 1), Rect2(0.24, 0.035, 0.16, 0.15)],
+	["ci_drift", "DÉRAPAGE", Vector2(1, 1), Rect2(0.035, 0.29, 0.19, 0.095)],
+	["ci_reset", "REPLACER", Vector2(0, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
+	["ci_night", "NUIT", Vector2(0, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
+	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
+	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
+	["ci_settings", "RÉGLAGES", Vector2(1, 0), Rect2(0.025, 0.189, 0.2, 0.072)],
 ]
 
 const KEYS := {
@@ -90,12 +90,15 @@ func _layout() -> void:
 		var x := z.position.x * u if corner.x == 0 else size.x - (z.position.x + z.size.x) * u
 		var y := z.position.y * u if corner.y == 0 else size.y - (z.position.y + z.size.y) * u
 		t.position = Vector2(x, y)
+		t.set_meta("base", Vector2(x, y))
+		t.set_meta("size", bs)
 		var arrow: int = t.get_meta("arrow")
 		t.texture_normal = _box(Vector2i(bs), Color(0.07, 0.065, 0.07, 0.42), arrow)
 		t.texture_pressed = _box(Vector2i(bs), Color(1.0, 0.52, 0.12, 0.85), arrow)
 		var lbl := t.get_child(0) as Label
 		lbl.size = bs
-		lbl.add_theme_font_size_override("font_size", maxi(13, int(u * 0.046)))
+		var small: bool = z.size.y < 0.1
+		lbl.add_theme_font_size_override("font_size", maxi(11, int(u * (0.03 if small else 0.036))))
 
 
 ## Fond du bouton (cadre) ; `arrow` = -1 ou 1 : flèche gauche ou droite dessinée dedans
@@ -158,6 +161,7 @@ func _action_at(p: Vector2) -> String:
 
 
 func _process(delta: float) -> void:
+	_animate(delta)
 	var target := Input.get_action_strength("ci_right") - Input.get_action_strength("ci_left")
 	# Le volant revient plus vite au centre qu'il ne braque : plus facile au doigt.
 	var rate := 4.0 if absf(target) > absf(_steer_smooth) else 7.0
@@ -186,6 +190,22 @@ func set_enabled(on: bool) -> void:
 	_steer_smooth = 0.0
 	handbrake = false
 	settings_requested = false
+
+
+## Appui : le bouton s'enfonce (ressort, léger rebond au relâché).
+func _animate(delta: float) -> void:
+	for t in _buttons:
+		if not t.has_meta("base"):
+			continue
+		var want := 0.9 if t.is_pressed() else 1.0
+		var v: float = t.get_meta("v", 0.0)
+		var sc: float = t.scale.x
+		v += ((want - sc) * 600.0 - v * 22.0) * delta
+		sc += v * delta
+		t.set_meta("v", v)
+		t.scale = Vector2(sc, sc)
+		var bs: Vector2 = t.get_meta("size")
+		t.position = (t.get_meta("base") as Vector2) + bs * (1.0 - sc) * 0.5
 
 
 ## Change le texte d'un bouton (ex. NUIT / JOUR).
