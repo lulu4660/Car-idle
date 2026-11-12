@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.6.0"
+const VERSION := "0.7.0"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -24,6 +24,10 @@ var menu: CanvasLayer
 ## Valeurs de conduite d'origine de la voiture actuelle (pour « Réinitialiser »).
 var car_base := {}
 var water_sim_enabled := true
+## Post-traitement « cinéma » (réglages Haut et Ultra) : rectangle collé à la caméra.
+var _post: MeshInstance3D
+var _post_mat: ShaderMaterial
+var post_level := 0
 var _sea_materials: Array[ShaderMaterial] = []
 var _wake_patch: MeshInstance3D
 var water_sim: Node
@@ -153,6 +157,7 @@ func _ready() -> void:
 	# dunes, voit la voiture, la plage et la mer d'un seul coup d'œil.
 	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
 	settings.apply_graphics(self)
+	settings.apply_controls(controls)
 
 
 ## Réglages selon l'appareil. iPhone et web : pleine résolution, pas de MSAA (FXAA à la place), ombres sur 90 m
@@ -197,6 +202,7 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 		life.target = car
 	_add_car_lights()
 	settings.apply_halos(car)
+	_apply_varnish()
 	camera.snap()
 	if decor.data == null:
 		decor.low_quality = low_quality
@@ -225,6 +231,7 @@ func _process(delta: float) -> void:
 		_spawn(pos, yaw)
 		return
 	_follow_wake_patch(delta)
+	_update_post()
 	_update_car_shadow()
 	if controls.night_requested:
 		lighting.set_night(not lighting.is_night())
@@ -302,15 +309,17 @@ func _wheel_effects(delta: float) -> void:
 			amount += drift * 1.5 * (1.0 if i >= 2 else 0.3)
 		if s == WL.Surface.WET_SAND:
 			amount *= 0.4
-		var rate := amount * 55.0 * delta
+		# Nuage selon la vitesse : peu de bouffées, mais grosses, d'autant plus grosses, nombreuses
+		# et durables que la voiture va vite ; en dérapage, des panaches plus amples.
+		var fast := clampf(speed / 110.0, 0.0, 1.0)
+		var rate := amount * lerpf(3.0, 8.0, fast) * delta
 		var count := int(rate) + (1 if randf() < fmod(rate, 1.0) else 0)
 		var c: Color = effects.DUST_COLORS[s]
-		# La poussière reste là où la roue l'a soulevée (elle traîne derrière la voiture) et
-		# monte doucement en s'élargissant.
 		for k in count:
-			var v := Vector3.UP * randf_range(0.3, 0.8) + car.global_basis.x * randf_range(-0.3, 0.3)
-			var size := randf_range(1.0, 1.6) * (1.3 if s == WL.Surface.SAND else 1.0) * (1.0 + drift * 0.5)
-			effects.dust(p + Vector3.UP * 0.2, v, Color(c.r, c.g, c.b, c.a * randf_range(0.7, 1.0)), size, randf_range(1.6, 2.6))
+			# Soulevée par la roue, elle garde un peu de l'élan de la voiture puis traîne derrière.
+			var v := car.linear_velocity * randf_range(0.12, 0.25) + Vector3.UP * randf_range(0.4, 1.2) + car.global_basis.x * randf_range(-1.5, 1.5) * (0.6 + drift)
+			var size := randf_range(1.6, 2.4) * lerpf(0.8, 1.8, fast) * (1.2 if s == WL.Surface.SAND else 1.0) * (1.0 + drift * 0.6)
+			effects.dust(p + Vector3.UP * 0.25, v, Color(c.r, c.g, c.b, c.a * randf_range(0.7, 1.0)), size, randf_range(1.8, 2.6) * lerpf(1.0, 1.5, fast))
 
 
 func _physics_process(delta: float) -> void:
@@ -615,6 +624,61 @@ func rebuild_car() -> void:
 	car.queue_free()
 	_spawn(pos, yaw)
 	settings.apply_halos(car)
+
+
+## Effets cinéma : 0 = aucun, 1 = étalonnage et netteté, 2 = + effet maquette et rayons.
+## Au niveau 1 et plus, la carrosserie prend un vernis brillant.
+func set_post_level(level: int) -> void:
+	post_level = level
+	if _post == null:
+		_post_mat = ShaderMaterial.new()
+		_post_mat.shader = load("res://shaders/post.gdshader")
+		_post_mat.render_priority = 127
+		var q := QuadMesh.new()
+		q.size = Vector2(1, 1)
+		_post = MeshInstance3D.new()
+		_post.name = "PostTraitement"
+		_post.mesh = q
+		_post.material_override = _post_mat
+		_post.extra_cull_margin = 16384.0
+		_post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		camera.add_child(_post)
+		_post.position = Vector3(0, 0, -1)
+	_post.visible = level > 0
+	_post_mat.set_shader_parameter("level", level)
+	_apply_varnish()
+
+
+## Vernis de carrosserie (couche brillante) selon les effets cinéma.
+func _apply_varnish() -> void:
+	if car == null:
+		return
+	for m in car.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		for si in mi.get_surface_override_material_count():
+			var mat := mi.get_surface_override_material(si) as BaseMaterial3D
+			if mat == null:
+				continue
+			mat.clearcoat_enabled = post_level > 0
+			mat.clearcoat = 0.8
+			mat.clearcoat_roughness = 0.12
+			mat.roughness = 0.32 if post_level > 0 else 0.45
+
+
+func _update_post() -> void:
+	if _post == null or not _post.visible:
+		return
+	_post_mat.set_shader_parameter("focus_distance", camera.global_position.distance_to(car.global_position))
+	_post_mat.set_shader_parameter("time", Waves.now())
+	_post_mat.set_shader_parameter("night", lighting.glow)
+	var sun_world: Vector3 = camera.global_position + lighting.light_direction() * 2000.0
+	var vis := 0.0
+	var sp := Vector2(0.5, -0.5)
+	if not camera.is_position_behind(sun_world):
+		sp = camera.unproject_position(sun_world) / get_viewport().get_visible_rect().size
+		vis = 1.0 - smoothstep(0.6, 1.4, (sp - Vector2(0.5, 0.5)).length())
+	_post_mat.set_shader_parameter("sun_screen", sp)
+	_post_mat.set_shader_parameter("sun_visible", vis)
 
 
 func car_display_name() -> String:

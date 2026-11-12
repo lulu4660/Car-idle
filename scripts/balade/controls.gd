@@ -2,7 +2,31 @@
 ## R = replacer, C = voiture suivante, V = plan de caméra) et boutons tactiles multi-doigts
 ## (gauche/droite en bas à gauche, gaz/frein en bas à droite, dérapage au-dessus).
 ## La souris compte comme un doigt sur PC.
+## Quatre façons de tourner, au choix dans RÉGLAGES > Commandes (comme dans les jeux de
+## drift sur téléphone) : flèches, volant à l'écran (on le tourne au doigt, il revient au
+## centre au lâcher), glisser (le doigt glisse à gauche ou à droite depuis là où il s'est
+## posé) et inclinaison du téléphone (gyroscope, via le navigateur sur la version web).
 extends CanvasLayer
+
+enum SteerMode { ARROWS, WHEEL, SLIDE, TILT }
+const MODE_NAMES: Array[String] = ["FLÈCHES", "VOLANT", "GLISSER", "INCLINAISON"]
+var steer_mode := SteerMode.ARROWS
+## Sensibilité de la direction (volant, glisser, inclinaison).
+var sensitivity := 1.0
+var tilt_invert := false
+## Taille des boutons de conduite (1 = normale).
+var button_scale := 1.0
+const WHEEL_LOCK := 135.0       # degrés de volant pour braquer à fond (sensibilité 1)
+var _wheel_angle := 0.0
+var _wheel_touch := -1
+var _wheel_grab := 0.0          # angle du doigt au moment de la prise
+var _wheel_start := 0.0         # angle du volant au moment de la prise
+var _slide_touch := -1
+var _slide_origin := Vector2.ZERO
+var _slide_pos := Vector2.ZERO
+var _analog := 0.0
+var _tilt_ready := false
+var _overlay: Control
 
 var throttle := 0.0
 var brake := 0.0
@@ -76,6 +100,11 @@ func _ready() -> void:
 		t.add_child(lbl)
 		add_child(t)
 		_buttons.append(t)
+	_overlay = Control.new()
+	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay.draw.connect(_draw_overlay)
+	add_child(_overlay)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 
@@ -86,6 +115,8 @@ func _layout() -> void:
 	for t in _buttons:
 		var corner: Vector2 = t.get_meta("corner")
 		var z: Rect2 = t.get_meta("zone")
+		if corner.y == 1:
+			z = Rect2(z.position * button_scale, z.size * button_scale)
 		var bs := z.size * u
 		var x := z.position.x * u if corner.x == 0 else size.x - (z.position.x + z.size.x) * u
 		var y := z.position.y * u if corner.y == 0 else size.y - (z.position.y + z.size.y) * u
@@ -99,6 +130,9 @@ func _layout() -> void:
 		lbl.size = bs
 		var small: bool = z.size.y < 0.1
 		lbl.add_theme_font_size_override("font_size", maxi(11, int(u * (0.03 if small else 0.036))))
+		# Flèches seulement en mode flèches.
+		if t.action == "ci_left" or t.action == "ci_right":
+			t.visible = steer_mode == SteerMode.ARROWS
 
 
 ## Fond du bouton (cadre) ; `arrow` = -1 ou 1 : flèche gauche ou droite dessinée dedans
@@ -155,18 +189,38 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _action_at(p: Vector2) -> String:
 	for t in _buttons:
-		if Rect2(t.position, t.texture_normal.get_size()).has_point(p):
+		if t.visible and Rect2(t.position, t.texture_normal.get_size()).has_point(p):
 			return t.action
 	return ""
 
 
 func _process(delta: float) -> void:
 	_animate(delta)
-	var target := Input.get_action_strength("ci_right") - Input.get_action_strength("ci_left")
-	# Le volant revient plus vite au centre qu'il ne braque : plus facile au doigt.
-	var rate := 4.0 if absf(target) > absf(_steer_smooth) else 7.0
-	_steer_smooth = move_toward(_steer_smooth, target, rate * delta)
+	var keys := Input.get_action_strength("ci_right") - Input.get_action_strength("ci_left")
+	match steer_mode:
+		SteerMode.WHEEL:
+			if _wheel_touch == -1:
+				# Le volant revient seul au centre quand on le lâche.
+				_wheel_angle = move_toward(_wheel_angle, 0.0, delta * 540.0)
+			_analog = clampf(_wheel_angle / (WHEEL_LOCK / sensitivity), -1.0, 1.0)
+		SteerMode.SLIDE:
+			_analog = 0.0
+			if _slide_touch != -1:
+				var u := minf(get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y)
+				_analog = clampf((_slide_pos.x - _slide_origin.x) / (u * 0.17) * sensitivity, -1.0, 1.0)
+		SteerMode.TILT:
+			_analog = _read_tilt()
+		_:
+			_analog = 0.0
+	if steer_mode == SteerMode.ARROWS or absf(keys) > 0.01:
+		# Le volant revient plus vite au centre qu'il ne braque : plus facile au doigt.
+		var rate := 4.0 if absf(keys) > absf(_steer_smooth) else 7.0
+		_steer_smooth = move_toward(_steer_smooth, keys, rate * delta)
+	else:
+		# Direction analogique : suit le doigt (ou le téléphone) presque directement.
+		_steer_smooth = lerpf(_steer_smooth, _analog, minf(1.0, delta * 18.0))
 	steer = _steer_smooth
+	_overlay.queue_redraw()
 	throttle = Input.get_action_strength("ci_gas")
 	brake = Input.get_action_strength("ci_brake")
 	handbrake = Input.is_action_pressed("ci_drift")
@@ -188,6 +242,8 @@ func set_enabled(on: bool) -> void:
 	brake = 0.0
 	steer = 0.0
 	_steer_smooth = 0.0
+	_wheel_touch = -1
+	_slide_touch = -1
 	handbrake = false
 	settings_requested = false
 
@@ -213,3 +269,179 @@ func set_label(action: String, text: String) -> void:
 	for t in _buttons:
 		if t.action == action:
 			(t.get_child(0) as Label).text = text
+
+
+# ------------------------------------------------------------------ direction analogique
+
+## Applique les réglages de commandes (RÉGLAGES > Commandes).
+func configure(mode: int, sens: float, invert: bool, scale: float) -> void:
+	steer_mode = mode
+	sensitivity = sens
+	tilt_invert = invert
+	button_scale = scale
+	_wheel_touch = -1
+	_slide_touch = -1
+	_wheel_angle = 0.0
+	if steer_mode == SteerMode.TILT:
+		_setup_tilt()
+	_layout()
+
+
+func _wheel_geom() -> Array:
+	var size := get_viewport().get_visible_rect().size
+	var u := minf(size.x, size.y)
+	var r := u * 0.15 * button_scale
+	return [Vector2(u * 0.04 + r, size.y - u * 0.04 - r), r]
+
+
+## Zone où le doigt dirige (moitié gauche, sous les boutons du haut).
+func _steer_zone(p: Vector2) -> bool:
+	var size := get_viewport().get_visible_rect().size
+	var u := minf(size.x, size.y)
+	return p.x < size.x * 0.5 and p.y > u * 0.3
+
+
+func _input(event: InputEvent) -> void:
+	if not visible or not (steer_mode == SteerMode.WHEEL or steer_mode == SteerMode.SLIDE):
+		return
+	var idx := -1
+	var pos := Vector2.ZERO
+	var pressed := false
+	var moved := false
+	if event is InputEventScreenTouch:
+		idx = event.index
+		pos = event.position
+		pressed = event.pressed
+	elif event is InputEventScreenDrag:
+		idx = event.index
+		pos = event.position
+		moved = true
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		idx = 100
+		pos = event.position
+		pressed = event.pressed
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		idx = 100
+		pos = event.position
+		moved = true
+	else:
+		return
+	if steer_mode == SteerMode.WHEEL:
+		var g := _wheel_geom()
+		var c: Vector2 = g[0]
+		if moved and idx == _wheel_touch:
+			var a := rad_to_deg((pos - c).angle())
+			_wheel_angle = clampf(_wheel_start + wrapf(a - _wheel_grab, -180.0, 180.0), -WHEEL_LOCK * 1.1, WHEEL_LOCK * 1.1)
+			# On suit le doigt d'un tour à l'autre (pas de saut à ±180°).
+			_wheel_grab = a
+			_wheel_start = _wheel_angle
+		elif not moved and pressed and _wheel_touch == -1 and pos.distance_to(c) < float(g[1]) * 1.5:
+			_wheel_touch = idx
+			_wheel_grab = rad_to_deg((pos - c).angle())
+			_wheel_start = _wheel_angle
+		elif not moved and not pressed and idx == _wheel_touch:
+			_wheel_touch = -1
+	else:
+		if moved and idx == _slide_touch:
+			_slide_pos = pos
+		elif not moved and pressed and _slide_touch == -1 and _steer_zone(pos):
+			_slide_touch = idx
+			_slide_origin = pos
+			_slide_pos = pos
+		elif not moved and not pressed and idx == _slide_touch:
+			_slide_touch = -1
+
+
+## Volant ou curseur dessinés à l'écran.
+func _draw_overlay() -> void:
+	var size := get_viewport().get_visible_rect().size
+	var u := minf(size.x, size.y)
+	var ink := Color(0.96, 0.93, 0.88, 0.9)
+	var orange := Color(1.0, 0.52, 0.12)
+	if steer_mode == SteerMode.WHEEL:
+		var g := _wheel_geom()
+		var c: Vector2 = g[0]
+		var r: float = g[1]
+		var held := _wheel_touch != -1
+		var a := deg_to_rad(_wheel_angle)
+		_overlay.draw_circle(c, r * 1.02, Color(0.07, 0.065, 0.07, 0.42))
+		# Jante facettée (12 pans), branches, repère orange en haut.
+		var rim := PackedVector2Array()
+		for i in 13:
+			var t := a + TAU * i / 12.0
+			rim.append(c + Vector2(cos(t), sin(t)) * r * 0.9)
+		_overlay.draw_polyline(rim, orange if held else ink, maxf(3.0, r * 0.13), true)
+		for sp in [PI * 0.5, PI * 0.5 + TAU / 3.0, PI * 0.5 - TAU / 3.0]:
+			var d := Vector2(cos(a + sp + PI), sin(a + sp + PI))
+			_overlay.draw_line(c + d * r * 0.2, c + d * r * 0.84, Color(ink.r, ink.g, ink.b, 0.75), maxf(2.0, r * 0.08), true)
+		_overlay.draw_circle(c, r * 0.22, Color(0.12, 0.11, 0.11, 0.9))
+		var top := Vector2(cos(a - PI * 0.5), sin(a - PI * 0.5))
+		_overlay.draw_line(c + top * r * 0.78, c + top * r * 1.0, orange, maxf(4.0, r * 0.16))
+	elif steer_mode == SteerMode.SLIDE:
+		var y := size.y - u * 0.12
+		var x0 := u * 0.06
+		var x1 := size.x * 0.46
+		var mid := (x0 + x1) * 0.5
+		_overlay.draw_rect(Rect2(Vector2(x0, y - 2.0), Vector2(x1 - x0, 4.0)), Color(1, 1, 1, 0.18))
+		var k := (x1 - x0) * 0.5 * _steer_smooth
+		_overlay.draw_rect(Rect2(Vector2(minf(mid, mid + k), y - 3.0), Vector2(absf(k), 6.0)), orange)
+		_overlay.draw_circle(Vector2(mid + k, y), u * 0.028, ink if _slide_touch != -1 else Color(ink.r, ink.g, ink.b, 0.5))
+		if _slide_touch == -1:
+			_overlay.draw_string(FONT, Vector2(x0, y - u * 0.05), "GLISSE LE DOIGT ICI", HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(11, int(u * 0.03)), Color(ink.r, ink.g, ink.b, 0.5))
+	elif steer_mode == SteerMode.TILT:
+		var y2 := size.y - u * 0.12
+		var x2 := u * 0.06
+		var w := size.x * 0.4
+		var mid2 := x2 + w * 0.5
+		_overlay.draw_rect(Rect2(Vector2(x2, y2 - 2.0), Vector2(w, 4.0)), Color(1, 1, 1, 0.18))
+		_overlay.draw_circle(Vector2(mid2 + w * 0.5 * _steer_smooth, y2), u * 0.024, orange)
+		if not _tilt_ready:
+			_overlay.draw_string(FONT, Vector2(x2, y2 - u * 0.05), "TOUCHE L'ÉCRAN POUR ACTIVER", HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(11, int(u * 0.03)), Color(ink.r, ink.g, ink.b, 0.6))
+
+
+# ------------------------------------------------------------------ inclinaison
+
+## Version web : le navigateur donne l'inclinaison (devicemotion). Sur iPhone, il faut une
+## autorisation demandée pendant un vrai geste : on l'accroche au prochain toucher.
+func _setup_tilt() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("""
+	(function () {
+		if (window.__ci_tilt_setup) return;
+		window.__ci_tilt_setup = true;
+		window.__ci_tilt = 0; window.__ci_tilt_on = false;
+		function listen() {
+			window.addEventListener('devicemotion', function (e) {
+				var g = e.accelerationIncludingGravity; if (!g) return;
+				var a = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+				var v = a == 90 ? g.y : (a == -90 || a == 270 ? -g.y : (a == 180 ? -g.x : g.x));
+				window.__ci_tilt = v; window.__ci_tilt_on = true;
+			});
+		}
+		if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+			var ask = function () {
+				DeviceMotionEvent.requestPermission().then(function (s) { if (s === 'granted') listen(); }).catch(function () {});
+				document.removeEventListener('touchend', ask, true);
+			};
+			document.addEventListener('touchend', ask, true);
+		} else { listen(); }
+	})();
+	""", true)
+
+
+func _read_tilt() -> float:
+	var v := 0.0
+	if OS.has_feature("web"):
+		var w = JavaScriptBridge.get_interface("window")
+		if w:
+			_tilt_ready = bool(w.__ci_tilt_on)
+			v = float(w.__ci_tilt)
+	else:
+		var acc := Input.get_accelerometer()
+		_tilt_ready = acc != Vector3.ZERO
+		v = acc.x
+	# iPhone : pencher à droite donne une valeur négative.
+	var sgn := 1.0 if tilt_invert else -1.0
+	var k := v * sgn / 4.5 * sensitivity
+	return clampf(signf(k) * maxf(absf(k) - 0.06, 0.0) / 0.94, -1.0, 1.0)

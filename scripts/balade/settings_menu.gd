@@ -116,8 +116,8 @@ func _rebuild() -> void:
 	tabs.add_theme_constant_override("separation", int(u * 0.02))
 	col.add_child(tabs)
 	_tab_buttons.clear()
-	for i in 2:
-		var b := _button(["GRAPHISMES", "CONDUITE"][i], u)
+	for i in 3:
+		var b := _button(["GRAPHISMES", "CONDUITE", "COMMANDES"][i], u)
 		b.toggle_mode = true
 		b.button_pressed = i == _tab
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -151,8 +151,48 @@ func _fill(u: float) -> void:
 	_rows.clear()
 	if _tab == 0:
 		_fill_graphics(u)
-	else:
+	elif _tab == 1:
 		_fill_car(u)
+	else:
+		_fill_controls(u)
+
+
+# ------------------------------------------------------------------ commandes
+
+func _fill_controls(u: float) -> void:
+	_content.add_child(_label("Direction", true))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", int(u * 0.02))
+	grid.add_theme_constant_override("v_separation", int(u * 0.02))
+	_content.add_child(grid)
+	var names: Array = game.controls.MODE_NAMES
+	for i in names.size():
+		var b := _button(names[i], u)
+		b.toggle_mode = true
+		b.button_pressed = i == int(settings.controls["steer_mode"])
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(_choose_steer.bind(i))
+		grid.add_child(b)
+	var hint := _label(["Deux flèches, gauche et droite.", "Un volant à l'écran : tourne-le au doigt, il revient au centre quand tu le lâches.", "Pose le doigt à gauche de l'écran et glisse-le vers la gauche ou la droite.", "Penche le téléphone. Sur iPhone, touche l'écran une fois pour autoriser le capteur."][int(settings.controls["steer_mode"])], false)
+	hint.add_theme_color_override("font_color", Color(0.7, 0.66, 0.6))
+	_content.add_child(hint)
+	_add_row("sensitivity", "Sensibilité de la direction", 0.4, 2.5, 0.05, float(settings.controls["sensitivity"]), _on_control, u)
+	_add_row("button_scale", "Taille des boutons", 0.7, 1.4, 0.05, float(settings.controls["button_scale"]), _on_control, u)
+	_add_row("tilt_invert", "Inclinaison inversée", 0.0, 1.0, 0.0, float(settings.controls["tilt_invert"]), _on_control, u)
+
+
+func _choose_steer(i: int) -> void:
+	settings.controls["steer_mode"] = float(i)
+	settings.apply_controls(game.controls)
+	_save_timer = 0.2
+	_select_tab(2)
+
+
+func _on_control(key: String, v: float) -> void:
+	settings.controls[key] = v
+	settings.apply_controls(game.controls)
+	_save_timer = 0.5
 
 
 # ------------------------------------------------------------------ graphismes
@@ -341,7 +381,7 @@ func _show(key: String, v: float, step: float) -> String:
 			return ["Non", "×2", "×4"][clampi(int(v), 0, 2)]
 		"fog":
 			return "Aucun" if v < 0.05 else "×%.1f" % v
-		"scale", "range", "grass", "life", "volume":
+		"scale", "range", "grass", "life", "volume", "button_scale":
 			return "%d %%" % roundi(v * 100.0)
 	return Settings.fmt(v, step)
 

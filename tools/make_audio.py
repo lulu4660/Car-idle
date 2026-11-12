@@ -14,6 +14,7 @@ rng = np.random.default_rng(7)
 
 def save(name, x, sr, peak=0.85):
     x = np.asarray(x, dtype=np.float64)
+    x = x - np.mean(x)
     x = x / (np.max(np.abs(x)) + 1e-9) * peak
     with wave.open(os.path.join(OUT, name + ".wav"), "wb") as f:
         f.setnchannels(1)
@@ -43,34 +44,73 @@ def periodic_lfo(n, cycles, depth, phase=0.0):
     return 1.0 + depth * np.sin(2 * np.pi * cycles * t + phase)
 
 
-def engine(name, firing_hz, bright, seconds=2.0, sr=22050):
-    """Quatre cylindres : harmoniques par demi-ordres du régime, écrêtage doux (grognement),
-    souffle d'échappement haché par les explosions."""
-    n = int(seconds * sr)
+def resonator(n, sr, freqs):
+    """Réponse impulsionnelle d'un échappement : somme de résonances amorties (fréquence,
+    amortissement, gain)."""
     t = np.arange(n) / sr
-    # Légère irrégularité du régime, périodique sur la boucle.
-    wob = 0.012 * np.sin(2 * np.pi * 3 * t / seconds) + 0.008 * np.sin(2 * np.pi * 7 * t / seconds + 1.3)
-    phase = 2 * np.pi * firing_hz * t + wob * firing_hz / 4
-    x = np.zeros(n)
-    for k in range(1, 40):
-        order = k / 2.0                      # demi-ordres
-        fk = firing_hz * order
-        if fk > sr * 0.45:
-            break
-        amp = 1.0 / (order ** (1.5 - bright * 0.6))
-        if k % 2 == 1:
-            amp *= 0.35                      # demi-ordres impairs : la « voix » du moteur
-        if k == 2:
-            amp *= 1.6                       # fréquence d'explosion
-        x += amp * np.sin(order * phase + rng.uniform(0, 2 * np.pi))
-    x = np.tanh(x * (1.2 + bright * 1.5))
-    puls = np.clip(np.sin(phase), 0, 1) ** 3
-    hiss = noise_loop(n, sr, lambda f: band(f, 300 + 900 * bright, 2500 + 4000 * bright))
-    hiss = hiss / np.max(np.abs(hiss))
-    x += hiss * puls * (0.25 + 0.5 * bright)
-    low = noise_loop(n, sr, lambda f: band(f, 30, 160))
-    x += low / np.max(np.abs(low)) * 0.25
+    h = np.zeros(n)
+    for f, damp, g in freqs:
+        h += g * np.exp(-t * damp) * np.sin(2 * np.pi * f * t)
+    return h
+
+
+def engine(name, rpm, on_load, sr=22050, cycles=None):
+    """Quatre cylindres en ligne, modèle « physique » simplifié :
+    - une explosion tous les demi-tours (rpm / 30 Hz), chacune un peu différente (combustion
+      irrégulière : amplitude, instant, timbre) ; un cylindre légèrement plus faible donne
+      la « voix » grave à demi-régime ;
+    - les impulsions passent dans l'échappement (résonances amorties, convolution circulaire
+      pour une boucle sans raccord) ;
+    - admission (souffle filtré qui pulse), bruit mécanique aigu ;
+    - en charge : impulsions fortes, saturées ; au lever de pied : faibles, plus de souffle et
+      quelques claquements."""
+    fire = rpm / 30.0
+    if cycles is None:
+        cycles = int(np.ceil(1.6 * fire / 4)) * 4          # multiple de 4 explosions
+    n = int(round(cycles / fire * sr))
+    pulses = np.zeros(n)
+    width = max(4, int(sr / fire * 0.18))
+    for k in range(cycles):
+        cyl = k % 4
+        amp = (1.0 if on_load else 0.35) * rng.uniform(0.82, 1.12) * (0.78 if cyl == 2 else 1.0)
+        pos = (k / fire + rng.normal(0, 0.012 / fire)) * sr
+        i0 = int(pos) % n
+        tt = np.arange(width) / sr
+        # Front raide, retombée rapide (onde de pression).
+        shape = (1 - np.exp(-tt * sr / 6.0)) * np.exp(-tt * fire * (6.0 if on_load else 9.0))
+        shape *= 1.0 + 0.25 * rng.normal(size=width) * np.exp(-tt * fire * 4)
+        pulses[(i0 + np.arange(width)) % n] += amp * shape
+    # Échappement : grave et rond, un peu de métal.
+    ir_len = min(n, int(sr * 0.25))
+    ir = resonator(ir_len, sr, [(92, 26, 1.0), (185, 34, 0.55), (310, 60, 0.35), (720, 140, 0.18), (1450, 260, 0.08)])
+    ir = np.pad(ir, (0, n - ir_len))
+    x = np.fft.irfft(np.fft.rfft(pulses) * np.fft.rfft(ir), n)
+    x /= np.max(np.abs(x)) + 1e-9
+    drive = 2.6 if on_load else 1.2
+    x = np.tanh(x * drive) / np.tanh(drive)
+    # Admission et souffle, hachés par les explosions.
+    env = np.fft.irfft(np.fft.rfft(pulses) * np.fft.rfft(np.pad(np.exp(-np.arange(int(sr * 0.01)) / (sr * 0.004)), (0, n - int(sr * 0.01)))), n)
+    env = env / (np.max(env) + 1e-9)
+    air = noise_loop(n, sr, lambda f: band(f, 400, 3200 + rpm * 0.4))
+    air /= np.max(np.abs(air)) + 1e-9
+    x += air * (0.12 + 0.5 * env) * (0.22 if on_load else 0.4)
+    # Mécanique (soupapes, distribution) : cliquetis aigus discrets.
+    mech = noise_loop(n, sr, lambda f: band(f, 3000, 8000))
+    mech /= np.max(np.abs(mech)) + 1e-9
+    x += mech * env * 0.06
+    # Lever de pied à haut régime : petits claquements dans l'échappement.
+    if not on_load and rpm > 3000:
+        for _ in range(int(cycles / fire * 5)):
+            i0 = rng.integers(0, n)
+            ln = int(sr * 0.012)
+            pop = rng.normal(size=ln) * np.exp(-np.arange(ln) / (ln * 0.2))
+            x[(i0 + np.arange(ln)) % n] += pop * 0.6
+    # Grave d'ensemble (bloc moteur) : renforce la fondamentale.
+    x += 0.25 * np.sin(2 * np.pi * fire * np.arange(n) / sr)
     save(name, x, sr)
+
+
+ENGINE_RPMS = [1000, 2000, 3500, 5000, 6500]
 
 
 def skid(sr=32000, seconds=2.0):
@@ -176,9 +216,13 @@ def bp_noise(n, sr, lo, hi):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    # Moteur : boucle grave (1 500 tr/min, explosions à 50 Hz) et aiguë (4 980 tr/min, 166 Hz).
-    engine("engine_low", 50.0, 0.15)
-    engine("engine_high", 166.0, 0.9)
+    # Moteur : 5 régimes, en charge (on) et au lever de pied (off).
+    for r in ENGINE_RPMS:
+        engine("engine_on_%d" % r, r, True)
+        engine("engine_off_%d" % r, r, False)
+    # Claquement d'échappement isolé (lever de pied à haut régime).
+    shot("backfire", 0.25, 22050, lambda n, t, sr:
+         bp_noise(n, sr, 150, 2500) * np.exp(-t * 30) + np.sin(2 * np.pi * 90 * t) * np.exp(-t * 25) * 0.8)
     skid()
     gravel()
     wind()

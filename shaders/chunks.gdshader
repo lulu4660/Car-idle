@@ -8,7 +8,7 @@ render_mode cull_back, skip_vertex_transform, specular_disabled;
 
 uniform float now = 0.0;
 uniform float drag = 2.2;
-uniform float lift = 0.15;
+uniform float lift = 0.35;
 uniform vec3 wind = vec3(0.4, 0.0, 0.15);
 
 vec3 rotate_axis(vec3 v, vec3 axis, float a) {
@@ -28,8 +28,9 @@ void vertex() {
 	float seed = INSTANCE_CUSTOM.w;
 	float e = exp(-drag * t);
 	vec3 pos = origin + v0 * (1.0 - e) / drag + vec3(0.0, lift, 0.0) * t + wind * t * smoothstep(0.0, 1.5, t);
-	// Pousse vite puis fond : taille maxi au premier quart de vie.
-	float size = INSTANCE_CUSTOM.z * smoothstep(0.0, 0.12, k) * pow(1.0 - k, 0.8);
+	// Gonfle comme un nuage (petit à la sortie de la roue, plusieurs fois plus gros ensuite),
+	// puis fond sur la fin de sa vie.
+	float size = INSTANCE_CUSTOM.z * (0.25 + 1.0 * sqrt(smoothstep(0.0, 0.55, k))) * (1.0 - smoothstep(0.62, 1.0, k));
 	if (age < 0.0 || age > life) {
 		size = 0.0;
 	}

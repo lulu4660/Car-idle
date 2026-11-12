@@ -18,10 +18,19 @@ var _vol := {}          # volume lissé (linéaire) de chaque boucle
 var _was_in_water := false
 var _last_speed := 0.0
 var _impact_cool := 0.0
+## Régimes auxquels le moteur a été enregistré (synthétisé), en charge et au lever de pied.
+const ENGINE_RPMS := [1000, 2000, 3500, 5000, 6500]
+var ENGINE_NAMES: Array[String] = []
+var _load_s := 0.0
+var _last_load := 0.0
+var _pop_cool := 0.0
 
 
 func _ready() -> void:
-	for n in ["engine_low", "engine_high", "skid", "gravel", "wind", "sea", "water", "crickets"]:
+	for r in ENGINE_RPMS:
+		ENGINE_NAMES.append("engine_on_%d" % r)
+		ENGINE_NAMES.append("engine_off_%d" % r)
+	for n in ENGINE_NAMES + ["skid", "gravel", "wind", "sea", "water", "crickets"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load(DIR + n + ".wav")
 		p.volume_db = -80.0
@@ -29,7 +38,7 @@ func _ready() -> void:
 		p.play()
 		_loops[n] = p
 		_vol[n] = 0.0
-	for n in ["impact", "land", "splash", "shift", "click", "score"]:
+	for n in ["impact", "land", "splash", "shift", "click", "score", "backfire"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load(DIR + n + ".wav")
 		add_child(p)
@@ -63,13 +72,38 @@ func _process(delta: float) -> void:
 	var sunk: float = car.submerged
 	# Moteur : régime réel en tr/min (ralenti 900, zone rouge 7 200) ; les boucles ont été
 	# synthétisées à 1 500 et 4 980 tr/min. Noyé : le moteur s'étouffe.
-	var r: float = lerpf(900.0, 7200.0, car.rpm)
-	var load: float = car.engine_load
-	var mix := smoothstep(1800.0, 4600.0, r)
+	# Régime réel (tr/min) ; fondu entre les deux enregistrements qui l'encadrent, chacun
+	# rejoué à la bonne hauteur ; fondu entre « en charge » et « lever de pied ».
+	var r: float = lerpf(850.0, 7000.0, car.rpm)
+	_load_s = lerpf(_load_s, car.engine_load, minf(1.0, delta * 10.0))
 	var alive := 1.0 - clampf(sunk * 1.4 - 0.4, 0.0, 1.0)
-	var gain := lerpf(0.42, 0.9, load) * alive
-	_loop("engine_low", gain * (1.0 - mix), delta, minf(r / 1500.0, 2.4), 14.0)
-	_loop("engine_high", gain * mix * lerpf(0.55, 1.0, load), delta, r / 4980.0, 14.0)
+	var gain := lerpf(0.55, 0.95, _load_s) * alive
+	var hi := ENGINE_RPMS.size() - 1
+	for i in ENGINE_RPMS.size():
+		if r <= float(ENGINE_RPMS[i]):
+			hi = i
+			break
+	var lo := maxi(hi - 1, 0)
+	var w := 1.0 if lo == hi else clampf((r - float(ENGINE_RPMS[lo])) / float(ENGINE_RPMS[hi] - ENGINE_RPMS[lo]), 0.0, 1.0)
+	for i in ENGINE_RPMS.size():
+		var share := 0.0
+		if i == lo:
+			share = 1.0 - w if lo != hi else 1.0
+		if i == hi and lo != hi:
+			share = w
+		# Fondu à puissance constante.
+		share = sqrt(share)
+		var pitch := r / float(ENGINE_RPMS[i])
+		_loop("engine_on_%d" % ENGINE_RPMS[i], gain * share * _load_s, delta, pitch, 20.0)
+		_loop("engine_off_%d" % ENGINE_RPMS[i], gain * share * (1.0 - _load_s) * 0.8, delta, pitch, 20.0)
+	# Lever de pied brusque à haut régime : claquements d'échappement.
+	_pop_cool = maxf(0.0, _pop_cool - delta)
+	if _last_load - car.engine_load > 0.04 and r > 4000.0 and _pop_cool <= 0.0:
+		_pop_cool = 0.12
+		shot("backfire", randf_range(0.35, 0.7), randf_range(0.85, 1.2))
+	elif car.engine_load < 0.05 and r > 4500.0 and randf() < delta * 3.0:
+		shot("backfire", randf_range(0.15, 0.35), randf_range(0.9, 1.3))
+	_last_load = car.engine_load
 	if car.shifted:
 		shot("shift", 0.5, randf_range(0.9, 1.1))
 

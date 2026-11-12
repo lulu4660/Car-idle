@@ -197,7 +197,7 @@ func dust(pos: Vector3, vel: Vector3, color: Color, size: float, life: float, ki
 		_chunks.set_instance_transform(_chunk_next, Transform3D(cb, pos))
 		var c := Color(color.r * 0.9, color.g * 0.86, color.b * 0.84, 1.0)
 		_chunks.set_instance_color(_chunk_next, c)
-		_chunks.set_instance_custom_data(_chunk_next, Color(t, life, size * 0.42, randf()))
+		_chunks.set_instance_custom_data(_chunk_next, Color(t, life, size * 0.5, randf()))
 		_chunk_next = (_chunk_next + 1) % MAX_CHUNKS
 		return
 	if floor_y < -999.0:

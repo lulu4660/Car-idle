@@ -22,6 +22,8 @@ const GRAPHICS := [
 	["halos", "Halos des lumières", 0.0, 1.0, 0.0, [0.0, 1.0, 1.0, 1.0, 1.0]],
 	["glow", "Bloom plein écran (coûteux)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 1.0, 1.0]],
 	["ssao", "Occlusion ambiante (PC)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 0.0, 1.0]],
+	["post", "Effets cinéma (0 non, 1 étalonnage, 2 maquette + rayons)", 0.0, 2.0, 1.0, [0.0, 0.0, 0.0, 1.0, 2.0]],
+	["pc_fx", "Rendu avancé PC (reflets, lumière indirecte, brume volumétrique)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 0.0, 1.0]],
 	# Ambiance (hors préréglages : null) : 0 = aucun, 1 = brume légère d'origine, 8 = purée de pois.
 	["fog", "Brouillard", 0.0, 8.0, 0.1, null],
 	["volume", "Volume du son", 0.0, 1.0, 0.05, null],
@@ -81,6 +83,9 @@ const GRIP := {
 var mode := 0
 ## Valeurs de conduite changées par le joueur, par mode (les autres restent celles du mode).
 var tunings: Array[Dictionary] = [{}, {}]
+## Commandes : mode de direction (controls.SteerMode), sensibilité, inclinaison inversée,
+## taille des boutons.
+var controls := {"steer_mode": 0.0, "sensitivity": 1.0, "tilt_invert": 0.0, "button_scale": 1.0}
 var car_tuning: Dictionary:
 	get:
 		return tunings[mode]
@@ -119,6 +124,8 @@ func load_file() -> void:
 	for g in GRAPHICS:
 		graphics[g[0]] = float(cf.get_value("graphismes", g[0], graphics[g[0]]))
 	mode = clampi(int(cf.get_value("conduite_mode", "mode", 0)), 0, 1)
+	for k in controls:
+		controls[k] = float(cf.get_value("commandes", k, controls[k]))
 	for c in CAR:
 		for m in 2:
 			var sec := "conduite" if m == 0 else "conduite_grip"
@@ -132,6 +139,8 @@ func save_file() -> void:
 	for k in graphics:
 		cf.set_value("graphismes", k, graphics[k])
 	cf.set_value("conduite_mode", "mode", mode)
+	for k in controls:
+		cf.set_value("commandes", k, controls[k])
 	for m in 2:
 		for k in tunings[m]:
 			cf.set_value("conduite" if m == 0 else "conduite_grip", k, tunings[m][k])
@@ -159,6 +168,18 @@ func apply_graphics(game: Node) -> void:
 	game.lighting.refresh()
 	var is_forward: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
 	game.lighting.env.ssao_enabled = g["ssao"] > 0.5 and is_forward
+	# Rendu avancé (Forward+ seulement) : reflets à l'écran, lumière indirecte, brume
+	# volumétrique légère.
+	var pc: bool = float(g["pc_fx"]) > 0.5 and is_forward
+	var env: Environment = game.lighting.env
+	env.ssr_enabled = pc
+	env.ssr_max_steps = 48
+	env.ssil_enabled = pc
+	env.ssil_intensity = 0.7
+	env.volumetric_fog_enabled = pc
+	env.volumetric_fog_density = 0.004
+	env.volumetric_fog_albedo = Color(0.95, 0.85, 0.78)
+	game.set_post_level(int(g["post"]))
 	game.water_sim_enabled = g["water"] > 0.5
 	# Relief : seuil entre la grille fine (2 m) et la grossière (4 m).
 	var near := float(g["terrain"])
@@ -279,3 +300,7 @@ static func fmt(v: float, step: float) -> String:
 	if step >= 0.1:
 		return "%.1f" % v
 	return "%.2f" % v
+
+
+func apply_controls(c: Node) -> void:
+	c.configure(int(controls["steer_mode"]), float(controls["sensitivity"]), float(controls["tilt_invert"]) > 0.5, float(controls["button_scale"]))
