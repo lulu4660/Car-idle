@@ -12,6 +12,7 @@ const HALO = preload("res://shaders/halo.gdshader")
 ## viennent ensuite les distances d'affichage (appels de dessin) et l'herbe.
 const GRAPHICS := [
 	["scale", "Résolution 3D", 0.5, 1.0, 0.05, [0.6, 0.8, 1.0, 1.0, 1.0]],
+	["dynres", "Résolution dynamique (baisse seulement sous 60 i/s)", 0.0, 1.0, 0.0, [1.0, 1.0, 1.0, 1.0, 0.0]],
 	["msaa", "Anticrénelage (MSAA ×2, ×4)", 0.0, 2.0, 1.0, [0.0, 0.0, 0.0, 1.0, 2.0]],
 	["range", "Distance d'affichage", 0.4, 1.6, 0.05, [0.5, 0.7, 1.0, 1.0, 1.4]],
 	["terrain", "Relief détaillé jusqu'à (m)", 60.0, 260.0, 10.0, [60.0, 80.0, 100.0, 180.0, 240.0]],
@@ -155,6 +156,8 @@ func apply_graphics(game: Node) -> void:
 	var g := graphics
 	var vp: Viewport = game.get_viewport()
 	vp.scaling_3d_scale = float(g["scale"])
+	game.dynres_base = float(g["scale"])
+	game.dynres_on = float(g["dynres"]) > 0.5
 	vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][int(g["msaa"])]
 	var sun: DirectionalLight3D = game.sun
 	var sh := float(g["shadows"])

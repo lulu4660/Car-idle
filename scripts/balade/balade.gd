@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.7.3"
+const VERSION := "0.8.0"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -28,6 +28,13 @@ var water_sim_enabled := true
 var _post: MeshInstance3D
 var _post_mat: ShaderMaterial
 var post_level := 0
+## Résolution dynamique : la résolution 3D baisse un peu (jusqu'à 60 % du réglage) quand
+## l'image prend plus de 18 ms, et remonte dès que ça redevient fluide.
+var dynres_on := true
+var dynres_base := 1.0
+var _dyn_scale := 1.0
+var _dyn_ms := 16.7
+var _dyn_timer := 0.0
 var _sea_materials: Array[ShaderMaterial] = []
 var _wake_patch: MeshInstance3D
 var water_sim: Node
@@ -232,6 +239,7 @@ func _process(delta: float) -> void:
 		return
 	_follow_wake_patch(delta)
 	_update_post()
+	_dynamic_resolution(delta)
 	_update_car_shadow()
 	if controls.night_requested:
 		lighting.set_night(not lighting.is_night())
@@ -680,6 +688,28 @@ func _update_post() -> void:
 		vis = 1.0 - smoothstep(0.6, 1.4, (sp - Vector2(0.5, 0.5)).length())
 	_post_mat.set_shader_parameter("sun_screen", sp)
 	_post_mat.set_shader_parameter("sun_visible", vis)
+
+
+func _dynamic_resolution(delta: float) -> void:
+	var vp := get_viewport()
+	# Outils de mesure et de capture (qualité forcée) : résolution fixe, pour comparer.
+	if not dynres_on or force_quality >= 0:
+		if not is_equal_approx(vp.scaling_3d_scale, dynres_base):
+			vp.scaling_3d_scale = dynres_base
+		_dyn_scale = 1.0
+		return
+	_dyn_ms = lerpf(_dyn_ms, delta * 1000.0, 0.08)
+	_dyn_timer -= delta
+	if _dyn_timer > 0.0:
+		return
+	_dyn_timer = 0.5
+	if _dyn_ms > 18.5:
+		_dyn_scale = maxf(0.6, _dyn_scale - 0.05)
+	elif _dyn_ms < 15.0:
+		_dyn_scale = minf(1.0, _dyn_scale + 0.05)
+	var want := dynres_base * _dyn_scale
+	if absf(vp.scaling_3d_scale - want) > 0.001:
+		vp.scaling_3d_scale = want
 
 
 func car_display_name() -> String:

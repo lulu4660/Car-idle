@@ -328,6 +328,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		var c := _node_bounds(mesh, car.wheels[i])
 		mesh.position -= c.get_center()
 		car._wheel_base.append(mesh.position)
+	_merge_body(car)
 
 	car.drive = _drivetrain_of(model)
 	if model in ["fourgon", "berline_longue"]:
@@ -766,6 +767,50 @@ func _gearbox(delta: float, drive_in: float, grounded: int, handbrake: bool) -> 
 	if target > 0.97:
 		target = 0.94 + 0.04 * sin(Time.get_ticks_msec() * 0.045)
 	rpm = lerpf(rpm, target, minf(1.0, delta * (5.0 if target > rpm else 7.0)))
+
+
+## Carrosserie fusionnée : toutes les pièces fixes (hors roues, déjà rattachées aux roues
+## physiques) réunies en un seul maillage, une surface par matière : la voiture passe d'une
+## quinzaine d'appels de dessin à quelques-uns. Matières gardées telles quelles.
+static func _merge_body(car: VehicleBody3D) -> void:
+	var root: Node3D = car.body_node
+	var groups := {}
+	var order: Array = []
+	var parts := root.find_children("*", "MeshInstance3D", true, false)
+	for m in parts:
+		var mi := m as MeshInstance3D
+		if mi.mesh == null or not mi.is_visible_in_tree():
+			continue
+		var xf := Transform3D.IDENTITY
+		var cur: Node = mi
+		while cur != null and cur != root:
+			if cur is Node3D:
+				xf = (cur as Node3D).transform * xf
+			cur = cur.get_parent()
+		for si in mi.mesh.get_surface_count():
+			var mat: Material = mi.get_surface_override_material(si)
+			if mat == null:
+				mat = mi.mesh.surface_get_material(si)
+			if not groups.has(mat):
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				groups[mat] = st
+				order.append(mat)
+			(groups[mat] as SurfaceTool).append_from(mi.mesh, si, xf)
+	if order.is_empty():
+		return
+	var mesh := ArrayMesh.new()
+	for mat in order:
+		(groups[mat] as SurfaceTool).commit(mesh)
+	var merged := MeshInstance3D.new()
+	merged.name = "Carrosserie"
+	merged.mesh = mesh
+	for i in order.size():
+		merged.set_surface_override_material(i, order[i])
+	for c in root.get_children():
+		root.remove_child(c)
+		c.queue_free()
+	root.add_child(merged)
 
 
 func respawn(pos: Vector3, yaw: float) -> void:

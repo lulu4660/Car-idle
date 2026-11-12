@@ -153,5 +153,24 @@ func dent(world: Vector3, radius: float, depth: float) -> void:
 			var h: float = data.heights[z * res + x] + delta
 			data.heights[z * res + x] = h
 			_height_image.set_pixel(x, z, Color(h, 0, 0))
-	_height_tex.update(_height_image)
-	_shape.map_data = data.heights
+	# Envoi groupé : une réception de saut creuse jusqu'à 5 fois dans la même image ; la
+	# texture (1 million de hauteurs) part une seule fois par image, et la collision au plus
+	# toutes les 0,3 s (sa reconstruction est le plus cher).
+	_dirty_tex = true
+	_dirty_shape = true
+
+
+var _dirty_tex := false
+var _dirty_shape := false
+var _shape_timer := 0.0
+
+
+func _process(delta: float) -> void:
+	_shape_timer -= delta
+	if _dirty_tex:
+		_dirty_tex = false
+		_height_tex.update(_height_image)
+	if _dirty_shape and _shape_timer <= 0.0:
+		_dirty_shape = false
+		_shape_timer = 0.3
+		_shape.map_data = data.heights

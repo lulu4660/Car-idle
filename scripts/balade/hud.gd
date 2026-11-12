@@ -230,7 +230,7 @@ func _draw_gauge(c: Vector2, r: float, car: VehicleBody3D) -> void:
 		_gear_bump = 1.0
 	var gt := "R" if car.gear == 0 else str(car.gear)
 	var gcol := GOLD.lerp(Color.WHITE, _gear_bump * 0.8)
-	_text_center(_big, gt, c + Vector2(0, -r * 0.3), int(r * 0.26 * (1.0 + 0.5 * _gear_bump)), gcol, r * 0.03)
+	_text_scaled(_big, gt, c + Vector2(0, -r * 0.3), int(r * 0.26), 1.0 + 0.5 * _gear_bump, gcol, r * 0.03)
 	# Mode : petite pastille dans l'ouverture de l'arc.
 	var drift_mode: bool = game.settings.mode == 0
 	var pill := Rect2(c + Vector2(-r * 0.4, r * 0.66), Vector2(r * 0.8, r * 0.26))
@@ -244,18 +244,21 @@ func _draw_info(top_center: Vector2, u: float, car: VehicleBody3D) -> void:
 		ground.to_upper(),
 		String(Car.DISPLAY_NAMES.get(car.model_name, car.model_name)).to_upper(),
 		"%d I/S" % Engine.get_frames_per_second(),
-		_perf_text(),
 		"V" + String(game.VERSION),
 	]
 	var t := " · ".join(parts)
 	var fs := maxi(10, int(u * 0.024))
 	var a := 0.55 * clampf(_intro * 2.0 - 0.6, 0.0, 1.0)
 	_text_center(_text, t, top_center + Vector2(0, fs * 0.9), fs, Color(INK.r, INK.g, INK.b, a), fs * 0.25)
+	# Temps par image, en plus petit sur une seconde ligne.
+	var pt := _perf_text()
+	if pt != "":
+		_text_center(_text, pt, top_center + Vector2(0, fs * 1.95), int(fs * 0.85), Color(INK.r, INK.g, INK.b, a * 0.8), fs * 0.2)
 	if _best > 0:
 		var rc := GOLD.lerp(INK, 0.3)
 		var bt := "RECORD " + _thousands(_best)
 		var bump := 1.0 + 0.35 * _ease_out_back(_record_flash) * _record_flash
-		_text_center(_text, bt, top_center + Vector2(0, fs * 2.1), int(fs * bump), Color(rc.r, rc.g, rc.b, 0.7 + 0.3 * _record_flash), fs * 0.25)
+		_text_scaled(_text, bt, top_center + Vector2(0, fs * 3.1), fs, bump, Color(rc.r, rc.g, rc.b, 0.7 + 0.3 * _record_flash), fs * 0.25)
 
 
 func _drift_anchor(size: Vector2, u: float) -> Vector2:
@@ -275,10 +278,14 @@ func _draw_drift(size: Vector2, u: float, car: VehicleBody3D) -> void:
 	var w := u * 0.44
 	var h := u * 0.105
 	var scale := lerpf(0.7, 1.0, e)
-	var pos := anchor + Vector2(-w * 0.5 * scale + shake, (1.0 - _panel) * -u * 0.03)
-	var box := Rect2(pos, Vector2(w, h) * scale)
+	# Tout le panneau est dessiné à taille fixe puis agrandi par une transformation : les
+	# polices gardent une taille constante (une nouvelle taille de police à chaque image
+	# oblige à redessiner les lettres, coûteux sur la version web).
+	var base := Transform2D(0.0, Vector2(scale, scale), 0.0, anchor + Vector2(shake, (1.0 - _panel) * -u * 0.03))
+	_canvas.draw_set_transform_matrix(base)
+	var box := Rect2(Vector2(-w * 0.5, 0.0), Vector2(w, h))
 	var bg := CHARCOAL.lerp(Color(0.45, 0.05, 0.03, 0.7), _fail)
-	_slanted(box, Color(bg.r, bg.g, bg.b, bg.a * al), u * 0.022 * scale)
+	_slanted(box, Color(bg.r, bg.g, bg.b, bg.a * al), u * 0.022)
 	# Reflet qui balaie le panneau pendant la glisse.
 	var sweep := fmod(_panel_t * 0.7, 1.6) - 0.3
 	if sweep > -0.2 and sweep < 1.2:
@@ -286,28 +293,32 @@ func _draw_drift(size: Vector2, u: float, car: VehicleBody3D) -> void:
 		var band := PackedVector2Array([
 			Vector2(x, box.position.y), Vector2(x + u * 0.03, box.position.y),
 			Vector2(x + u * 0.03 - u * 0.022, box.end.y), Vector2(x - u * 0.022, box.end.y)])
-		var clipped := Geometry2D.intersect_polygons(band, _slanted_points(box, u * 0.022 * scale))
+		var clipped := Geometry2D.intersect_polygons(band, _slanted_points(box, u * 0.022))
 		for poly in clipped:
 			_canvas.draw_colored_polygon(poly, Color(1, 1, 1, 0.07 * al))
 	# Liseré orange en bas.
 	var line_y := box.end.y - 2.0
 	_canvas.draw_line(Vector2(box.position.x + u * 0.01, line_y), Vector2(box.end.x - u * 0.03, line_y), Color(ORANGE.r, ORANGE.g, ORANGE.b, 0.8 * al), 2.0)
-	var pad := u * 0.03 * scale
+	var pad := u * 0.03
 	# Titre.
-	var tfs := int(u * 0.026 * scale)
+	var tfs := int(u * 0.026)
 	_canvas.draw_string(_text, box.position + Vector2(pad + u * 0.01, tfs * 1.15), "DÉRAPAGE", HORIZONTAL_ALIGNMENT_LEFT, -1, tfs, Color(ORANGE.r, ORANGE.g, ORANGE.b, al))
-	# Multiplicateur : saute et flashe à chaque palier.
+	# Multiplicateur : saute et flashe à chaque palier (agrandi autour de son centre).
 	var mt := "×%d" % _drift_mult
-	var mfs := int(u * 0.04 * scale * (1.0 + 0.5 * _mult_bump))
+	var mfs := int(u * 0.04)
 	var mw := _big.get_string_size(mt, HORIZONTAL_ALIGNMENT_LEFT, -1, mfs).x
 	var mcol := GOLD.lerp(RED, (_drift_mult - 1) / 4.0).lerp(Color.WHITE, _mult_bump * 0.7)
-	_canvas.draw_string_outline(_big, Vector2(box.end.x - pad - u * 0.012 - mw, box.position.y + h * scale * 0.5), mt, HORIZONTAL_ALIGNMENT_LEFT, -1, mfs, int(u * 0.006), Color(0, 0, 0, 0.4 * al))
-	_canvas.draw_string(_big, Vector2(box.end.x - pad - u * 0.012 - mw, box.position.y + h * scale * 0.5), mt, HORIZONTAL_ALIGNMENT_LEFT, -1, mfs, Color(mcol.r, mcol.g, mcol.b, al))
+	var mc := Vector2(box.end.x - pad - u * 0.012 - mw * 0.5, box.position.y + h * 0.5)
+	var mb := 1.0 + 0.5 * _mult_bump
+	_canvas.draw_set_transform_matrix(base * Transform2D(0.0, Vector2(mb, mb), 0.0, mc))
+	_canvas.draw_string_outline(_big, Vector2(-mw * 0.5, 0.0), mt, HORIZONTAL_ALIGNMENT_LEFT, -1, mfs, int(u * 0.006), Color(0, 0, 0, 0.4 * al))
+	_canvas.draw_string(_big, Vector2(-mw * 0.5, 0.0), mt, HORIZONTAL_ALIGNMENT_LEFT, -1, mfs, Color(mcol.r, mcol.g, mcol.b, al))
+	_canvas.draw_set_transform_matrix(base)
 	# Points qui défilent.
-	var pfs := int(u * 0.042 * scale)
-	_canvas.draw_string(_big, box.position + Vector2(pad + u * 0.006, h * scale * 0.66), _thousands(roundi(_points_shown)), HORIZONTAL_ALIGNMENT_LEFT, -1, pfs, Color(INK.r, INK.g, INK.b, al))
+	var pfs := int(u * 0.042)
+	_canvas.draw_string(_big, box.position + Vector2(pad + u * 0.006, h * 0.66), _thousands(roundi(_points_shown)), HORIZONTAL_ALIGNMENT_LEFT, -1, pfs, Color(INK.r, INK.g, INK.b, al))
 	# Jauge d'angle depuis le centre, avec une pointe lumineuse.
-	var bar := Rect2(box.position + Vector2(pad + u * 0.006, h * scale - u * 0.022), Vector2(box.size.x - pad * 2.0 - u * 0.03, u * 0.008))
+	var bar := Rect2(box.position + Vector2(pad + u * 0.006, h - u * 0.022), Vector2(box.size.x - pad * 2.0 - u * 0.03, u * 0.008))
 	_canvas.draw_rect(bar, Color(1, 1, 1, 0.12 * al))
 	var f := clampf(absf(_slip_shown) / maxf(car.max_drift_deg, 1.0), 0.0, 1.0)
 	var half := bar.size.x * 0.5
@@ -321,9 +332,10 @@ func _draw_drift(size: Vector2, u: float, car: VehicleBody3D) -> void:
 		_canvas.draw_circle(tip, u * (0.008 + 0.006 * k), Color(heat.r, heat.g, heat.b, (0.35 - 0.15 * k) * al))
 	_canvas.draw_rect(Rect2(Vector2(mid - 1.0, bar.position.y - u * 0.004), Vector2(2.0, bar.size.y + u * 0.008)), Color(1, 1, 1, 0.55 * al))
 	var at := "%d°" % roundi(absf(_slip_shown))
-	var afs := int(u * 0.024 * scale)
+	var afs := int(u * 0.024)
 	var aw := _text.get_string_size(at, HORIZONTAL_ALIGNMENT_LEFT, -1, afs).x
 	_canvas.draw_string(_text, Vector2(bar.end.x - aw, bar.position.y - u * 0.008), at, HORIZONTAL_ALIGNMENT_LEFT, -1, afs, Color(INK.r, INK.g, INK.b, 0.6 * al))
+	_canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _draw_fx(size: Vector2, u: float) -> void:
@@ -333,9 +345,8 @@ func _draw_fx(size: Vector2, u: float) -> void:
 		var col: Color = p[1]
 		var a := 1.0 - smoothstep(0.55, 1.0, k)
 		var pop := _ease_out_back(clampf(k * 4.0, 0.0, 1.0))
-		var fs := int(u * 0.05 * lerpf(0.5, 1.0, pop))
 		var y := anchor.y + u * 0.06 - _ease_out(k) * u * 0.07
-		_text_center(_big, p[0], Vector2(anchor.x, y), fs, Color(col.r, col.g, col.b, a), u * 0.006)
+		_text_scaled(_big, p[0], Vector2(anchor.x, y), int(u * 0.05), lerpf(0.5, 1.0, pop), Color(col.r, col.g, col.b, a), u * 0.006)
 	for s in _shards:
 		var k: float = s[4] / s[5]
 		var col: Color = s[6]
@@ -374,6 +385,13 @@ func _text_center(font: Font, t: String, baseline_center: Vector2, fs: int, col:
 	if outline > 0.0:
 		_canvas.draw_string_outline(font, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(1, int(outline)), Color(0, 0, 0, 0.45 * col.a))
 	_canvas.draw_string(font, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+
+## Texte centré agrandi par une transformation (police à taille fixe).
+func _text_scaled(font: Font, t: String, baseline_center: Vector2, fs: int, scale: float, col: Color, outline: float) -> void:
+	_canvas.draw_set_transform(baseline_center, 0.0, Vector2(scale, scale))
+	_text_center(font, t, Vector2.ZERO, fs, col, outline)
+	_canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 static func _ease_out_back(t: float) -> float:

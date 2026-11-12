@@ -8,7 +8,7 @@ extends Node3D
 const WL = preload("res://scripts/core/world_layout.gd")
 
 const MAX_STAMPS := 6000
-const MAX_DUST := 2500
+const MAX_DUST := 1500
 const STAMP_SPACING := 0.35
 
 # Couleur des traces par sol (alpha = force de la marque).
@@ -27,7 +27,7 @@ var _dust: MultiMesh
 var _dust_next := 0
 var _dust_material: ShaderMaterial
 # Poussière en blocs low poly (style « rallye » vu d'en haut).
-const MAX_CHUNKS := 900
+const MAX_CHUNKS := 450
 var _chunks: MultiMesh
 var _chunk_next := 0
 var _chunk_material: ShaderMaterial
