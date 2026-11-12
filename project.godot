@@ -36,3 +36,10 @@ anti_aliasing/quality/msaa_3d=2
 lights_and_shadows/directional_shadow/size=4096
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
 environment/defaults/default_clear_color=Color(0.8, 0.75, 0.67, 1)
+
+[shader_globals]
+
+night={
+"type": "float",
+"value": 0.0
+}

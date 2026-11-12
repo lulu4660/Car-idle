@@ -14,6 +14,7 @@ const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const RES := 2048
 const TEXEL := WL.SIZE / RES   # 0,5 m
 const OUT := "res://assets/balade/shadows.png"
+const LIGHTS := "res://assets/balade/lights.png"
 
 var mask := PackedFloat32Array()
 
@@ -68,6 +69,20 @@ func _init() -> void:
 				var h := box.size.y * t.basis.get_scale().y
 				_disc(Vector2(t.origin.x, t.origin.z) + dir * (h * 0.85 * reach), h * 0.5)
 				n += 1
+	# Nuit : la lumière des réverbères au sol (assets/balade/lights.png).
+	var lamps: Array = load("res://scripts/balade/lamps.gd").positions(data, town)
+	var light := PackedFloat32Array()
+	light.resize(RES * RES)
+	for l in lamps:
+		var p: Vector3 = l[0]
+		var d: Vector2 = l[1]
+		_glow(light, Vector2(p.x, p.z) + d * 1.4, 11.0)
+	var limg := Image.create(RES, RES, false, Image.FORMAT_L8)
+	for i in RES * RES:
+		var v := clampf(light[i], 0.0, 1.0)
+		limg.set_pixel(i % RES, i / RES, Color(v, v, v))
+	limg.save_png(LIGHTS)
+	print("%d réverbères, %s écrit" % [lamps.size(), LIGHTS])
 	var img := Image.create(RES, RES, false, Image.FORMAT_L8)
 	for i in RES * RES:
 		var v := clampf(mask[i], 0.0, 1.0)
@@ -148,3 +163,17 @@ func _box_shadow(xf: Transform3D, box: AABB, dir: Vector2, reach: float) -> void
 			if cover > 0.0:
 				var o := z * RES + x
 				mask[o] = maxf(mask[o], cover)
+
+
+## Flaque de lumière d'un réverbère : forte sous la lampe, qui s'éteint doucement.
+func _glow(buf: PackedFloat32Array, c: Vector2, r: float) -> void:
+	var half := WL.SIZE / 2.0
+	var gx := (c.x + half) / TEXEL
+	var gz := (c.y + half) / TEXEL
+	var rr := r / TEXEL
+	for z in range(maxi(0, int(gz - rr)), mini(RES - 1, int(gz + rr)) + 1):
+		for x in range(maxi(0, int(gx - rr)), mini(RES - 1, int(gx + rr)) + 1):
+			var d := Vector2(x + 0.5 - gx, z + 0.5 - gz).length() / rr
+			if d < 1.0:
+				var o := z * RES + x
+				buf[o] = minf(1.0, buf[o] + pow(1.0 - d, 1.6))

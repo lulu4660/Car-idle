@@ -112,6 +112,7 @@ func _vehicle(model: String, kinematic: bool) -> Node3D:
 	cs.shape = b
 	cs.position = Vector3(0, half.y, 0)
 	body.add_child(cs)
+	load("res://scripts/balade/balade.gd").add_lamps_to(body, Vector3(0, half.y * 0.75, 0), half)
 	add_child(body)
 	return body
 

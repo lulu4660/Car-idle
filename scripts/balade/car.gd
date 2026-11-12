@@ -141,6 +141,22 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	car.mass = 1400.0
 	car.add_child(visual)
 
+	# Les matériaux du pack sont « sans éclairage » (toujours en pleine lumière) : on les
+	# éclaire vraiment, avec un léger brillant de carrosserie (ombres, nuit, phares).
+	var lit := {}
+	for part in visual.find_children("*", "MeshInstance3D", true, false):
+		var mi := part as MeshInstance3D
+		for si in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(si) as BaseMaterial3D
+			if src == null:
+				continue
+			if not lit.has(src):
+				var m := src.duplicate() as BaseMaterial3D
+				m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+				m.roughness = 0.45
+				m.metallic_specular = 0.4
+				lit[src] = m
+			mi.set_surface_override_material(si, lit[src])
 	for part in visual.find_children("*", "MeshInstance3D", true, false):
 		for h in HIDDEN_PARTS:
 			if String(part.name).containsn(h):

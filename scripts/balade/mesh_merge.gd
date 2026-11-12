@@ -50,6 +50,7 @@ static func merge(root: Node3D, center := true) -> Array:
 static func _matte(mat: Material) -> Material:
 	if mat is BaseMaterial3D:
 		var m := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 		m.metallic = 0.0
 		m.roughness = 1.0

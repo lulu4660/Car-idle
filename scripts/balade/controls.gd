@@ -11,6 +11,7 @@ var handbrake := false
 var reset_requested := false
 var next_car_requested := false
 var camera_requested := false
+var night_requested := false
 
 var _steer_smooth := 0.0
 
@@ -24,6 +25,7 @@ const BUTTONS := [
 	["ci_brake", "FREIN", Vector2(1, 1), Rect2(0.30, 0.04, 0.20, 0.20)],
 	["ci_drift", "DÉRAPAGE", Vector2(1, 1), Rect2(0.04, 0.38, 0.24, 0.14)],
 	["ci_reset", "REPLACER", Vector2(0, 0), Rect2(0.03, 0.03, 0.28, 0.11)],
+	["ci_night", "NUIT", Vector2(0, 0), Rect2(0.03, 0.16, 0.28, 0.11)],
 	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.03, 0.03, 0.28, 0.11)],
 	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.03, 0.16, 0.28, 0.11)],
 ]
@@ -37,6 +39,7 @@ const KEYS := {
 	"ci_reset": [KEY_R],
 	"ci_camera": [KEY_V],
 	"ci_car": [KEY_C],
+	"ci_night": [KEY_N],
 }
 
 var _buttons: Array[TouchScreenButton] = []
@@ -150,3 +153,11 @@ func _process(delta: float) -> void:
 	reset_requested = Input.is_action_just_pressed("ci_reset")
 	next_car_requested = Input.is_action_just_pressed("ci_car")
 	camera_requested = Input.is_action_just_pressed("ci_camera")
+	night_requested = Input.is_action_just_pressed("ci_night")
+
+
+## Change le texte d'un bouton (ex. NUIT / JOUR).
+func set_label(action: String, text: String) -> void:
+	for t in _buttons:
+		if t.action == action:
+			(t.get_child(0) as Label).text = text

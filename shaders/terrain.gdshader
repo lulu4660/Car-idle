@@ -160,6 +160,7 @@ void fragment() {
 	}
 	ALBEDO = c;
 	sun_vis = sun_visibility(wpos, world_size);
+	EMISSION = c * lamp_glow(wpos, world_size);
 	// Facettes low poly : la normale est celle du triangle de 1 m (calculée, pas dérivée de
 	// l'écran : identique sur le terrain, la pièce des ornières et les niveaux de détail).
 	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));
@@ -172,5 +173,6 @@ void fragment() {
 // Éclairage : le soleil est masqué par les ombres (décor précalculé, voiture calculée) ;
 // la lumière ambiante (lavande) reste : ombres teintées comme avant, bords lisses.
 void light() {
-	DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * LIGHT_COLOR / PI * sun_vis;
+	// Les ombres précalculées ne valent que pour le soleil (ou la lune) ; les phares, non.
+	DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * LIGHT_COLOR / PI * (LIGHT_IS_DIRECTIONAL ? sun_vis : ATTENUATION);
 }

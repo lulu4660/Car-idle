@@ -24,8 +24,9 @@ void fragment() {
 	SPECULAR = 0.0;
 	BACKLIGHT = COLOR.rgb * 0.25;
 	sun_vis = sun_visibility(wpos, world_size);
+	EMISSION = COLOR.rgb * lamp_glow(wpos, world_size);
 }
 
 void light() {
-	DIFFUSE_LIGHT += (clamp(dot(NORMAL, LIGHT), 0.0, 1.0) + 0.25) * LIGHT_COLOR / PI * sun_vis;
+	DIFFUSE_LIGHT += (clamp(dot(NORMAL, LIGHT), 0.0, 1.0) + 0.25) * LIGHT_COLOR / PI * (LIGHT_IS_DIRECTIONAL ? sun_vis : ATTENUATION);
 }

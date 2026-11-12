@@ -3,6 +3,10 @@
 // Le bord s'adoucit avec la longueur de traversée : ombre lisse à toute résolution.
 // + ombres du décor fixe précalculées (tools/bake_shadows.gd).
 uniform sampler2D static_shadow_tex : filter_linear, repeat_disable;
+// Nuit : lumière des réverbères au sol, précalculée (tools/bake_shadows.gd -> lights.png).
+uniform sampler2D night_light_tex : filter_linear, repeat_disable;
+uniform vec3 lamp_color : source_color = vec3(1.0, 0.72, 0.42);
+global uniform float night;
 uniform mat4 car_inv = mat4(0.0);          // monde -> repère de la voiture
 uniform vec3 car_sun = vec3(0.0, 1.0, 0.0); // direction du soleil dans ce repère
 uniform vec3 car_pos = vec3(0.0, -1000.0, 0.0);
@@ -33,4 +37,14 @@ float sun_visibility(vec3 wp, float ws) {
 		car = max(box_through(p, l, box1_min, box1_max), box_through(p, l, box2_min, box2_max));
 	}
 	return 1.0 - max(m, car) * shadow_strength;
+}
+
+
+// Lumière des réverbères au sol (0 le jour).
+vec3 lamp_glow(vec3 wp, float ws) {
+	if (night < 0.01) {
+		return vec3(0.0);
+	}
+	float l = texture(night_light_tex, (wp.xz + vec2(ws * 0.5)) / ws).r;
+	return lamp_color * l * l * night * 1.6;
 }

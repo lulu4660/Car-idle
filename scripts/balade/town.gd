@@ -16,6 +16,7 @@ const RANGE := 260.0
 const CITY := "res://assets/props/city/"
 const SUBURB := "res://assets/props/suburb/"
 const NATURE := "res://assets/props/nature/"
+const BUILDING_SHADER = preload("res://shaders/building.gdshader")
 
 const TOWERS := ["building-skyscraper-a", "building-skyscraper-b", "building-skyscraper-c", "building-skyscraper-d", "building-skyscraper-e"]
 const SHOPS := ["building-a", "building-b", "building-c", "building-d", "building-e", "building-f", "building-g", "building-h", "building-i", "building-j", "building-k", "building-l", "building-m", "building-n"]
@@ -200,8 +201,19 @@ func _beach(rng: RandomNumberGenerator) -> void:
 func _prototype(path: String) -> Array:
 	if not _proto.has(path):
 		var root: Node3D = (load(path + ".glb") as PackedScene).instantiate()
-		_proto[path] = MeshMerge.merge(root)
+		var merged: Array = MeshMerge.merge(root)
 		root.free()
+		# Bâtiments et maisons : fenêtres qui s'allument la nuit.
+		if path.contains("/building"):
+			var mesh: ArrayMesh = merged[0]
+			for si in mesh.get_surface_count():
+				var m := mesh.surface_get_material(si) as BaseMaterial3D
+				if m and m.albedo_texture:
+					var sm := ShaderMaterial.new()
+					sm.shader = BUILDING_SHADER
+					sm.set_shader_parameter("albedo_tex", m.albedo_texture)
+					mesh.surface_set_material(si, sm)
+		_proto[path] = merged
 	return _proto[path]
 
 

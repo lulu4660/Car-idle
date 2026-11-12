@@ -31,6 +31,9 @@ const TYRE_WIDTH := 0.28
 var decor: Node3D
 var vegetation: Node3D
 var town: Node3D
+var lighting: Node
+var lamps: Node3D
+var _car_lights: Array = []
 var life: Node3D
 var controls: CanvasLayer
 var camera: Camera3D
@@ -54,6 +57,13 @@ func _ready() -> void:
 	low_quality = force_quality == 0 or (force_quality < 0 and (OS.has_feature("web") or OS.has_feature("mobile")))
 	var sun := WorldBuilder.build_environment(self)
 	_apply_quality(sun)
+	lighting = load("res://scripts/balade/lighting.gd").new()
+	lighting.name = "Lumiere"
+	add_child(lighting)
+	lighting.glow_only_at_night = low_quality
+	for n in get_children():
+		if n is WorldEnvironment:
+			lighting.setup((n as WorldEnvironment).environment, sun, self)
 	terrain = load("res://scripts/balade/terrain.gd").new()
 	terrain.name = "Terrain"
 	add_child(terrain)
@@ -78,6 +88,10 @@ func _ready() -> void:
 	life.name = "Vie"
 	add_child(life)
 	life.build(data, town, null)
+	lamps = load("res://scripts/balade/lamps.gd").new()
+	lamps.name = "Reverberes"
+	add_child(lamps)
+	lamps.build(data, town)
 	WorldBuilder.build_rocks(self, data)
 
 	effects = load("res://scripts/balade/effects.gd").new()
@@ -133,7 +147,7 @@ func _apply_quality(sun: DirectionalLight3D) -> void:
 		RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW)
 		for n in get_children():
 			if n is WorldEnvironment:
-				(n as WorldEnvironment).environment.glow_enabled = false
+				# Halo gardé (version simplifiée sur le web) : il fait briller les lumières de nuit.
 				(n as WorldEnvironment).environment.ssao_enabled = false
 	else:
 		vp.msaa_3d = Viewport.MSAA_2X
@@ -147,6 +161,7 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	camera.target = car
 	if life:
 		life.target = car
+	_add_car_lights()
 	camera.snap()
 	if decor.data == null:
 		decor.low_quality = low_quality
@@ -170,6 +185,14 @@ func _process(delta: float) -> void:
 		return
 	_follow_wake_patch(delta)
 	_update_car_shadow()
+	if controls.night_requested:
+		lighting.set_night(not lighting.is_night())
+		controls.set_label("ci_night", "JOUR" if lighting.is_night() else "NUIT")
+	var glow: float = lighting.glow
+	for l in _car_lights:
+		if is_instance_valid(l):
+			(l as SpotLight3D).light_energy = 9.0 * glow
+			(l as SpotLight3D).visible = glow > 0.02
 	for m in _sea_materials:
 		m.set_shader_parameter("now", Waves.now())
 	_wheel_effects(delta)
@@ -429,6 +452,54 @@ func _follow_wake_patch(delta: float) -> void:
 		m.set_shader_parameter("sim_tex", water_sim.texture())
 
 
+## Phares de la voiture du joueur : deux vrais projecteurs (la nuit seulement) qui éclairent
+## la route devant elle, et des feux qui brillent (blancs devant, rouges derrière).
+func _add_car_lights() -> void:
+	_car_lights.clear()
+	var shape: CollisionShape3D = null
+	for c in car.get_children():
+		if c is CollisionShape3D:
+			shape = c
+			break
+	var c0: Vector3 = shape.position if shape else Vector3(0, 0.9, 0)
+	var h: Vector3 = car.body_half
+	var y: float = car.body_bottom + 0.25
+	add_lamps_to(car, Vector3(c0.x, y, c0.z), h)
+	for side in [-1.0, 1.0]:
+		var spot := SpotLight3D.new()
+		spot.position = Vector3(c0.x + side * h.x * 0.6, y + 0.1, c0.z + h.z + 0.1)
+		spot.rotation = Vector3(deg_to_rad(-12.0), PI, 0.0)
+		spot.spot_range = 42.0
+		spot.spot_angle = 30.0
+		spot.spot_attenuation = 0.8
+		spot.light_color = Color(1.0, 0.92, 0.78)
+		spot.light_energy = 0.0
+		spot.shadow_enabled = false
+		spot.visible = false
+		car.add_child(spot)
+		_car_lights.append(spot)
+
+
+## Feux d'une voiture (joueur ou circulation) : deux blancs à l'avant, deux rouges à l'arrière.
+static func add_lamps_to(node: Node3D, center: Vector3, half: Vector3) -> void:
+	var front := ShaderMaterial.new()
+	front.shader = load("res://shaders/car_light.gdshader")
+	var back := ShaderMaterial.new()
+	back.shader = front.shader
+	back.set_shader_parameter("color", Color(1.0, 0.12, 0.08))
+	back.set_shader_parameter("power", 3.0)
+	var box := BoxMesh.new()
+	box.size = Vector3(0.32, 0.14, 0.06)
+	for side in [-1.0, 1.0]:
+		for f in [1.0, -1.0]:
+			var mi := MeshInstance3D.new()
+			mi.mesh = box
+			mi.material_override = front if f > 0.0 else back
+			mi.position = center + Vector3(side * half.x * 0.62, 0.0, f * (half.z + 0.02))
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			node.add_child(mi)
+
+
 ## Matériaux qui reçoivent les ombres (terrain, pièce des ornières, herbe).
 var _shadow_mats: Array[ShaderMaterial] = []
 var _car_shape: CollisionShape3D
@@ -442,8 +513,12 @@ func _setup_shadows() -> void:
 			_shadow_mats.append(m)
 	if decor.grass_material:
 		_shadow_mats.append(decor.grass_material)
+	var night_tex: Texture2D = load("res://assets/balade/lights.png")
 	for m in _shadow_mats:
 		m.set_shader_parameter("static_shadow_tex", tex)
+		m.set_shader_parameter("night_light_tex", night_tex)
+	lighting.shadow_materials = _shadow_mats
+	lighting._apply(lighting.night)
 
 
 ## Ombre de la voiture : sa position, son orientation et deux boîtes (bas de caisse,
@@ -459,7 +534,7 @@ func _update_car_shadow() -> void:
 				break
 	var xf := car.global_transform
 	var inv := xf.affine_inverse()
-	var sun_l := (xf.basis.inverse() * WorldBuilder.sun_direction()).normalized()
+	var sun_l: Vector3 = (xf.basis.inverse() * lighting.light_direction()).normalized()
 	var c: Vector3 = _car_shape.position if _car_shape else Vector3(0, 0.9, 0)
 	var h: Vector3 = car.body_half
 	var bottom: float = car.body_bottom
