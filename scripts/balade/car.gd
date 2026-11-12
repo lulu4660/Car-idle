@@ -85,12 +85,14 @@ static func model_path(_model: String) -> String:
 ## … et le volant fait pivoter la voiture en travers (on « dessine » la ligne au doigt).
 @export var drift_steer := 0.0
 @export_group("Caisse (visuel)")
-## Roulis exagéré de la caisse (degrés par g d'accélération latérale) : penche dans les virages.
-@export var body_roll := 26.0
-## Tangage (degrés par g) : se cabre à l'accélération, pique du nez au freinage.
-@export var body_pitch := 9.0
-## 0 = amorti, 1 = gélatine : la caisse rebondit et oscille avant de se stabiliser.
-@export_range(0.0, 1.0) var body_wobble := 0.6
+## Roulis de la caisse (degrés par g d'accélération latérale) : penche vers l'extérieur.
+@export var body_roll := 9.0
+## Tangage (degrés par g) : s'assoit à l'accélération, plonge au freinage.
+@export var body_pitch := 6.0
+## Fréquence des ressorts de caisse (Hz) : bas = très tendre, la caisse bouge lentement.
+@export var body_freq := 1.3
+## 0 = bien amortie, 1 = la caisse oscille longtemps avant de se poser.
+@export_range(0.0, 1.0) var body_wobble := 0.55
 
 ## Couple → accélération angulaire : inertie de lacet d'une voiture ≈ 1,9 × sa masse (m²).
 const YAW_INERTIA := 1.9
@@ -102,10 +104,11 @@ var _roll := 0.0
 var _roll_v := 0.0
 var _pitch := 0.0
 var _pitch_v := 0.0
-var _squash := 0.0
-var _squash_v := 0.0
-var _acc := Vector3.ZERO
+var _heave := 0.0
+var _heave_v := 0.0
 var _last_vel := Vector3.ZERO
+var _last_ang := Vector3.ZERO
+var _motion_ready := false
 var wheels: Array[VehicleWheel3D] = []
 var model_name := ""
 
@@ -382,50 +385,55 @@ func _process(delta: float) -> void:
 		_wheel_fix[i] = lerpf(_wheel_fix[i], want, minf(1.0, delta * 20.0))
 		var base: Vector3 = _wheel_base[i] if i < _wheel_base.size() else Vector3.ZERO
 		mesh.position = base + w.global_basis.orthonormalized().inverse() * (up * _wheel_fix[i])
-	_body_motion(delta)
 
 
-## Caisse « cartoon » : roulis et tangage exagérés suivant l'accélération (ressort peu
-## amorti : elle dépasse, oscille et revient), écrasement à la réception d'un saut.
+## Caisse suspendue (visuel) : la caisse dessinée est une masse posée sur des ressorts très
+## tendres au-dessus du châssis physique. Dans le repère du châssis, elle subit l'inverse de
+## ses accélérations (inertie) : en virage elle part vers l'extérieur, au freinage elle
+## plonge, à l'accélération elle s'assoit, sur une bosse le châssis monte et tourne d'un
+## coup et la caisse suit en retard puis oscille. Trois ressorts amortis (roulis, tangage,
+## pompage), intégrés au pas fixe de la physique.
 func _body_motion(delta: float) -> void:
 	if body_node == null or delta <= 0.0:
 		return
-	var inv := global_basis.orthonormalized().inverse()
-	var vel := inv * linear_velocity
-	var raw := (vel - _last_vel) / delta
-	_last_vel = vel
-	# Choc vertical (réception) : la caisse s'écrase puis rebondit.
-	if raw.y > 25.0:
-		_squash_v -= minf(raw.y, 120.0) * 0.012
-	raw.y = 0.0
-	_acc = _acc.lerp(raw.limit_length(30.0), minf(1.0, delta * 5.0))
-	var grounded := false
-	for w in wheels:
-		if w.is_in_contact():
-			grounded = true
+	var b := global_basis.orthonormalized()
+	var inv := b.inverse()
+	# Accélérations du châssis dans le monde (la gravité n'y est pas : au repos, zéro),
+	# puis dans son propre repère.
+	var a_world := (linear_velocity - _last_vel) / delta
+	var w_acc := (angular_velocity - _last_ang) / delta
+	_last_vel = linear_velocity
+	_last_ang = angular_velocity
+	if not _motion_ready:
+		_motion_ready = true
+		return
+	var a := (inv * a_world).limit_length(80.0)
+	var alpha := inv * w_acc
+	alpha = alpha.limit_length(60.0)
 	var g := 9.8
-	# Accélération vers +X (centre du virage à gauche) : le haut part vers -X.
-	# Suit la vraie force sur les pneus (aussi en dérapage : la caisse part vers l'extérieur
-	# de la trajectoire, pas du côté du volant) ; presque rien à basse vitesse.
-	var fast := smoothstep(12.0, 55.0, speed_kmh)
-	var roll_target := clampf(_acc.x / g * body_roll * fast, -18.0, 18.0) if grounded else 0.0
-	var pitch_target := clampf(-_acc.z / g * body_pitch * lerpf(0.35, 1.0, fast), -10.0, 10.0) if grounded else 0.0
-	var stiff := 110.0
-	var damp := lerpf(18.0, 4.5, body_wobble)
-	_roll_v += ((roll_target - _roll) * stiff - _roll_v * damp) * delta
-	_roll += _roll_v * delta
-	_pitch_v += ((pitch_target - _pitch) * stiff - _pitch_v * damp) * delta
-	_pitch += _pitch_v * delta
-	_squash_v += (-_squash * 180.0 - _squash_v * lerpf(16.0, 6.0, body_wobble)) * delta
-	_squash = clampf(_squash + _squash_v * delta, -0.25, 0.2)
-	var basis := Basis.from_euler(Vector3(deg_to_rad(_pitch), 0.0, deg_to_rad(_roll)))
-	basis = basis * Basis.from_scale(Vector3(1.0 - _squash * 0.5, 1.0 + _squash, 1.0 - _squash * 0.5))
-	# Pivot au niveau des essieux.
-	var pivot := Vector3(0.0, body_bottom * 0.8, 0.0)
-	body_node.transform = Transform3D(basis, pivot - basis * pivot)
+	var k := pow(TAU * body_freq, 2.0)
+	var zeta := lerpf(0.7, 0.12, body_wobble)
+	var c := 2.0 * zeta * sqrt(k)
+	# Roulis (autour de l'axe avant, +Z) : accélération vers +X (virage à gauche) -> le haut
+	# de la caisse part vers -X, angle positif. Pente d'équilibre : body_roll degrés par g.
+	var roll_eq := a.x / g * body_roll
+	_roll_v += (k * (roll_eq - _roll) - c * _roll_v - rad_to_deg(alpha.z)) * delta
+	_roll = clampf(_roll + _roll_v * delta, -14.0, 14.0)
+	# Tangage (autour de +X ; positif = nez qui plonge) : accélérer -> nez qui se lève.
+	var pitch_eq := -a.z / g * body_pitch
+	_pitch_v += (k * (pitch_eq - _pitch) - c * _pitch_v - rad_to_deg(alpha.x)) * delta
+	_pitch = clampf(_pitch + _pitch_v * delta, -9.0, 9.0)
+	# Pompage : le châssis monte d'un coup (bosse, réception) -> la caisse s'enfonce.
+	_heave_v += (-k * _heave - c * _heave_v - a.y * 0.6) * delta
+	_heave = clampf(_heave + _heave_v * delta, -0.14, 0.1)
+	var rot := Basis.from_euler(Vector3(deg_to_rad(_pitch), 0.0, deg_to_rad(_roll)))
+	# Pivot : axe de roulis bas, au niveau des moyeux (la caisse bascule au-dessus).
+	var pivot := Vector3(0.0, body_bottom * 0.7, 0.0)
+	body_node.transform = Transform3D(rot, pivot - rot * pivot + Vector3.UP * _heave)
 
 
 func _physics_process(delta: float) -> void:
+	_body_motion(delta)
 	var vel := linear_velocity
 	var fwd := global_basis.z
 	var up := global_basis.y
@@ -654,6 +662,13 @@ func _ground_resistance(delta: float) -> void:
 
 
 func respawn(pos: Vector3, yaw: float) -> void:
+	_motion_ready = false
+	_roll = 0.0
+	_roll_v = 0.0
+	_pitch = 0.0
+	_pitch_v = 0.0
+	_heave = 0.0
+	_heave_v = 0.0
 	var ground: float = world_data.height_at(pos.x, pos.z) if world_data else WL.height(pos.x, pos.z)
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
