@@ -17,8 +17,8 @@ const NAMES: Array[String] = ["Auto", "Clair", "Nuageux", "Pluie", "Orage", "Bro
 const TARGETS := {
 	Kind.CLEAR: [0.08, 0.0, 0.2, 0.0],
 	Kind.CLOUDY: [0.7, 0.0, 0.45, 0.2],
-	Kind.RAIN: [0.85, 0.7, 0.5, 0.6],
-	Kind.STORM: [1.0, 1.0, 0.95, 0.9],
+	Kind.RAIN: [0.85, 0.7, 0.5, 0.3],
+	Kind.STORM: [1.0, 1.0, 0.95, 0.45],
 	Kind.FOG: [0.45, 0.0, 0.05, 1.0],
 }
 ## Tirage du mode automatique (poids).

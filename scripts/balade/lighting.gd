@@ -37,11 +37,11 @@ const DUSK := {
 	"shadow": 0.75, "vignette": 0.36,
 }
 const NIGHT := {
-	"sun_color": Color(0.55, 0.66, 1.0), "sun_energy": 0.32,
-	"ambient": Color(0.20, 0.23, 0.42), "ambient_energy": 0.55,
-	"sky_top": Color(0.01, 0.02, 0.07), "sky_horizon": Color(0.07, 0.08, 0.18),
-	"ground_horizon": Color(0.06, 0.06, 0.12), "ground_bottom": Color(0.03, 0.03, 0.06),
-	"fog": Color(0.06, 0.07, 0.14), "fog_density": 0.0035, "exposure": 1.05,
+	"sun_color": Color(0.62, 0.72, 1.0), "sun_energy": 0.7,
+	"ambient": Color(0.32, 0.36, 0.58), "ambient_energy": 0.95,
+	"sky_top": Color(0.02, 0.03, 0.10), "sky_horizon": Color(0.10, 0.12, 0.24),
+	"ground_horizon": Color(0.08, 0.08, 0.15), "ground_bottom": Color(0.04, 0.04, 0.08),
+	"fog": Color(0.10, 0.12, 0.20), "fog_density": 0.0028, "exposure": 1.35,
 	"glow": 0.7, "glow_bloom": 0.08, "glow_threshold": 0.8, "contrast": 1.12, "saturation": 1.05,
 	"shadow": 0.35, "vignette": 0.5,
 }
@@ -219,7 +219,7 @@ func _apply() -> void:
 		moon.light_energy = NIGHT["sun_energy"] * moon_k
 		moon.look_at_from_position(Vector3.ZERO, -md, Vector3.UP)
 	env.ambient_light_color = (_mix("ambient", dusk, night) as Color).lerp(Color(0.62, 0.64, 0.7) * (1.0 - night * 0.7), cl * 0.5)
-	_base_ambient = _mix("ambient_energy", dusk, night) * (1.0 + 0.2 * cl)
+	_base_ambient = _mix("ambient_energy", dusk, night) * (1.0 + 0.35 * cl)
 	env.ambient_light_energy = _base_ambient
 	sky.sky_top_color = _grey(_mix("sky_top", dusk, night), cl * 0.8)
 	sky.sky_horizon_color = _grey(_mix("sky_horizon", dusk, night), cl * 0.7)
@@ -230,9 +230,12 @@ func _apply() -> void:
 	var fog_grey := Color(0.78, 0.78, 0.8).lerp(Color(0.1, 0.1, 0.13), night)
 	env.fog_enabled = fog_amount > 0.01
 	env.fog_light_color = (_mix("fog", dusk, night) as Color).lerp(fog_grey, clampf(thick * 0.7 + cl * 0.5 + wfog * 0.4, 0.0, 1.0))
-	env.fog_density = _mix("fog_density", dusk, night) * fog_amount * (1.0 + wfog * 3.5 + wrain * 1.2)
+	# Pluie et brouillard épaississent la brume, mais modérément (la caméra est à 30-40 m
+	# de la voiture) et moins la nuit, où une brume sombre ferait un mur noir.
+	env.fog_density = _mix("fog_density", dusk, night) * fog_amount * (1.0 + (wfog * 1.5 + wrain * 0.4) * (1.0 - night * 0.6))
 	env.fog_sky_affect = lerpf(0.35, 1.0, thick)
-	env.tonemap_exposure = _mix("exposure", dusk, night)
+	# Ciel couvert : l'exposition compense en partie (comme l'œil qui s'adapte).
+	env.tonemap_exposure = _mix("exposure", dusk, night) * (1.0 + 0.15 * cl)
 	env.glow_enabled = not no_glow
 	env.glow_intensity = _mix("glow", dusk, night)
 	env.glow_bloom = _mix("glow_bloom", dusk, night)
@@ -251,7 +254,7 @@ func _apply() -> void:
 		_vignette.modulate.a = _mix("vignette", dusk, night)
 	# Couleur du ciel reflétée par les flaques.
 	for m in shadow_materials:
-		(m as ShaderMaterial).set_shader_parameter("sky_reflect", sky.sky_horizon_color.lerp(sky.sky_top_color, 0.4) * 0.7)
+		(m as ShaderMaterial).set_shader_parameter("sky_reflect", sky.sky_horizon_color.lerp(sky.sky_top_color, 0.4) * 0.7 * (1.0 - 0.55 * cl))
 
 
 ## Couleur grisée (ciel couvert) : vers sa luminance, un peu assombrie.

@@ -37,5 +37,5 @@ void fragment() {
 	float edge = 1.0 - abs(UV.x * 2.0 - 1.0);
 	vec3 col = mix(vec3(0.82, 0.85, 0.9), vec3(0.45, 0.5, 0.62), night);
 	ALBEDO = col;
-	ALPHA = 0.28 * edge * alpha_k * (0.6 + 0.4 * UV.y);
+	ALPHA = 0.2 * edge * alpha_k * (0.6 + 0.4 * UV.y);
 }
