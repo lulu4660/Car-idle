@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.9.2"
+const VERSION := "0.9.3"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -163,6 +163,11 @@ func _ready() -> void:
 	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
 	settings.apply_graphics(self)
 	settings.apply_controls(controls)
+	controls.set_drift_indicator(settings.mode == 0)
+	# Vue principale : le drone (vue 2).
+	camera.mode = 1
+	if force_quality < 0:
+		_start_warmup()
 
 
 ## Réglages selon l'appareil. iPhone et web : pleine résolution, pas de MSAA (FXAA à la place), ombres sur 90 m
@@ -220,8 +225,21 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 func _process(delta: float) -> void:
 	if car == null:
 		return
+	if _warm > 0:
+		_warm -= 1
+		if _warm == 0:
+			_end_warmup()
+		return
 	if menu.visible == controls.visible:
 		controls.set_enabled(not menu.visible)
+	# Bouton Drift (façon ESP) : bascule entre Drift et Grip, la voiture est refaite sur place.
+	if controls.mode_requested:
+		settings.mode = 1 - settings.mode
+		settings.save_file()
+		controls.set_drift_indicator(settings.mode == 0)
+		audio.shot("click")
+		rebuild_car()
+		return
 	if controls.settings_requested:
 		audio.shot("click")
 		menu.open()
@@ -673,6 +691,70 @@ func _dynamic_resolution(delta: float) -> void:
 	var want := dynres_base * _dyn_scale
 	if absf(vp.scaling_3d_scale - want) > 0.001:
 		vp.scaling_3d_scale = want
+
+
+## Préchauffage : sur la version web, un objet qui apparaît pour la première fois oblige le
+## navigateur à compiler son shader, ce qui fige le jeu un instant (immeubles, eau,
+## piétons…). Au démarrage, derrière un écran « Chargement », on affiche une fois tout le
+## décor (distances d'affichage levées, caméra très haut au-dessus de la carte) : tout est
+## compilé avant de rouler.
+var _warm := 0
+var _warm_saved: Array = []
+var _loading: CanvasLayer
+
+
+func _start_warmup() -> void:
+	_loading = CanvasLayer.new()
+	_loading.layer = 100
+	var bg := ColorRect.new()
+	bg.color = Color(0.07, 0.065, 0.07)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_loading.add_child(bg)
+	var lbl := Label.new()
+	lbl.text = "CHARGEMENT"
+	lbl.add_theme_font_override("font", load("res://assets/fonts/RussoOne-Regular.ttf"))
+	var u := minf(get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y)
+	lbl.add_theme_font_size_override("font_size", int(u * 0.06))
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.52, 0.12))
+	lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_loading.add_child(lbl)
+	add_child(_loading)
+	_warm_saved.clear()
+	for n in find_children("*", "GeometryInstance3D", true, false):
+		var gi := n as GeometryInstance3D
+		if gi.visibility_range_end > 0.0 or gi.visibility_range_begin > 0.0:
+			_warm_saved.append([gi, gi.visibility_range_begin, gi.visibility_range_end])
+			gi.visibility_range_begin = 0.0
+			gi.visibility_range_end = 0.0
+	_wake_patch.visible = true
+	for vp in water_sim._vp:
+		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	camera.set_process(false)
+	camera.set_physics_process(false)
+	camera.far = 4000.0
+	camera.global_transform = Transform3D(Basis.from_euler(Vector3(-PI / 2.0, 0.0, 0.0)), Vector3(0.0, 950.0, 0.0))
+	_warm = 4
+
+
+func _end_warmup() -> void:
+	for e in _warm_saved:
+		var gi: GeometryInstance3D = e[0]
+		if is_instance_valid(gi):
+			gi.visibility_range_begin = e[1]
+			gi.visibility_range_end = e[2]
+	_warm_saved.clear()
+	_wake_patch.visible = false
+	camera.far = 3000.0
+	camera.set_process(true)
+	camera.set_physics_process(true)
+	camera.snap()
+	# L'écran de chargement s'efface en douceur.
+	var tw := create_tween()
+	for c in _loading.get_children():
+		tw.parallel().tween_property(c, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(_loading.queue_free)
 
 
 func car_display_name() -> String:

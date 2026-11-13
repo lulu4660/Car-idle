@@ -288,6 +288,7 @@ func _fill_car(u: float) -> void:
 
 func _choose_mode(i: int) -> void:
 	settings.mode = i
+	game.controls.set_drift_indicator(i == 0)
 	game.rebuild_car()
 	_save_timer = 0.1
 	# La voiture est refaite à l'image suivante : on remplit l'onglet ensuite.

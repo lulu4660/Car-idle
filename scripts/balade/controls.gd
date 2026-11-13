@@ -37,6 +37,7 @@ var next_car_requested := false
 var camera_requested := false
 var night_requested := false
 var settings_requested := false
+var mode_requested := false
 
 var _steer_smooth := 0.0
 
@@ -51,6 +52,8 @@ const BUTTONS := [
 	["ci_drift", "DÉRAPAGE", Vector2(1, 1), Rect2(0.035, 0.29, 0.19, 0.095)],
 	["ci_reset", "REPLACER", Vector2(0, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
 	["ci_night", "NUIT", Vector2(0, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
+	# Petit bouton façon « ESP » : allume ou coupe le mode Drift (icône dessinée).
+	["ci_mode", "", Vector2(0, 0), Rect2(0.025, 0.189, 0.09, 0.072)],
 	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
 	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
 	["ci_settings", "RÉGLAGES", Vector2(1, 0), Rect2(0.025, 0.189, 0.2, 0.072)],
@@ -67,6 +70,7 @@ const KEYS := {
 	"ci_car": [KEY_C],
 	"ci_night": [KEY_N],
 	"ci_settings": [KEY_ESCAPE, KEY_P],
+	"ci_mode": [KEY_G],
 }
 
 var _buttons: Array[TouchScreenButton] = []
@@ -130,6 +134,9 @@ func _layout() -> void:
 		t.shape = hit
 		t.shape_centered = true
 		t.shape_visible = false
+		if t.action == "ci_mode":
+			_mode_textures(t, Vector2i(bs))
+			continue
 		t.texture_normal = _box(Vector2i(bs), Color(0.07, 0.065, 0.07, 0.42), arrow)
 		t.texture_pressed = _box(Vector2i(bs), Color(1.0, 0.52, 0.12, 0.85), arrow)
 		var lbl := t.get_child(0) as Label
@@ -235,6 +242,7 @@ func _process(delta: float) -> void:
 	camera_requested = Input.is_action_just_pressed("ci_camera")
 	night_requested = Input.is_action_just_pressed("ci_night")
 	settings_requested = Input.is_action_just_pressed("ci_settings")
+	mode_requested = Input.is_action_just_pressed("ci_mode")
 
 
 ## Masque ou montre les boutons (écran des réglages) ; relâche tout ce qui était appuyé.
@@ -268,6 +276,61 @@ func _animate(delta: float) -> void:
 		t.scale = Vector2(sc, sc)
 		var bs: Vector2 = t.get_meta("size")
 		t.position = (t.get_meta("base") as Vector2) + bs * (1.0 - sc) * 0.5
+
+
+## Bouton Drift : allumé (orange) quand le mode Drift est actif, éteint sinon ; l'icône
+## (voiture et traces de glisse) reste lisible dans les deux états.
+var drift_on := true
+
+
+func set_drift_indicator(on: bool) -> void:
+	drift_on = on
+	for t in _buttons:
+		if t.action == "ci_mode" and t.has_meta("size"):
+			_mode_textures(t, Vector2i(t.get_meta("size")))
+
+
+func _mode_textures(t: TouchScreenButton, bs: Vector2i) -> void:
+	var off := Color(0.07, 0.065, 0.07, 0.42)
+	var lit := Color(1.0, 0.52, 0.12, 0.85)
+	t.texture_normal = _icon(bs, lit if drift_on else off, drift_on)
+	t.texture_pressed = _icon(bs, off if drift_on else lit, not drift_on)
+	(t.get_child(0) as Label).text = ""
+
+
+## Icône : petite voiture vue de dessus, en biais, avec deux traces en S derrière elle.
+func _icon(s: Vector2i, c: Color, lit: bool) -> ImageTexture:
+	var img := _box(s, c).get_image()
+	var ink := Color(0.08, 0.06, 0.05, 0.95) if lit else Color(0.96, 0.93, 0.88, 0.9)
+	var w := float(s.x)
+	var h := float(s.y)
+	var cx := w * 0.5
+	var cy := h * 0.4
+	var ang := -0.5
+	var ca := cos(ang)
+	var sa := sin(ang)
+	var hw := w * 0.13
+	var hl := h * 0.22
+	for y in s.y:
+		for x in s.x:
+			var dx := x + 0.5 - cx
+			var dy := y + 0.5 - cy
+			var u := dx * ca + dy * sa
+			var v := -dx * sa + dy * ca
+			if absf(u) < hw and absf(v) < hl:
+				img.set_pixel(x, y, ink)
+	# Traces en S derrière la voiture.
+	for k in [-1.0, 1.0]:
+		for i in 60:
+			var t2 := i / 59.0
+			var px: float = cx + k * w * 0.12 + sin(t2 * PI * 2.0) * w * 0.07 - w * 0.04
+			var py := cy + hl * 0.9 + t2 * h * 0.28
+			for d in 2:
+				var xx := int(px) + d
+				var yy := int(py)
+				if xx >= 0 and xx < s.x and yy >= 0 and yy < s.y:
+					img.set_pixel(xx, yy, ink)
+	return ImageTexture.create_from_image(img)
 
 
 ## Change le texte d'un bouton (ex. NUIT / JOUR).
