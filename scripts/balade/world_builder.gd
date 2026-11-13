@@ -285,18 +285,45 @@ static func build_city(parent: Node) -> void:
 
 ## Rochers dans la terre et au pied des dunes ; les gros arrêtent la voiture.
 static func build_rocks(parent: Node, data: RefCounted) -> void:
-	var meshes: Array[ArrayMesh] = []
-	for i in 4:
-		meshes.append(_rock_mesh(500 + i))
+	var r := rock_placements(data)
+	var meshes: Array = r[0]
+	var placed: Array = r[1]
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.66, 0.55, 0.46)
 	mat.roughness = 0.9
+	var body := StaticBody3D.new()
+	body.name = "Rochers"
+	# Collision pour les rochers assez gros (même choix qu'avant le partage du placement).
+	for big in r[2]:
+		var cs := CollisionShape3D.new()
+		cs.shape = (meshes[big[0]] as ArrayMesh).create_convex_shape()
+		cs.transform = big[1]
+		body.add_child(cs)
+	parent.add_child(body)
+	for k in meshes.size():
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = meshes[k]
+		mm.instance_count = placed[k].size()
+		for n in placed[k].size():
+			mm.set_instance_transform(n, placed[k][n])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		parent.add_child(mmi)
+
+
+## Places des grands rochers : [maillages, positions par maillage, gros rochers à collision]. Partagé avec le calcul
+## des ombres (tools/bake_shadows.gd).
+static func rock_placements(data: RefCounted) -> Array:
+	var meshes: Array[ArrayMesh] = []
+	for i in 4:
+		meshes.append(_rock_mesh(500 + i))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var half := WL.SIZE / 2.0 - 20.0
 	var placed: Array = [[], [], [], []]
-	var body := StaticBody3D.new()
-	body.name = "Rochers"
+	var big: Array = []
 	for attempt in 4000:
 		if placed[0].size() + placed[1].size() + placed[2].size() + placed[3].size() >= 320:
 			break
@@ -317,22 +344,8 @@ static func build_rocks(parent: Node, data: RefCounted) -> void:
 		var k := rng.randi() % meshes.size()
 		placed[k].append(xf)
 		if scale > 1.1:
-			var cs := CollisionShape3D.new()
-			cs.shape = meshes[k].create_convex_shape()
-			cs.transform = xf
-			body.add_child(cs)
-	parent.add_child(body)
-	for k in meshes.size():
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = meshes[k]
-		mm.instance_count = placed[k].size()
-		for n in placed[k].size():
-			mm.set_instance_transform(n, placed[k][n])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.material_override = mat
-		parent.add_child(mmi)
+			big.append([k, xf])
+	return [meshes, placed, big]
 
 
 ## Rocher : sphère grossière déformée par du bruit, aplatie à la base, à facettes.

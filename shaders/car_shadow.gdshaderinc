@@ -29,7 +29,9 @@ float box_through(vec3 p, vec3 l, vec3 bmin, vec3 bmax) {
 
 // 1 = plein soleil, 0 = ombre complète.
 float sun_visibility(vec3 wp, float ws) {
-	float m = texture(static_shadow_tex, (wp.xz + vec2(ws * 0.5)) / ws).r;
+	// Carte d'ombres à 50 cm par pixel : la valeur interpolée est resserrée en un contour
+	// net mais lisse (pas d'escalier, pas de flou), comme une ombre de soleil.
+	float m = smoothstep(0.18, 0.62, texture(static_shadow_tex, (wp.xz + vec2(ws * 0.5)) / ws).r);
 	float car = 0.0;
 	if (distance(wp, car_pos) < 22.0) {
 		vec3 p = (car_inv * vec4(wp, 1.0)).xyz;

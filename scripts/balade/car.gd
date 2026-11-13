@@ -132,6 +132,7 @@ var _motion_ready := false
 var _acc_f := Vector3.ZERO
 var _gas_s := 0.0
 var _steer_hold := 0.0
+var _intent_mem := 0.0
 var _brake_s := 0.0
 var _last_fwd := 0.0
 var _a_long_f := 0.0
@@ -544,7 +545,11 @@ func _physics_process(delta: float) -> void:
 		_steer_hold += delta
 	else:
 		_steer_hold = maxf(0.0, _steer_hold - delta * 3.0)
-	var intent := clampf(smoothstep(0.2, 0.55, _steer_hold) + drifting * 1.5 + (1.0 if handbrake else 0.0), 0.0, 1.0)
+	var intent_now := clampf(smoothstep(0.12, 0.35, _steer_hold) + drifting * 1.5 + (1.0 if handbrake else 0.0), 0.0, 1.0)
+	# L'intention dure un peu après une glisse : la bascule d'un côté à l'autre (le volant
+	# repasse par le centre) n'est pas prise pour une simple correction.
+	_intent_mem = maxf(intent_now, _intent_mem - delta * 0.8)
+	var intent := _intent_mem
 	var power_oversteer := drift * rear_share * maxf(drive_in, 0.0) * clampf((kmh - 20.0) / 30.0, 0.0, 1.0) * intent
 
 	var grounded := 0
@@ -614,8 +619,10 @@ func _physics_process(delta: float) -> void:
 		var want_yaw := forward_speed * tan(deg_to_rad(steer_deg)) / wheelbase
 		var yaw_now := angular_velocity.dot(up)
 		var esp := stability * (1.0 - intent) * clampf((kmh - 10.0) / 20.0, 0.0, 1.0)
-		if esp > 0.0:
-			apply_torque(-up * (yaw_now - want_yaw) * esp * 5.0 * mass * YAW_INERTIA)
+		# Seulement contre une rotation en trop (survirage), jamais contre un virage voulu.
+		var yaw_extra := yaw_now - want_yaw
+		if esp > 0.0 and absf(yaw_now) > absf(want_yaw) and signf(yaw_extra) == signf(yaw_now):
+			apply_torque(-up * yaw_extra * esp * 5.0 * mass * YAW_INERTIA)
 		# Dérapage : frein à main ou gaz en propulsion font pivoter la voiture.
 		var kick := (1.0 if handbrake else 0.0) + power_oversteer * 0.6
 		if kick > 0.0 and kmh > 15.0:
