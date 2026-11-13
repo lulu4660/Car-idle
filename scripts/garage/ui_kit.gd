@@ -3,18 +3,19 @@
 ## Tout est dessiné à la taille de l'écran (net sur tous les téléphones), sans image.
 extends RefCounted
 
-const CHARCOAL := Color(0.075, 0.068, 0.07)
-const PANEL := Color(0.085, 0.078, 0.08, 0.94)
-const TILE := Color(0.13, 0.118, 0.118)
-const TILE_HI := Color(0.17, 0.15, 0.145)
-const INK := Color(0.97, 0.94, 0.89)
-const DIM := Color(0.97, 0.94, 0.89, 0.5)
-const FAINT := Color(0.97, 0.94, 0.89, 0.12)
-const GOLD := Color(1.0, 0.78, 0.26)
-const ORANGE := Color(1.0, 0.5, 0.1)
-const ORANGE_DEEP := Color(0.86, 0.3, 0.04)
-const RED := Color(0.95, 0.2, 0.12)
-const DARK_TEXT := Color(0.1, 0.06, 0.03)
+# Style cartoon (diorama) : brun chaud foncé, crème, orange et or francs.
+const CHARCOAL := Color(0.14, 0.1, 0.09)
+const PANEL := Color(0.17, 0.12, 0.11, 0.97)
+const TILE := Color(0.26, 0.19, 0.17)
+const TILE_HI := Color(0.36, 0.26, 0.2)
+const INK := Color(1.0, 0.96, 0.88)
+const DIM := Color(1.0, 0.94, 0.84, 0.6)
+const FAINT := Color(1.0, 0.94, 0.84, 0.14)
+const GOLD := Color(1.0, 0.82, 0.22)
+const ORANGE := Color(1.0, 0.58, 0.12)
+const ORANGE_DEEP := Color(0.85, 0.34, 0.05)
+const RED := Color(0.95, 0.24, 0.14)
+const DARK_TEXT := Color(0.3, 0.13, 0.03)
 const RARITY: Array[Color] = [Color(0.75, 0.74, 0.72), Color(0.45, 0.88, 0.42), Color(0.36, 0.72, 1.0), Color(0.78, 0.48, 1.0), Color(1.0, 0.74, 0.22), Color(1.0, 0.32, 0.26)]
 const PART_ICONS: Array[String] = ["admission", "exhaust", "tire", "chip", "turbo", "gearbox", "weight", "clutch", "wing", "nitro"]
 
@@ -27,14 +28,32 @@ static func cut_rect(r: Rect2, cut: float) -> PackedVector2Array:
 		r.end - Vector2(c, 0), Vector2(r.position.x, r.end.y), r.position + Vector2(0, c)])
 
 
+## Bloc arrondi « épais » : un rebord plus sombre dessous, comme un bouton qu'on peut
+## enfoncer (style des jeux mobiles cartoon). `cut` = rayon des coins.
 static func fill_cut(ci: CanvasItem, r: Rect2, cut: float, col: Color) -> void:
-	ci.draw_colored_polygon(cut_rect(r, cut), col)
+	var rad := int(minf(cut * 1.3, minf(r.size.x, r.size.y) * 0.5))
+	var lip := maxf(2.0, minf(r.size.y * 0.08, cut * 0.7))
+	if col.a > 0.5:
+		var under := StyleBoxFlat.new()
+		under.bg_color = Color(col.r * 0.55, col.g * 0.5, col.b * 0.5, col.a)
+		under.set_corner_radius_all(rad)
+		under.anti_aliasing_size = 1.0
+		ci.draw_style_box(under, r)
+		r = Rect2(r.position, Vector2(r.size.x, r.size.y - lip))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.set_corner_radius_all(rad)
+	sb.anti_aliasing_size = 1.0
+	ci.draw_style_box(sb, r)
 
 
 static func stroke_cut(ci: CanvasItem, r: Rect2, cut: float, col: Color, w: float) -> void:
-	var p := cut_rect(r, cut)
-	p.append(p[0])
-	ci.draw_polyline(p, col, w, true)
+	var sb := StyleBoxFlat.new()
+	sb.draw_center = false
+	sb.border_color = col
+	sb.set_border_width_all(int(maxf(1.0, w)))
+	sb.set_corner_radius_all(int(minf(cut * 1.3, minf(r.size.x, r.size.y) * 0.5)))
+	ci.draw_style_box(sb, r)
 
 
 ## Rectangle aux bouts arrondis (pastilles, barres).

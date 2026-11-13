@@ -76,7 +76,7 @@ func _ready() -> void:
 	game = get_node("/root/Game")
 	# Les boutons de l'interface se touchent du doigt (la balade lit les doigts elle-même).
 	Input.emulate_mouse_from_touch = true
-	_big = load("res://assets/fonts/RussoOne-Regular.ttf")
+	_big = load("res://assets/fonts/LilitaOne-Regular.ttf")
 	_text = load("res://assets/fonts/Rajdhani-Bold.ttf")
 	_build()
 	game.changed.connect(_refresh)
@@ -110,19 +110,20 @@ func _build() -> void:
 	var drawer: Rect2
 	var nav: Rect2
 	if _portrait:
-		var top := _size.y * 0.54
+		var top := _size.y * 0.5
 		nav = Rect2(pad, _size.y - pad - nav_h, _size.x - pad * 2.0, nav_h)
 		drawer = Rect2(pad * 0.5, top, _size.x - pad, nav.position.y - pad * 0.6 - top)
-		_title_rect = Rect2(pad, top - _k * 0.27, _size.x - pad * 2.0, _k * 0.25)
 		_top_rect = Rect2(pad, pad, _size.x - pad * 2.0, _k * 0.2)
 		garage.cover_bottom = 1.0 - top / _size.y
+		garage.cover_top = (_k * 0.17 + pad) / _size.y
 	else:
 		var x0 := _size.x * 0.6
 		nav = Rect2(x0, _size.y - pad - nav_h, _size.x - x0 - pad, nav_h)
 		drawer = Rect2(x0, pad, _size.x - x0 - pad, nav.position.y - pad * 1.6)
-		_title_rect = Rect2(pad * 1.5, _size.y - pad - _k * 0.27, x0 - pad * 3.0, _k * 0.25)
 		_top_rect = Rect2(pad * 1.5, pad, x0 - pad * 3.0, _k * 0.2)
 		garage.cover_right = 1.0 - x0 / _size.x
+	# Titre de la voiture : en haut de la fiche (le diorama reste dégagé).
+	_title_rect = Rect2(drawer.position + Vector2(_k * 0.03, _k * 0.02), Vector2(drawer.size.x - _k * 0.06, _k * 0.2))
 	garage._place_camera()
 	# Couche dessinée sous les boutons : en-tête, titre de la voiture, fond de la fiche.
 	_hud = Control.new()
@@ -153,18 +154,17 @@ func _build_title_arrows() -> void:
 	var y := _title_rect.position.y + _title_rect.size.y * 0.5 - s / 2.0
 	for d in [-1, 1]:
 		var x := _title_rect.position.x if d < 0 else _title_rect.end.x - s
-		if not _portrait and d > 0:
-			x = _title_rect.position.x + _k * 0.15 + _k * 0.62
 		var b := _btn(_root, Rect2(x, y, s, s), func(c: Control):
-			c.draw_circle(c.size / 2.0, c.size.x * 0.48, Color(0, 0, 0, 0.45))
-			c.draw_arc(c.size / 2.0, c.size.x * 0.46, 0, TAU, 32, Color(1, 1, 1, 0.18), maxf(1.0, _k * 0.004), true)
-			K.icon(c, "chevron_left" if d < 0 else "chevron_right", c.size / 2.0, c.size.x * 0.32, K.INK))
+			K.fill_cut(c, Rect2(Vector2.ZERO, c.size), c.size.x * 0.4, K.TILE_HI)
+			K.icon(c, "chevron_left" if d < 0 else "chevron_right", c.size / 2.0 - Vector2(0, c.size.y * 0.04), c.size.x * 0.3, K.INK))
 		b.pressed.connect(_cycle.bind(d))
 
 
 func _build_drawer(r: Rect2) -> void:
 	var pad := _k * 0.03
-	# En-tête de la fiche : titre et choix ×1 / ×10 / MAX.
+	# Sous le titre de la voiture : AMÉLIORATIONS et le choix ×1 / ×10 / MAX.
+	var title_h := _k * 0.23
+	r = Rect2(r.position + Vector2(0, title_h), r.size - Vector2(0, title_h))
 	var seg_w := _k * 0.115
 	var seg_h := _k * 0.07
 	for i in MULTS.size():
@@ -246,39 +246,29 @@ func _draw_hud(drawer: Rect2) -> void:
 		stage += "   ·   %d EN RÉSERVE" % reserve
 	if not _portrait:
 		K.text(c, _text, _fs(0.03), stage, Vector2(x0, pr.end.y + _k * 0.045), K.DIM, -1, _k * 0.006)
-	# Voile sombre derrière le titre de la voiture (lisible sur le décor).
-	var vy := _title_rect.position.y - _k * 0.06
-	var vb := drawer.position.y if _portrait else _size.y
-	var vx0 := 0.0
-	var vx1 := _size.x if _portrait else drawer.position.x
-	c.draw_polygon(PackedVector2Array([Vector2(vx0, vy), Vector2(vx1, vy), Vector2(vx1, vb), Vector2(vx0, vb)]), PackedColorArray([Color(0, 0, 0, 0), Color(0, 0, 0, 0), Color(0, 0, 0, 0.6), Color(0, 0, 0, 0.6)]))
-	# --- Titre de la voiture.
+	# --- Fond de la fiche, puis le titre de la voiture dedans.
+	K.fill_cut(c, drawer, _k * 0.05, K.PANEL)
 	var car: Dictionary = game.get_car(game.selected)
 	if not car.is_empty():
 		var model := Catalog.get_car(String(car["model"]))
 		var rarity := int(model["rarity"])
 		var rc := K.RARITY[rarity]
 		var mid := _title_rect.position.x + _title_rect.size.x / 2.0
-		var align := 0 if _portrait else -1
-		# Paysage : le titre commence après la flèche de gauche.
-		var tx := mid if _portrait else _title_rect.position.x + _k * 0.15
 		var ty := _title_rect.position.y
-		var rname := Economy.RARITY_NAMES[rarity].to_upper()
+		var line1 := "%s  ·  %s" % [Economy.RARITY_NAMES[rarity].to_upper(), String(model["brand"]).to_upper()]
 		var rfs := _fs(0.03)
-		var rw := _text.get_string_size(rname, HORIZONTAL_ALIGNMENT_LEFT, -1, rfs).x
-		var marks_w := (rarity + 1) * _k * 0.022 * 1.25
-		var rx := (mid - (rw + marks_w + _k * 0.02) / 2.0) if _portrait else tx
-		K.rarity_marks(c, Vector2(rx + _k * 0.011, ty + _k * 0.03), _k * 0.022, rarity, rc)
-		K.text(c, _text, rfs, rname, Vector2(rx + marks_w + _k * 0.02, ty + _k * 0.03 + rfs * 0.36), rc, -1, _k * 0.006)
-		K.text(c, _text, _fs(0.034), String(model["brand"]).to_upper(), Vector2(tx, ty + _k * 0.1), K.DIM, align, _k * 0.006)
-		K.text(c, _big, _fs(0.062), String(model["name"]).to_upper(), Vector2(tx, ty + _k * 0.165), K.INK, align, _k * 0.012)
+		var lw := _text.get_string_size(line1, HORIZONTAL_ALIGNMENT_LEFT, -1, rfs).x
+		var marks_w := (rarity + 1) * _k * 0.02 * 1.25
+		var rx := mid - (lw + marks_w + _k * 0.015) / 2.0
+		K.rarity_marks(c, Vector2(rx + _k * 0.01, ty + _k * 0.035), _k * 0.02, rarity, rc)
+		K.text(c, _text, rfs, line1, Vector2(rx + marks_w + _k * 0.015, ty + _k * 0.035 + rfs * 0.36), rc)
+		K.text(c, _big, _fs(0.066), String(model["name"]).to_upper(), Vector2(mid, ty + _k * 0.125), K.INK, 0, _k * 0.01)
 		var parked: bool = game.is_parked(int(car["uid"]))
 		var info := ("+%s /s" % Economy.format_number(game.car_income(car))) if parked else "EN RÉSERVE  ·  NE RAPPORTE RIEN"
-		K.text(c, _text, _fs(0.034), info, Vector2(tx, ty + _k * 0.22), K.GOLD if parked else K.DIM, align, _k * 0.006)
-	# --- Fond de la fiche.
-	K.fill_cut(c, drawer, _k * 0.04, K.PANEL)
-	c.draw_line(drawer.position + Vector2(_k * 0.04, 0), Vector2(drawer.end.x, drawer.position.y), K.ORANGE, maxf(2.0, _k * 0.005))
-	K.text(c, _big, _fs(0.036), "AMÉLIORATIONS", drawer.position + Vector2(_k * 0.035, _k * 0.03 + _k * 0.048), K.ORANGE)
+		K.text(c, _big, _fs(0.036), info, Vector2(mid, ty + _k * 0.18), K.GOLD if parked else K.DIM, 0)
+	var sep_y := drawer.position.y + _k * 0.23
+	c.draw_line(Vector2(drawer.position.x + _k * 0.04, sep_y), Vector2(drawer.end.x - _k * 0.04, sep_y), K.FAINT, maxf(1.0, _k * 0.004))
+	K.text(c, _big, _fs(0.04), "AMÉLIORATIONS", Vector2(drawer.position.x + _k * 0.035, sep_y + _k * 0.03 + _k * 0.05), K.ORANGE)
 
 
 func _draw_mult(c: Control, i: int) -> void:
