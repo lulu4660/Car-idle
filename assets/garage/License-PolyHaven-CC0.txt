@@ -1,0 +1,7 @@
+Textures du garage : Poly Haven (https://polyhaven.com), licence CC0 (domaine public).
+
+- concrete_floor_worn_001_* : « Concrete Floor Worn 001 » (sol)
+- dark_brick_wall_* : « Dark Brick Wall » (murs)
+- corrugated_iron_02_* : « Corrugated Iron 02 » (rideau métallique)
+
+Fichiers 1K d'origine (couleur, normales OpenGL, rugosité), non modifiés.
