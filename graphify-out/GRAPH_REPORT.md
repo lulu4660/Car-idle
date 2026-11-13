@@ -1,18 +1,18 @@
-# Graph Report - car-idle  (2026-11-11)
+# Graph Report - car-idle  (2026-11-13)
 
 ## Corpus Check
-- 5 files · ~3,159 words
+- 6 files · ~7,208 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 84 file(s) not represented in the graph (top: .uid 40, .gd 29, .gdshader 8)
-- WARNING: 84 of 90 files seen (93%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
+- Unclassified: 123 file(s) not represented in the graph (top: .uid 58, .gd 37, .gdshader 16)
+- WARNING: 123 of 130 files seen (95%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
 
 ## Summary
-- 137 nodes · 73 edges · 70 communities (8 shown, 62 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
+- 170 nodes · 167 edges · 68 communities (6 shown, 62 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.95)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1043eeb3`
+- Built from commit: `4210cb43`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,59 +21,50 @@
 - steps
 - web.yml
 - tests
-- steps
-- deploy
-- export
+- make_audio.py
 - Car Idle
 - web_check.js
 
 ## God Nodes (most connected - your core abstractions)
-1. `Car Idle` - 9 edges
-2. `Car Idle` - 7 edges
-3. `steps` - 7 edges
-4. `steps` - 7 edges
-5. `deploy` - 5 edges
-6. `export` - 4 edges
-7. `with` - 4 edges
-8. `permissions` - 4 edges
-9. `tests` - 4 edges
-10. `environment` - 3 edges
+1. `main()` - 14 edges
+2. `save()` - 13 edges
+3. `band()` - 12 edges
+4. `noise_loop()` - 10 edges
+5. `Car Idle` - 9 edges
+6. `engine()` - 8 edges
+7. `skid()` - 8 edges
+8. `sea()` - 8 edges
+9. `water()` - 8 edges
+10. `gravel()` - 7 edges
 
 ## Surprising Connections (you probably didn't know these)
-- None detected - all connections are within the same source files.
+- `Code` --references--> `sea()`  [INFERRED]
+  CLAUDE.md → tools/make_audio.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (70 total, 62 thin omitted)
+## Communities (68 total, 62 thin omitted)
 
 ### Community 1 - "Car Idle"
-Cohesion: 0.20
-Nodes (9): Agents (.claude/agents/), Car Idle, Code, graphify, Roadmap (GDD), Règles non négociables, Skills (.claude/skills/), Stack (+1 more)
+Cohesion: 0.17
+Nodes (10): Agents (.claude/agents/), Car Idle, Code, graphify, Roadmap (GDD), Règles non négociables, Skills (.claude/skills/), Stack (+2 more)
 
 ### Community 2 - "steps"
-Cohesion: 0.20
-Nodes (11): steps, steps, id, if, name, run, uses, with (+3 more)
+Cohesion: 0.09
+Nodes (23): environment, needs, runs-on, steps, GODOT_TPL, GODOT_VERSION, name, url (+15 more)
 
 ### Community 6 - "web.yml"
 Cohesion: 0.15
 Nodes (12): concurrency, cancel-in-progress, group, name, on, push, workflow_dispatch, permissions (+4 more)
 
 ### Community 8 - "tests"
-Cohesion: 0.20
-Nodes (9): GODOT_VERSION, jobs, tests, name, on, pull_request, push, env (+1 more)
+Cohesion: 0.11
+Nodes (18): GODOT_VERSION, jobs, tests, name, on, pull_request, push, id (+10 more)
 
-### Community 9 - "steps"
-Cohesion: 0.22
-Nodes (9): id, if, name, run, uses, with, steps, key (+1 more)
-
-### Community 11 - "deploy"
-Cohesion: 0.33
-Nodes (6): environment, needs, runs-on, name, url, deploy
-
-### Community 12 - "export"
-Cohesion: 0.33
-Nodes (6): GODOT_TPL, GODOT_VERSION, env, runs-on, jobs, export
+### Community 9 - "make_audio.py"
+Cohesion: 0.18
+Nodes (16): band(), bp_noise(), crickets(), engine(), gravel(), main(), noise_loop(), periodic_lfo() (+8 more)
 
 ### Community 13 - "Car Idle"
 Cohesion: 0.25
@@ -85,9 +76,11 @@ Nodes (7): Car Idle, Jouer sur iPhone, La balade, Monde précalculé, Outils de 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `jobs` connect `export` to `deploy`, `web.yml`?**
-  _High betweenness centrality (0.036) - this node is a cross-community bridge._
-- **Why does `export` connect `export` to `steps`?**
-  _High betweenness centrality (0.029) - this node is a cross-community bridge._
-- **Why does `steps` connect `steps` to `export`?**
-  _High betweenness centrality (0.026) - this node is a cross-community bridge._
+- **Why does `sea()` connect `Car Idle` to `make_audio.py`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Should `steps` be split into smaller, more focused modules?**
+  _Cohesion score 0.09486166007905138 - nodes in this community are weakly interconnected._
+- **Why does `jobs` connect `steps` to `web.yml`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+- **Should `tests` be split into smaller, more focused modules?**
+  _Cohesion score 0.10526315789473684 - nodes in this community are weakly interconnected._

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c8o6uohdr2tb7"
-path="res://.godot/imported/shadows.png-8fe01f9f20fcc526f95a19e65abf911b.ctex"
+uid="uid://s77vi4lhb3qr"
+path="res://.godot/imported/occluders.png-0d5dbb33701f361c42b8841dcaf72cbd.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/balade/shadows.png"
-dest_files=["res://.godot/imported/shadows.png-8fe01f9f20fcc526f95a19e65abf911b.ctex"]
+source_file="res://assets/balade/occluders.png"
+dest_files=["res://.godot/imported/occluders.png-0d5dbb33701f361c42b8841dcaf72cbd.ctex"]
 
 [params]
 
@@ -31,7 +31,7 @@ process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2
 process/channel_remap/alpha=3
-process/fix_alpha_border=true
+process/fix_alpha_border=false
 process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false

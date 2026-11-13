@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.11.3"
+const VERSION := "0.12.0"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -71,6 +71,8 @@ var decor: Node3D
 var vegetation: Node3D
 var town: Node3D
 var lighting: Node
+var sun_shadows: Node
+var _shadow_hour := -100.0
 var lamps: Node3D
 var _car_lights: Array = []
 var life: Node3D
@@ -102,6 +104,10 @@ func _ready() -> void:
 	for n in get_children():
 		if n is WorldEnvironment:
 			lighting.setup((n as WorldEnvironment).environment, sun, self)
+	sun_shadows = load("res://scripts/balade/sun_shadows.gd").new()
+	sun_shadows.name = "OmbresSoleil"
+	add_child(sun_shadows)
+	sun_shadows.build()
 	terrain = load("res://scripts/balade/terrain.gd").new()
 	terrain.name = "Terrain"
 	add_child(terrain)
@@ -271,6 +277,7 @@ func _process(delta: float) -> void:
 	_update_rain()
 	_dynamic_resolution(delta)
 	_update_car_shadow()
+	_update_sun_shadows(false)
 	if controls.night_requested:
 		lighting.set_night(not lighting.is_night())
 	# Le bouton indique où il emmène : vers la nuit le jour, vers le jour la nuit.
@@ -621,7 +628,7 @@ var _car_shape: CollisionShape3D
 
 
 func _setup_shadows() -> void:
-	var tex: Texture2D = load("res://assets/balade/shadows.png")
+	var tex: Texture2D = sun_shadows.texture()
 	_shadow_mats = [terrain.material()]
 	for m in ruts._materials:
 		if not _shadow_mats.has(m):
@@ -634,6 +641,17 @@ func _setup_shadows() -> void:
 		m.set_shader_parameter("night_light_tex", night_tex)
 	lighting.shadow_materials = _shadow_mats
 	lighting.refresh()
+
+
+## Ombres du décor : refaites en continu pour la position de l'astre ; tout d'un coup
+## quand l'heure saute (réglages, démarrage).
+func _update_sun_shadows(force_full: bool) -> void:
+	var h: float = lighting.hour
+	var gap := absf(fposmod(h - _shadow_hour + 12.0, 24.0) - 12.0)
+	var fast: bool = lighting.is_scrubbing()
+	var full := force_full or (gap > 0.25 and not fast)
+	_shadow_hour = h
+	sun_shadows.update(lighting.light_direction(), car.global_position, full, fast)
 
 
 ## Ombre de la voiture : sa position, son orientation et deux boîtes (bas de caisse,
@@ -762,6 +780,7 @@ func _start_warmup() -> void:
 			gi.visibility_range_begin = 0.0
 			gi.visibility_range_end = 0.0
 	_wake_patch.visible = true
+	_update_sun_shadows(true)
 	# Pluie et éclaboussures : quelques-unes, pour que leurs shaders soient prêts.
 	_rain_mm.visible_instance_count = 16
 	_splash_mm.visible_instance_count = 16

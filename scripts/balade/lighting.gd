@@ -6,8 +6,7 @@
 ## - Couleurs selon la hauteur du soleil : jour (soleil doré, ombres lavande, brume chaude),
 ##   aube et crépuscule (soleil orangé, ciel rose), nuit (lune froide, ciel bleu nuit) ;
 ##   réverbères, fenêtres et phares s'allument (paramètre global « night »).
-## - Ombres du décor précalculées pour 4 positions du soleil (tools/bake_shadows.gd, une
-##   par canal de shadows.png) : mélangées selon l'heure (paramètre global « shadow_mix »).
+## - Ombres du décor calculées en continu pour la position de l'astre (sun_shadows.gd).
 extends Node
 
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
@@ -15,8 +14,6 @@ const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 ## Hauteur maximale du soleil (midi) et de la lune.
 const SUN_MAX_ELEV := 58.0
 const MOON_MAX_ELEV := 50.0
-## Heures des 4 cartes d'ombres précalculées (une par canal R, G, B, A).
-const SHADOW_HOURS: Array[float] = [7.5, 10.5, 13.5, 16.5]
 
 const DAY := {
 	"sun_color": Color(1.0, 0.86, 0.70), "sun_energy": 1.9,
@@ -87,23 +84,6 @@ static func moon_dir_at(h: float) -> Vector3:
 	return Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)).normalized()
 
 
-## Poids des 4 cartes d'ombres pour une heure de soleil (6 h à 18 h).
-static func shadow_mix_at(h: float) -> Vector4:
-	var w := [0.0, 0.0, 0.0, 0.0]
-	if h <= SHADOW_HOURS[0]:
-		w[0] = 1.0
-	elif h >= SHADOW_HOURS[3]:
-		w[3] = 1.0
-	else:
-		for i in 3:
-			if h <= SHADOW_HOURS[i + 1]:
-				var k := (h - SHADOW_HOURS[i]) / (SHADOW_HOURS[i + 1] - SHADOW_HOURS[i])
-				w[i] = 1.0 - k
-				w[i + 1] = k
-				break
-	return Vector4(w[0], w[1], w[2], w[3])
-
-
 func setup(environment: Environment, sun_light: DirectionalLight3D, parent: Node) -> void:
 	env = environment
 	sun = sun_light
@@ -132,6 +112,10 @@ func set_night(on: bool, instant := false) -> void:
 		_scrub_to = target
 
 
+func is_scrubbing() -> bool:
+	return _scrub_to >= 0.0
+
+
 func is_night() -> bool:
 	var h := _scrub_to if _scrub_to >= 0.0 else hour
 	return sun_dir_at(h).y < 0.0
@@ -156,9 +140,9 @@ func light_direction() -> Vector3:
 
 func _process(delta: float) -> void:
 	if _scrub_to >= 0.0:
-		# Défilement rapide (6 heures par seconde), par le chemin le plus court en avant.
+		# Défilement (2 heures par seconde : on voit le soleil se coucher), toujours en avant.
 		var gap := fposmod(_scrub_to - hour, 24.0)
-		var step := delta * 6.0
+		var step := delta * 2.0
 		if gap <= step:
 			hour = _scrub_to
 			_scrub_to = -1.0
@@ -172,7 +156,7 @@ func _process(delta: float) -> void:
 	# fois par seconde, ce qui ne se voit pas et coûte peu.
 	_apply_timer -= delta
 	if _apply_timer <= 0.0:
-		_apply_timer = 1.0
+		_apply_timer = 0.5
 		_apply()
 	# Éclair d'orage : la scène s'illumine un instant (sans attendre le recalcul).
 	if weather and (weather.flash > 0.0 or _flashing):
@@ -256,11 +240,7 @@ func _apply() -> void:
 	env.glow_hdr_threshold = _mix("glow_threshold", dusk, night)
 	env.adjustment_contrast = _mix("contrast", dusk, night)
 	env.adjustment_saturation = _mix("saturation", dusk, night)
-	# Ombres du décor : cartes mélangées selon la position de la lumière (le soleil, ou la
-	# lune la nuit, qui suit le même chemin douze heures plus tard) ; plus douces quand la
-	# lumière est basse.
-	var light_hour := hour if sd.y > -0.02 else fposmod(hour + 12.0, 24.0)
-	RenderingServer.global_shader_parameter_set("shadow_mix", shadow_mix_at(light_hour))
+	# Ombres du décor (sun_shadows.gd) : plus douces quand la lumière est basse.
 	var low := smoothstep(2.0, 12.0, rad_to_deg(asin(light_direction().y)))
 	for m in shadow_materials:
 		(m as ShaderMaterial).set_shader_parameter("shadow_strength", _mix("shadow", dusk, night) * lerpf(0.4, 1.0, low))

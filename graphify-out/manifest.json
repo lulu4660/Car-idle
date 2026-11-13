@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1794491842.8372202,
-    "seen": 1794491846.1887295,
-    "ast_hash": "5cef42c5f021826d7077efc6d31bfb8f",
+    "mtime": 1794574820.8252194,
+    "seen": 1794574854.5564306,
+    "ast_hash": "b6f897ef699c56bce703fba0587a3ff3",
     "semantic_hash": ""
   },
   "README.md": {
@@ -33,6 +33,12 @@
     "mtime": 1794428849.0491023,
     "seen": 1794428849.912467,
     "ast_hash": "6366e4d6d52602b9d1d4510f1aef0095",
+    "semantic_hash": ""
+  },
+  "tools/make_audio.py": {
+    "mtime": 1794561318.222746,
+    "seen": 1794574854.5564241,
+    "ast_hash": "3c44047da9419e64c290a22dad14e1e0",
     "semantic_hash": ""
   }
 }
