@@ -221,8 +221,8 @@ void fragment() {
 	if (pud > 0.01 || wet_k > 0.01) {
 		vec3 vdir = normalize(INV_VIEW_MATRIX[3].xyz - wpos);
 		vec3 n_water = normalize(vec3(0.0, 1.0, 0.0) + (nw - vec3(0.0, 1.0, 0.0)) * 0.3);
-		EMISSION += sun_reflection(n_water, vdir, 0.15, 0.7) * pud * sun_vis;
-		EMISSION += sun_reflection(nw, vdir, 1.0, 0.7) * wet_k * (1.0 - pud) * 0.25 * sun_vis;
+		EMISSION += sun_reflection(n_water, vdir, 0.15, 1.0) * pud * sun_vis;
+		EMISSION += sun_reflection(nw, vdir, 1.0, 1.0) * wet_k * (1.0 - pud) * 0.25 * sun_vis;
 	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	ROUGHNESS = mix(0.95, 0.5, wet_band);

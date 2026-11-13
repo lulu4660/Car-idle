@@ -177,7 +177,7 @@ void fragment() {
 	ALBEDO = mix(water, foam_color, foam);
 	// Reflet du soleil (ou de la lune) : chaque ride renvoie son éclat, d'où le chemin
 	// scintillant vers l'astre ; plus étalé au loin et sur la houle.
-	EMISSION = sun_reflection(nw, v, clamp(0.35 + dist / 300.0, 0.0, 1.0), 0.8) * (1.0 - foam);
+	EMISSION = sun_reflection(nw, v, clamp(0.35 + dist / 300.0, 0.0, 1.0), 1.1) * (1.0 - foam);
 	ROUGHNESS = mix(0.03, 0.8, foam);
 	SPECULAR = 0.5;
 	METALLIC = 0.0;

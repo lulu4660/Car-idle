@@ -27,11 +27,11 @@ vec3 sun_reflection(vec3 n, vec3 v, float spread, float reach) {
 	vec2 hs = normalize(sun_dir.xz + vec2(1e-5));
 	vec3 s = vec3(hs.x * cos(el_t), sin(el_t), hs.y * cos(el_t));
 	float d = max(dot(r, s), 0.0);
-	float disk = pow(d, mix(3000.0, 600.0, spread)) * mix(14.0, 5.0, spread);
-	float halo = pow(d, mix(220.0, 70.0, spread)) * mix(1.6, 1.0, spread);
-	float wide = pow(d, 10.0) * 0.18;
-	float fall = exp(-de * de / (reach * reach + 1e-4) * 1.5);
+	float disk = pow(d, mix(2000.0, 400.0, spread)) * mix(30.0, 12.0, spread);
+	float halo = pow(d, mix(120.0, 40.0, spread)) * mix(5.0, 3.0, spread);
+	float wide = pow(d, 8.0) * 0.3;
+	float fall = exp(-de * de / (reach * reach + 1e-4) * 0.8);
 	// Plus fort en rasant (Fresnel de l'eau).
-	float fres = 0.3 + 0.7 * pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 4.0);
+	float fres = 0.5 + 0.5 * pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 4.0);
 	return sun_glint * (disk + halo + wide) * fres * fall;
 }

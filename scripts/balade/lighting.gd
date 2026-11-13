@@ -220,7 +220,7 @@ func _apply() -> void:
 		moon.look_at_from_position(Vector3.ZERO, -md, Vector3.UP)
 	# Reflet sur l'eau : le soleil, ou la lune la nuit (voilés par les nuages, sans
 	# disparaître : on voit encore la tache claire derrière un ciel couvert).
-	var veil := 1.0 - 0.7 * cl
+	var veil := 1.0 - 0.5 * cl
 	if sun_k > 0.001:
 		RenderingServer.global_shader_parameter_set("sun_dir", sd)
 		var sc: Color = sun.light_color
@@ -229,7 +229,7 @@ func _apply() -> void:
 	elif moon_k > 0.001:
 		RenderingServer.global_shader_parameter_set("sun_dir", md)
 		var mc: Color = moon.light_color
-		RenderingServer.global_shader_parameter_set("sun_glint", Vector3(mc.r, mc.g, mc.b) * moon_k * veil * 0.6)
+		RenderingServer.global_shader_parameter_set("sun_glint", Vector3(mc.r, mc.g, mc.b) * moon_k * veil * 0.75)
 	else:
 		RenderingServer.global_shader_parameter_set("sun_glint", Vector3.ZERO)
 	env.ambient_light_color = (_mix("ambient", dusk, night) as Color).lerp(Color(0.62, 0.64, 0.7) * (1.0 - night * 0.7), cl * 0.5)
