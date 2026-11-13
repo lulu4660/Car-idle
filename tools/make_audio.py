@@ -224,6 +224,40 @@ def crickets(sr=22050, seconds=12.0):
     x += bed / (np.max(np.abs(bed)) + 1e-9) * 0.06
     save("crickets", x, sr, peak=0.5)
 
+def rain_loop(sr=22050, seconds=8.0):
+    """Pluie : un souffle large (gouttes lointaines innombrables) et des impacts proches,
+    petits clics filtrés à des hauteurs variées ; boucle sans raccord (placement circulaire)."""
+    n = int(seconds * sr)
+    bed = noise_loop(n, sr, lambda f: band(f, 400, 7000) / np.maximum(f, 400) ** 0.25)
+    bed /= np.max(np.abs(bed)) + 1e-9
+    x = bed * 0.55
+    for _ in range(int(seconds * 140)):
+        i = rng.integers(0, n)
+        ln = int(sr * rng.uniform(0.004, 0.02))
+        f0 = rng.uniform(1500, 5000)
+        tt = np.arange(ln) / sr
+        drop = np.sin(2 * np.pi * f0 * tt) * np.exp(-tt * rng.uniform(250, 600)) * rng.uniform(0.1, 0.5)
+        x[(i + np.arange(ln)) % n] += drop
+    spec = np.fft.rfft(x)
+    fr = np.fft.rfftfreq(n, 1.0 / sr)
+    spec *= 1.0 / (1.0 + (fr / 6500.0) ** 4)
+    save("rain", np.fft.irfft(spec, n), sr, peak=0.6)
+
+
+def thunder(sr=22050, seconds=4.5):
+    """Tonnerre : craquement court puis grondement grave qui roule et s'éteint."""
+    n = int(seconds * sr)
+    t = np.arange(n) / sr
+    rumble = bp_noise(n, sr, 25, 220)
+    roll = 0.6 + 0.4 * np.sin(2 * np.pi * 1.3 * t + 1.0) * np.sin(2 * np.pi * 0.37 * t)
+    env = (1 - np.exp(-t * 6)) * np.exp(-t * 0.9) * roll
+    crack = bp_noise(n, sr, 300, 4000) * np.exp(-t * 9) * (t < 0.6)
+    x = rumble * env + crack * 0.5
+    fade = int(sr * 0.2)
+    x[-fade:] *= np.linspace(1, 0, fade)
+    save("thunder", x, sr, peak=0.9)
+
+
 def shot(name, seconds, sr, build, peak=0.9):
     n = int(seconds * sr)
     t = np.arange(n) / sr
@@ -251,6 +285,8 @@ def main():
     sea()
     water()
     crickets()
+    rain_loop()
+    thunder()
     # Choc : coup sourd + tôle.
     shot("impact", 0.45, 22050, lambda n, t, sr:
          np.sin(2 * np.pi * (95 - 60 * t / 0.45) * t) * np.exp(-t * 14)

@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.10.0"
+const VERSION := "0.11.0"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -27,6 +27,13 @@ var water_sim_enabled := true
 ## Post-traitement « cinéma » (réglages Haut et Ultra) : rectangle collé à la caméra.
 var post_level := 0
 var _night_label := "NUIT"
+var weather: Node
+var _rain_mm: MultiMesh
+var _rain_mat: ShaderMaterial
+var _splash_mm: MultiMesh
+var _splash_mat: ShaderMaterial
+const RAIN_DROPS := 2200
+const SPLASHES := 260
 var _sun_timer := 0.0
 ## Résolution dynamique : la résolution 3D baisse un peu (jusqu'à 60 % du réglage) quand
 ## l'image prend plus de 18 ms, et remonte dès que ça redevient fluide.
@@ -125,6 +132,11 @@ func _ready() -> void:
 	lamps.build(data, town)
 	WorldBuilder.build_rocks(self, data)
 
+	weather = load("res://scripts/balade/weather.gd").new()
+	weather.name = "Meteo"
+	add_child(weather)
+	lighting.weather = weather
+	_build_rain()
 	effects = load("res://scripts/balade/effects.gd").new()
 	effects.name = "Effets"
 	add_child(effects)
@@ -256,6 +268,7 @@ func _process(delta: float) -> void:
 		_spawn(pos, yaw)
 		return
 	_follow_wake_patch(delta)
+	_update_rain()
 	_dynamic_resolution(delta)
 	_update_car_shadow()
 	if controls.night_requested:
@@ -343,6 +356,15 @@ func _wheel_effects(delta: float) -> void:
 			amount += drift * 1.5 * (1.0 if i >= 2 else 0.3)
 		if s == WL.Surface.WET_SAND:
 			amount *= 0.4
+		# Sol mouillé : presque plus de poussière, mais des gerbes d'eau derrière les roues.
+		var wet: float = weather.wet
+		amount *= 1.0 - 0.85 * wet
+		if wet > 0.25 and speed > 15.0 and s != WL.Surface.WATER:
+			var spray := wet * clampf(speed / 80.0, 0.0, 1.0) * (1.0 if i >= 2 else 0.5) * 30.0 * delta
+			var sn := int(spray) + (1 if randf() < fmod(spray, 1.0) else 0)
+			for k2 in sn:
+				var sv := car.linear_velocity * 0.25 + Vector3.UP * randf_range(1.0, 2.5) + car.global_basis.x * randf_range(-1.2, 1.2)
+				effects.dust(p + Vector3.UP * 0.15, sv, Color(0.85, 0.88, 0.92, 0.55), randf_range(0.25, 0.45), randf_range(0.5, 0.9), effects.Kind.WATER, p.y)
 		# Nuage selon la vitesse : peu de bouffées, mais grosses, d'autant plus grosses, nombreuses
 		# et durables que la voiture va vite ; en dérapage, des panaches plus amples.
 		var fast := clampf(speed / 110.0, 0.0, 1.0)
@@ -740,6 +762,9 @@ func _start_warmup() -> void:
 			gi.visibility_range_begin = 0.0
 			gi.visibility_range_end = 0.0
 	_wake_patch.visible = true
+	# Pluie et éclaboussures : quelques-unes, pour que leurs shaders soient prêts.
+	_rain_mm.visible_instance_count = 16
+	_splash_mm.visible_instance_count = 16
 	for vp in water_sim._vp:
 		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	camera.set_process(false)
@@ -768,6 +793,59 @@ func _end_warmup() -> void:
 	tw.tween_callback(_loading.queue_free)
 
 
+## Pluie autour de la voiture : gouttes (rain.gdshader) et éclaboussures au sol
+## (splash.gdshader), toutes animées par la carte graphique ; le nombre affiché suit la
+## force de la pluie.
+func _build_rain() -> void:
+	_rain_mat = ShaderMaterial.new()
+	_rain_mat.shader = load("res://shaders/rain.gdshader")
+	var q := QuadMesh.new()
+	_rain_mm = MultiMesh.new()
+	_rain_mm.transform_format = MultiMesh.TRANSFORM_3D
+	_rain_mm.mesh = q
+	_rain_mm.instance_count = RAIN_DROPS
+	_rain_mm.visible_instance_count = 0
+	_rain_mm.custom_aabb = AABB(Vector3(-3000, -200, -3000), Vector3(6000, 600, 6000))
+	var mi := MultiMeshInstance3D.new()
+	mi.name = "Pluie"
+	mi.multimesh = _rain_mm
+	mi.material_override = _rain_mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	_splash_mat = ShaderMaterial.new()
+	_splash_mat.shader = load("res://shaders/splash.gdshader")
+	_splash_mat.set_shader_parameter("height_tex", terrain.height_texture())
+	_splash_mat.set_shader_parameter("sea_level", WL.SEA_LEVEL)
+	_splash_mm = MultiMesh.new()
+	_splash_mm.transform_format = MultiMesh.TRANSFORM_3D
+	_splash_mm.mesh = q
+	_splash_mm.instance_count = SPLASHES
+	_splash_mm.visible_instance_count = 0
+	_splash_mm.custom_aabb = _rain_mm.custom_aabb
+	var si := MultiMeshInstance3D.new()
+	si.name = "Eclaboussures"
+	si.multimesh = _splash_mm
+	si.material_override = _splash_mat
+	si.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(si)
+
+
+func _update_rain() -> void:
+	var r: float = weather.rain
+	var n := int(RAIN_DROPS * clampf(r, 0.0, 1.0))
+	if _rain_mm.visible_instance_count != n:
+		_rain_mm.visible_instance_count = n
+	var m := int(SPLASHES * clampf(r * 1.2, 0.0, 1.0))
+	if _splash_mm.visible_instance_count != m:
+		_splash_mm.visible_instance_count = m
+	if n > 0:
+		var c := car.global_position.lerp(camera.global_position, 0.35)
+		_rain_mat.set_shader_parameter("center", c + Vector3(0, 6, 0))
+		_rain_mat.set_shader_parameter("strength", clampf(r * 1.5, 0.3, 1.0))
+		_splash_mat.set_shader_parameter("center", car.global_position)
+	car.wetness = weather.wet
+
+
 func car_display_name() -> String:
 	return Car.DISPLAY_NAMES.get(car.model_name, car.model_name)
 
@@ -777,6 +855,7 @@ func _build_hud() -> void:
 	audio.name = "Sons"
 	audio.game = self
 	add_child(audio)
+	weather.lightning.connect(audio.thunder)
 	hud = load("res://scripts/balade/hud.gd").new()
 	hud.game = self
 	add_child(hud)

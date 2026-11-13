@@ -244,6 +244,7 @@ func _draw_info(top_center: Vector2, u: float, car: VehicleBody3D) -> void:
 		ground.to_upper(),
 		String(Car.DISPLAY_NAMES.get(car.model_name, car.model_name)).to_upper(),
 		"%02d:%02d" % [int(game.lighting.hour), int(fmod(game.lighting.hour, 1.0) * 60.0)],
+		String(game.weather.name_now()).to_upper(),
 		"%d I/S" % Engine.get_frames_per_second(),
 		"V" + String(game.VERSION),
 	]

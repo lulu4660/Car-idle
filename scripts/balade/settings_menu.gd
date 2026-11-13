@@ -386,6 +386,8 @@ func _show(key: String, v: float, step: float) -> String:
 			return ["4x4", "Propulsion", "Traction"][clampi(int(v), 0, 2)]
 		"msaa":
 			return ["Non", "×2", "×4"][clampi(int(v), 0, 2)]
+		"meteo":
+			return ["Auto", "Clair", "Nuageux", "Pluie", "Orage", "Brouillard"][clampi(int(v), 0, 5)]
 		"hour":
 			return "%02d:%02d" % [int(v) % 24, int(fmod(v, 1.0) * 60.0)]
 		"cycle":

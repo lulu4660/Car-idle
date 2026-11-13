@@ -59,6 +59,8 @@ var cycle_minutes := 24.0
 var night := 0.0
 var glow := 0.0
 var _scrub_to := -1.0
+var _flashing := false
+var _base_ambient := 0.75
 var _vignette: TextureRect
 ## iPhone et web : pas de halo plein écran (glow), trop coûteux (28 ms la nuit au banc
 ## d'essai) ; les lumières ont leurs propres petits halos (shaders/halo.gdshader).
@@ -66,6 +68,8 @@ var no_glow := false
 ## Brouillard (réglages) : 1 = brume d'origine, 0 = aucune, jusqu'à 8 = brouillard épais.
 var fog_amount := 1.0
 var _apply_timer := 0.0
+## Météo (weather.gd) : nuages, pluie, brouillard, éclairs.
+var weather: Node
 
 
 ## Direction vers le soleil à une heure donnée (repère Godot : nord = -Z, est = +X).
@@ -164,12 +168,17 @@ func _process(delta: float) -> void:
 		return
 	if cycle_minutes > 0.0:
 		hour = fposmod(hour + delta * 24.0 / (cycle_minutes * 60.0), 24.0)
-		# Le soleil bouge lentement (une journée = plusieurs minutes) : l'éclairage et le ciel
-		# sont recalculés une fois par seconde, ce qui ne se voit pas et coûte peu.
-		_apply_timer -= delta
-		if _apply_timer <= 0.0:
-			_apply_timer = 1.0
-			_apply()
+	# Le soleil et la météo changent lentement : l'éclairage et le ciel sont recalculés une
+	# fois par seconde, ce qui ne se voit pas et coûte peu.
+	_apply_timer -= delta
+	if _apply_timer <= 0.0:
+		_apply_timer = 1.0
+		_apply()
+	# Éclair d'orage : la scène s'illumine un instant (sans attendre le recalcul).
+	if weather and (weather.flash > 0.0 or _flashing):
+		_flashing = weather.flash > 0.0
+		env.ambient_light_energy = _base_ambient + weather.flash * 3.0
+		env.background_energy_multiplier = 1.0 + weather.flash * 2.5
 
 
 func _mix(key: String, dusk: float, k_night: float) -> Variant:
@@ -193,10 +202,15 @@ func _apply() -> void:
 	RenderingServer.global_shader_parameter_set("night", glow)
 	# Soleil : éclaire tant qu'il est levé, s'éteint en se couchant.
 	var sun_k := smoothstep(-3.0, 6.0, sun_el)
+	# Nuages : le soleil se voile, la lumière s'aplatit, le ciel grisonne ; pluie et
+	# brouillard épaississent la brume.
+	var cl: float = weather.clouds if weather else 0.0
+	var wfog: float = weather.fog if weather else 0.0
+	var wrain: float = weather.rain if weather else 0.0
 	sun.visible = sun_k > 0.001
 	if sun.visible:
-		sun.light_color = (DAY["sun_color"] as Color).lerp(DUSK["sun_color"], dusk)
-		sun.light_energy = lerpf(DAY["sun_energy"], DUSK["sun_energy"], dusk) * sun_k
+		sun.light_color = (DAY["sun_color"] as Color).lerp(DUSK["sun_color"], dusk).lerp(Color(0.85, 0.87, 0.9), cl * 0.6)
+		sun.light_energy = lerpf(DAY["sun_energy"], DUSK["sun_energy"], dusk) * sun_k * (1.0 - 0.62 * cl)
 		sun.look_at_from_position(Vector3.ZERO, -sd, Vector3.UP)
 	# Lune : prend le relais la nuit (éteinte de jour).
 	var moon_k := smoothstep(-3.0, 8.0, moon_el) * night
@@ -204,18 +218,19 @@ func _apply() -> void:
 	if moon.visible:
 		moon.light_energy = NIGHT["sun_energy"] * moon_k
 		moon.look_at_from_position(Vector3.ZERO, -md, Vector3.UP)
-	env.ambient_light_color = _mix("ambient", dusk, night)
-	env.ambient_light_energy = _mix("ambient_energy", dusk, night)
-	sky.sky_top_color = _mix("sky_top", dusk, night)
-	sky.sky_horizon_color = _mix("sky_horizon", dusk, night)
-	sky.ground_horizon_color = _mix("ground_horizon", dusk, night)
-	sky.ground_bottom_color = _mix("ground_bottom", dusk, night)
+	env.ambient_light_color = (_mix("ambient", dusk, night) as Color).lerp(Color(0.62, 0.64, 0.7) * (1.0 - night * 0.7), cl * 0.5)
+	_base_ambient = _mix("ambient_energy", dusk, night) * (1.0 + 0.2 * cl)
+	env.ambient_light_energy = _base_ambient
+	sky.sky_top_color = _grey(_mix("sky_top", dusk, night), cl * 0.8)
+	sky.sky_horizon_color = _grey(_mix("sky_horizon", dusk, night), cl * 0.7)
+	sky.ground_horizon_color = _grey(_mix("ground_horizon", dusk, night), cl * 0.6)
+	sky.ground_bottom_color = _grey(_mix("ground_bottom", dusk, night), cl * 0.6)
 	sky.sun_angle_max = lerpf(20.0, 4.0, night)
 	var thick := clampf((fog_amount - 1.0) / 3.0, 0.0, 1.0)
 	var fog_grey := Color(0.78, 0.78, 0.8).lerp(Color(0.1, 0.1, 0.13), night)
 	env.fog_enabled = fog_amount > 0.01
-	env.fog_light_color = (_mix("fog", dusk, night) as Color).lerp(fog_grey, thick * 0.7)
-	env.fog_density = _mix("fog_density", dusk, night) * fog_amount
+	env.fog_light_color = (_mix("fog", dusk, night) as Color).lerp(fog_grey, clampf(thick * 0.7 + cl * 0.5 + wfog * 0.4, 0.0, 1.0))
+	env.fog_density = _mix("fog_density", dusk, night) * fog_amount * (1.0 + wfog * 3.5 + wrain * 1.2)
 	env.fog_sky_affect = lerpf(0.35, 1.0, thick)
 	env.tonemap_exposure = _mix("exposure", dusk, night)
 	env.glow_enabled = not no_glow
@@ -234,6 +249,15 @@ func _apply() -> void:
 		(m as ShaderMaterial).set_shader_parameter("shadow_strength", _mix("shadow", dusk, night) * lerpf(0.4, 1.0, low))
 	if _vignette:
 		_vignette.modulate.a = _mix("vignette", dusk, night)
+	# Couleur du ciel reflétée par les flaques.
+	for m in shadow_materials:
+		(m as ShaderMaterial).set_shader_parameter("sky_reflect", sky.sky_horizon_color.lerp(sky.sky_top_color, 0.4) * 0.7)
+
+
+## Couleur grisée (ciel couvert) : vers sa luminance, un peu assombrie.
+static func _grey(c: Color, k: float) -> Color:
+	var l := c.get_luminance()
+	return c.lerp(Color(l, l, l * 1.04) * 0.92, clampf(k, 0.0, 1.0))
 
 
 ## Vignettage : un dégradé radial posé sur l'image (presque gratuit, pas de passe en plus).

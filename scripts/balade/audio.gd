@@ -30,7 +30,7 @@ func _ready() -> void:
 	for r in ENGINE_RPMS:
 		ENGINE_NAMES.append("engine_on_%d" % r)
 		ENGINE_NAMES.append("engine_off_%d" % r)
-	for n in ENGINE_NAMES + ["skid", "gravel", "wind", "sea", "water", "crickets"]:
+	for n in ENGINE_NAMES + ["skid", "gravel", "wind", "sea", "water", "crickets", "rain"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load(DIR + n + ".wav")
 		p.volume_db = -80.0
@@ -38,7 +38,7 @@ func _ready() -> void:
 		p.play()
 		_loops[n] = p
 		_vol[n] = 0.0
-	for n in ["impact", "land", "splash", "shift", "click", "score"]:
+	for n in ["impact", "land", "splash", "shift", "click", "score", "thunder"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load(DIR + n + ".wav")
 		add_child(p)
@@ -124,7 +124,10 @@ func _process(delta: float) -> void:
 	_loop("skid", sliding * (1.0 - soft) * on_ground * 0.7, delta, 0.85 + 0.25 * clampf(kmh / 120.0, 0.0, 1.0) + 0.1 * sliding, 10.0)
 	var roll := clampf(kmh / 70.0, 0.0, 1.0) * 0.45 + sliding * 0.55
 	_loop("gravel", roll * soft * on_ground * 0.8, delta, 0.7 + 0.6 * clampf(kmh / 110.0, 0.0, 1.0), 10.0)
-	_loop("wind", pow(clampf(kmh / 170.0, 0.0, 1.0), 1.6) * 0.75, delta, 0.8 + 0.5 * clampf(kmh / 170.0, 0.0, 1.0), 4.0)
+	var gale: float = game.weather.wind if game.weather else 0.0
+	_loop("wind", maxf(pow(clampf(kmh / 170.0, 0.0, 1.0), 1.6) * 0.75, gale * gale * 0.55), delta, 0.8 + 0.5 * clampf(kmh / 170.0, 0.0, 1.0) + gale * 0.15, 4.0)
+	var pour: float = game.weather.rain if game.weather else 0.0
+	_loop("rain", pour * 0.6, delta, 1.0, 2.0)
 
 	# Eau.
 	_loop("water", (clampf(kmh / 25.0, 0.15, 1.0) if car.in_water else 0.0) * 0.6, delta, 0.9 + 0.3 * clampf(kmh / 40.0, 0.0, 1.0), 5.0)
@@ -154,3 +157,9 @@ func _process(delta: float) -> void:
 ## Réception de saut (0 à 1).
 func land(k: float) -> void:
 	shot("land", lerpf(0.35, 1.0, k), lerpf(1.15, 0.85, k))
+
+
+## Tonnerre, après l'éclair (le son met plus ou moins de temps à arriver).
+func thunder(delay: float) -> void:
+	await get_tree().create_timer(delay).timeout
+	shot("thunder", clampf(1.2 - delay * 0.25, 0.4, 1.0), randf_range(0.85, 1.1))

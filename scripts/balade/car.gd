@@ -133,6 +133,8 @@ var _acc_f := Vector3.ZERO
 var _gas_s := 0.0
 var _steer_hold := 0.0
 var _intent_mem := 0.0
+## Sol mouillé par la pluie (0 à 1), donné par la météo.
+var wetness := 0.0
 var _brake_s := 0.0
 var _last_fwd := 0.0
 var _a_long_f := 0.0
@@ -568,6 +570,12 @@ func _physics_process(delta: float) -> void:
 			if world_data and wheel_surface[i] != WL.Surface.WATER and world_data.road_distance(p.x, p.z) < WL.ROAD_HALF + 0.5:
 				wheel_surface[i] = WL.Surface.DIRT
 			grip = WL.grip(wheel_surface[i])
+			# Sol mouillé : bitume et terre glissent plus (boue), le sable mouillé tient mieux.
+			if wetness > 0.0:
+				match wheel_surface[i]:
+					WL.Surface.ASPHALT: grip *= 1.0 - 0.18 * wetness
+					WL.Surface.DIRT: grip *= 1.0 - 0.22 * wetness
+					WL.Surface.SAND: grip *= 1.0 + 0.08 * wetness
 			wheel_slip[i] = 1.0 - w.get_skidinfo()
 		else:
 			wheel_slip[i] = 0.0

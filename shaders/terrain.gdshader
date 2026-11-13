@@ -26,6 +26,7 @@ uniform vec3 road_color : source_color = vec3(0.50, 0.32, 0.25);
 uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
 #include "res://shaders/car_shadow.gdshaderinc"
 varying float sun_vis;
+varying float wet_spec;
 uniform float rut_depth = 0.3;
 uniform float rut_berm = 0.12;
 
@@ -42,6 +43,8 @@ uniform vec3 grass_dark : source_color = vec3(0.40, 0.48, 0.25);
 uniform vec3 rock_light : source_color = vec3(0.56, 0.50, 0.50);
 uniform vec3 rock_dark : source_color = vec3(0.42, 0.37, 0.39);
 uniform vec3 snow_color : source_color = vec3(0.93, 0.92, 0.95);
+// Couleur du ciel reflétée par les flaques (réglée par lighting.gd).
+uniform vec3 sky_reflect : source_color = vec3(0.55, 0.62, 0.72);
 
 varying vec3 wpos;
 
@@ -176,15 +179,47 @@ void fragment() {
 		grad += vec2(rut(wpos.xz + vec2(e, 0.0)) - rut(wpos.xz - vec2(e, 0.0)), rut(wpos.xz + vec2(0.0, e)) - rut(wpos.xz - vec2(0.0, e))) / (2.0 * e);
 		c *= mix(1.0, 0.86, clamp(-r0 / 0.08, 0.0, 1.0));
 	}
+	// Pluie : sol mouillé (plus sombre, brillant), flaques dans les creux et sur le plat
+	// (moins sur le sable qui boit l'eau), ronds de pluie sur les flaques.
+	float pud = 0.0;
+	float wet_k = 0.0;
+	if (weather_wet > 0.01) {
+		float slope_w = 1.0 - smoothstep(0.06, 0.22, slope);
+		float soak = 1.0 - 0.7 * w.b;
+		wet_k = weather_wet * mix(0.6, 1.0, slope_w);
+		c *= mix(1.0, 0.62, wet_k);
+		float n = vnoise(wpos.xz / 7.0) * 0.7 + vnoise(wpos.xz / 2.3) * 0.3;
+		// Sur la piste, l'eau remplit d'abord les ornières.
+		float rut_bonus = on_road * 0.12;
+		float level = 1.0 - weather_puddle * 0.5;
+		pud = smoothstep(level, level + 0.05, n + rut_bonus) * slope_w * soak * step(sea_level + 0.4, wpos.y);
+		if (pud > 0.01 && weather_rain > 0.05) {
+			vec2 cell = floor(wpos.xz / 0.7);
+			vec2 f = fract(wpos.xz / 0.7) - 0.5;
+			float ph = fract(TIME * 1.4 + w_hash(cell) * 7.0);
+			float ring = smoothstep(0.06, 0.0, abs(length(f) - ph * 0.45)) * (1.0 - ph) * weather_rain;
+			grad += normalize(f + vec2(1e-4)) * ring * 0.6 * pud;
+		}
+		vec3 water = c * 0.45;
+		c = mix(c, water, pud);
+	}
 	ALBEDO = c;
 	sun_vis = sun_visibility(wpos, world_size);
-	EMISSION = c * (lamp_glow(wpos, world_size) + head_color * headlight(wpos, vec3(0.0, 1.0, 0.0)) * 1.4);
+	EMISSION = c * (lamp_glow(wpos, world_size) * (1.0 + wet_k * 1.2 + pud * 2.0) + head_color * headlight(wpos, vec3(0.0, 1.0, 0.0)) * (1.4 + pud * 1.5));
+	if (pud > 0.01) {
+		// Le ciel se reflète dans les flaques (plus en rasant).
+		vec3 vdir = normalize(INV_VIEW_MATRIX[3].xyz - wpos);
+		float fres = 0.25 + 0.75 * pow(1.0 - clamp(vdir.y, 0.0, 1.0), 3.0);
+		EMISSION += sky_reflect * pud * fres * (1.0 - night * 0.85);
+	}
 	// Facettes low poly : la normale est celle du triangle de 1 m (calculée, pas dérivée de
 	// l'écran : identique sur le terrain, la pièce des ornières et les niveaux de détail).
 	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	ROUGHNESS = mix(0.95, 0.5, wet_band);
 	SPECULAR = 0.0;
+	// Reflet du soleil : surtout sur les flaques, à peine sur le sol mouillé.
+	wet_spec = max(pud, wet_k * 0.12);
 }
 
 
@@ -192,5 +227,12 @@ void fragment() {
 // la lumière ambiante (lavande) reste : ombres teintées comme avant, bords lisses.
 void light() {
 	// Les ombres précalculées ne valent que pour le soleil (ou la lune) ; les phares, non.
-	DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * LIGHT_COLOR / PI * (LIGHT_IS_DIRECTIONAL ? sun_vis : ATTENUATION);
+	float vis = LIGHT_IS_DIRECTIONAL ? sun_vis : ATTENUATION;
+	DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * LIGHT_COLOR / PI * vis;
+	// Sol mouillé et flaques : reflet du soleil (ou de la lune).
+	if (wet_spec > 0.01) {
+		vec3 hv = normalize(LIGHT + VIEW);
+		float shine = mix(40.0, 300.0, wet_spec);
+		SPECULAR_LIGHT += pow(clamp(dot(NORMAL, hv), 0.0, 1.0), shine) * LIGHT_COLOR * wet_spec * vis * 1.2;
+	}
 }
