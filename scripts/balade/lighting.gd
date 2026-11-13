@@ -218,6 +218,20 @@ func _apply() -> void:
 	if moon.visible:
 		moon.light_energy = NIGHT["sun_energy"] * moon_k
 		moon.look_at_from_position(Vector3.ZERO, -md, Vector3.UP)
+	# Reflet sur l'eau : le soleil, ou la lune la nuit (voilés par les nuages, sans
+	# disparaître : on voit encore la tache claire derrière un ciel couvert).
+	var veil := 1.0 - 0.7 * cl
+	if sun_k > 0.001:
+		RenderingServer.global_shader_parameter_set("sun_dir", sd)
+		var sc: Color = sun.light_color
+		var sk := sun_k * veil * lerpf(1.0, 1.4, dusk)
+		RenderingServer.global_shader_parameter_set("sun_glint", Vector3(sc.r, sc.g, sc.b) * sk)
+	elif moon_k > 0.001:
+		RenderingServer.global_shader_parameter_set("sun_dir", md)
+		var mc: Color = moon.light_color
+		RenderingServer.global_shader_parameter_set("sun_glint", Vector3(mc.r, mc.g, mc.b) * moon_k * veil * 0.6)
+	else:
+		RenderingServer.global_shader_parameter_set("sun_glint", Vector3.ZERO)
 	env.ambient_light_color = (_mix("ambient", dusk, night) as Color).lerp(Color(0.62, 0.64, 0.7) * (1.0 - night * 0.7), cl * 0.5)
 	_base_ambient = _mix("ambient_energy", dusk, night) * (1.0 + 0.35 * cl)
 	env.ambient_light_energy = _base_ambient

@@ -25,8 +25,8 @@ uniform float road_half = 5.0;
 uniform vec3 road_color : source_color = vec3(0.50, 0.32, 0.25);
 uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
 #include "res://shaders/car_shadow.gdshaderinc"
+#include "res://shaders/sun_glint.gdshaderinc"
 varying float sun_vis;
-varying float wet_spec;
 uniform float rut_depth = 0.3;
 uniform float rut_berm = 0.12;
 
@@ -215,11 +215,18 @@ void fragment() {
 	// Facettes low poly : la normale est celle du triangle de 1 m (calculée, pas dérivée de
 	// l'écran : identique sur le terrain, la pièce des ornières et les niveaux de détail).
 	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));
+	// Reflet du soleil (ou de la lune) : miroir dans les flaques (la surface de l'eau est
+	// plate, seuls les ronds de pluie la rident), éclat étalé sur le sol mouillé ; masqué
+	// par les ombres.
+	if (pud > 0.01 || wet_k > 0.01) {
+		vec3 vdir = normalize(INV_VIEW_MATRIX[3].xyz - wpos);
+		vec3 n_water = normalize(vec3(0.0, 1.0, 0.0) + (nw - vec3(0.0, 1.0, 0.0)) * 0.3);
+		EMISSION += sun_reflection(n_water, vdir, 0.15, 0.7) * pud * sun_vis;
+		EMISSION += sun_reflection(nw, vdir, 1.0, 0.7) * wet_k * (1.0 - pud) * 0.25 * sun_vis;
+	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	ROUGHNESS = mix(0.95, 0.5, wet_band);
 	SPECULAR = 0.0;
-	// Reflet du soleil : surtout sur les flaques, à peine sur le sol mouillé.
-	wet_spec = max(pud, wet_k * 0.12);
 }
 
 
@@ -229,10 +236,4 @@ void light() {
 	// Les ombres précalculées ne valent que pour le soleil (ou la lune) ; les phares, non.
 	float vis = LIGHT_IS_DIRECTIONAL ? sun_vis : ATTENUATION;
 	DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * LIGHT_COLOR / PI * vis;
-	// Sol mouillé et flaques : reflet du soleil (ou de la lune).
-	if (wet_spec > 0.01) {
-		vec3 hv = normalize(LIGHT + VIEW);
-		float shine = mix(40.0, 300.0, wet_spec);
-		SPECULAR_LIGHT += pow(clamp(dot(NORMAL, hv), 0.0, 1.0), shine) * LIGHT_COLOR * wet_spec * vis * 1.2;
-	}
 }

@@ -39,6 +39,14 @@ environment/defaults/default_clear_color=Color(0.8, 0.75, 0.67, 1)
 
 [shader_globals]
 
+sun_dir={
+"type": "vec3",
+"value": Vector3(0, 1, 0)
+}
+sun_glint={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
 night={
 "type": "float",
 "value": 0.0
