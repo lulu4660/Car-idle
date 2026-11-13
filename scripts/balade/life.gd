@@ -12,6 +12,7 @@ extends Node3D
 const WL = preload("res://scripts/core/world_layout.gd")
 const Car = preload("res://scripts/balade/car.gd")
 const MeshMerge = preload("res://scripts/balade/mesh_merge.gd")
+const CarModels = preload("res://scripts/game/car_models.gd")
 const Waves = preload("res://scripts/balade/waves.gd")
 
 const ACTIVE := 150.0
@@ -22,7 +23,6 @@ const SERVICE := ["police", "police_break", "police_puce", "ambulance", "taxi"]
 var data: RefCounted
 var town: Node
 var target: Node3D
-var _variants := {}      # modèle -> [maillage, correction (Transform3D), demi-taille]
 var _traffic: Array = [] # [corps, chemin (PackedVector2Array), distances cumulées, longueur, s, vitesse visée, vitesse, sens]
 var _people: Array = []  # [nœud, lecteur, a, b, t, sens, fuite]
 var _boats: Array = []   # [nœud, base x, base z, phase]
@@ -46,49 +46,7 @@ func build(world_data: RefCounted, town_node: Node, follow: Node3D) -> void:
 
 ## Maillage fusionné d'un véhicule du pack, tourné vers +Z et à la bonne taille.
 func _variant(model: String) -> Array:
-	if _variants.has(model):
-		return _variants[model]
-	var scene: Node3D = (load(Car.PACK) as PackedScene).instantiate()
-	var node: Node3D = scene.find_child(String(Car.TOON[model][0]), true, false)
-	var wheels: Array[Vector3] = []
-	for code in Car.WHEEL_CODES:
-		for c in node.get_children():
-			if String(c.name).contains(code):
-				wheels.append(Car._center(c, node))
-				break
-	var merged: Array = MeshMerge.merge(node, false)
-	scene.free()
-	var mesh: ArrayMesh = merged[0]
-	var box: AABB = merged[1]
-	var front := (wheels[0] + wheels[1]) / 2.0
-	var back := (wheels[2] + wheels[3]) / 2.0
-	var fwd := front - back
-	# Le modèle peut être couché (avant selon un autre axe) : on oriente avant -> +Z, haut -> +Y.
-	var up := Vector3.UP
-	var fwd_n := fwd.normalized()
-	var axes := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
-	var best_up := Vector3.UP
-	var best := -1.0
-	var side := (wheels[0] - wheels[1]).normalized()
-	for a in axes:
-		var cand: Vector3 = a
-		var d := absf(cand.dot(fwd_n)) + absf(cand.dot(side))
-		if d < 0.3:
-			best_up = cand
-			break
-	up = best_up
-	if (wheels[0] + wheels[1] + wheels[2] + wheels[3]).dot(up) / 4.0 > box.get_center().dot(up):
-		up = -up
-	var x_axis := up.cross(fwd_n).normalized()
-	var basis := Basis(x_axis, up, fwd_n).inverse()
-	var rot_box := Transform3D(basis, Vector3.ZERO) * box
-	var s: float = float(Car.TOON[model][1]) / maxf(rot_box.size.z, 0.01)
-	var xf := Transform3D(basis.scaled(Vector3.ONE * s), Vector3.ZERO)
-	var placed := xf * box
-	xf.origin = Vector3(-placed.get_center().x, -placed.position.y, -placed.get_center().z)
-	var v := [mesh, xf, placed.size / 2.0]
-	_variants[model] = v
-	return v
+	return CarModels.oriented(model)
 
 
 func _vehicle(model: String, kinematic: bool) -> Node3D:

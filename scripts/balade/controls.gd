@@ -37,6 +37,7 @@ var next_car_requested := false
 var camera_requested := false
 var night_requested := false
 var settings_requested := false
+var garage_requested := false
 var mode_requested := false
 
 var _steer_smooth := 0.0
@@ -57,6 +58,7 @@ const BUTTONS := [
 	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
 	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
 	["ci_settings", "RÉGLAGES", Vector2(1, 0), Rect2(0.025, 0.189, 0.2, 0.072)],
+	["ci_garage", "GARAGE", Vector2(1, 0), Rect2(0.025, 0.271, 0.2, 0.072)],
 ]
 
 const KEYS := {
@@ -71,6 +73,7 @@ const KEYS := {
 	"ci_night": [KEY_N],
 	"ci_settings": [KEY_ESCAPE, KEY_P],
 	"ci_mode": [KEY_G],
+	"ci_garage": [KEY_TAB],
 }
 
 var _buttons: Array[TouchScreenButton] = []
@@ -242,6 +245,7 @@ func _process(delta: float) -> void:
 	camera_requested = Input.is_action_just_pressed("ci_camera")
 	night_requested = Input.is_action_just_pressed("ci_night")
 	settings_requested = Input.is_action_just_pressed("ci_settings")
+	garage_requested = Input.is_action_just_pressed("ci_garage")
 	mode_requested = Input.is_action_just_pressed("ci_mode")
 
 

@@ -22,6 +22,7 @@ func _init() -> void:
 	_test_missions_and_achievements()
 	_test_collections()
 	_test_world_layout()
+	_test_game_state()
 	print("%d vérifications, %d échec(s)" % [_count, _failures])
 	quit(1 if _failures > 0 else 0)
 
@@ -195,3 +196,64 @@ func _test_world_layout() -> void:
 
 func _at(x: float, z: float) -> int:
 	return WL.surface_at(x, z, WL.height(x, z))
+
+
+func _test_game_state() -> void:
+	var g: Node = load("res://scripts/game/game_state.gd").new()
+	g.no_save = true
+	var t := 1000.0
+	g.new_game(t)
+	check(g.cars.size() == 1 and g.parked.size() == 1 and g.selected == g.cars[0]["uid"], "partie neuve : une voiture garée et choisie")
+	var inc: float = g.base_income()
+	check(near(inc, 1.0 * 1.01), "revenu de départ 1/s × bonus de collection")
+	# Revenus calculés depuis la dernière récolte, pas additionnés image par image.
+	g.settle(t + 10.0)
+	check(near(g.coins, inc * 10.0), "10 s de revenus")
+	g.settle(t + 10.0)
+	check(near(g.coins, inc * 10.0), "deux récoltes au même instant ne paient qu'une fois")
+	# SERVIR : 20 appuis -> rush ×2 pendant 30 s.
+	t += 10.0
+	for i in 20:
+		g.tap(t)
+	check(g.rush_active(t) and not g.rush_active(t + 31.0), "rush de 30 s après 20 appuis")
+	var before: float = g.coins
+	g.settle(t + 40.0)
+	check(near(g.coins - before, inc * (40.0 + 30.0)), "rush : ×2 seulement pendant ses 30 s")
+	t += 40.0
+	# Achat d'une pièce (les achats récoltent d'abord, à l'heure du jeu).
+	g.fake_time = t
+	g.coins = 1000.0
+	var uid: int = g.selected
+	check(g.buy_part(uid, 0, 1) and g.get_car(uid)["levels"][0] == 1, "achat d'un niveau")
+	check(near(g.coins, 1000.0 - Economy.part_cost(0, 0), 1e-6), "le niveau est payé")
+	check(not g.buy_part(uid, 5, 1), "pièce verrouillée à l'étape Box")
+	g.coins = 0.0
+	check(not g.buy_part(uid, 0, 1), "pas d'achat sans argent")
+	# Places : les voitures en trop vont en réserve.
+	for m in ["peujo280", "gulf8", "yariz"]:
+		g.add_car(m)
+	check(g.parked.size() == 3 and g.cars.size() == 4, "3 places : la 4e voiture est en réserve")
+	g.coins = g.slot_price()
+	check(g.buy_slot() and g.parked.size() == 4, "nouvelle place : la voiture de réserve s'y gare")
+	# Spot : gain et voiture ajoutée.
+	g.coins = 0.0
+	var info: Dictionary = g.spot("gulf_gti", t)
+	check(info["is_new"] and near(info["gain"], Economy.spot_gain(1, g.base_income() / 1.0) , 0.2) and g.owns_model("gulf_gti"), "spot : voiture et gain")
+	check(not g.spot("gulf_gti", t)["is_new"], "deuxième spot du même modèle : pas nouveau")
+	g.rng.seed = 7
+	var models := {}
+	for i in 200:
+		models[g.roll_spot_model()] = true
+	check(models.size() > 10, "le tirage varie les modèles")
+	# Sauvegarde, puis retour après 3 h : 2 h à 100 %, 1 h à 50 %.
+	var d: Dictionary = JSON.parse_string(JSON.stringify(g.to_dict()))
+	var inc2: float = g.base_income()
+	var coins_before: float = g.coins
+	var h: Node = load("res://scripts/game/game_state.gd").new()
+	h.no_save = true
+	check(h.from_dict(d, t + 3.0 * 3600.0) > 0.0, "sauvegarde relue")
+	check(near(h.coins - coins_before, inc2 * (7200.0 + 0.5 * 3600.0), 1e-6), "absence de 3 h payée selon le hors ligne")
+	check(not h.offline.is_empty(), "fenêtre « pendant ton absence »")
+	check(h.cars.size() == g.cars.size() and h.parked == g.parked and h.slots == g.slots, "voitures et places relues")
+	g.free()
+	h.free()

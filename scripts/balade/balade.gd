@@ -8,12 +8,18 @@ const WL = preload("res://scripts/core/world_layout.gd")
 const WorldData = preload("res://scripts/balade/world_data.gd")
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 const Car = preload("res://scripts/balade/car.gd")
+const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.12.1"
+const VERSION := "0.13.0"
 
 @export var start_model := "bolide"
+## Conduire la voiture choisie au garage (sinon `start_model`, pour les tests).
+@export var use_garage_car := true
+## Voiture du garage conduite (uid), -1 : modèle du pack.
+var drive_uid := -1
+var spotting: Node3D
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
 @export var force_quality := -1
 var low_quality := false
@@ -94,6 +100,8 @@ func _ready() -> void:
 	data = WorldData.load_baked()
 	if data == null:
 		return
+	# La balade lit les doigts elle-même (boutons multi-doigts) : pas de souris émulée.
+	Input.emulate_mouse_from_touch = false
 	low_quality = force_quality == 0 or (force_quality < 0 and (OS.has_feature("web") or OS.has_feature("mobile")))
 	sun = WorldBuilder.build_environment(self)
 	_apply_quality(sun)
@@ -177,10 +185,17 @@ func _ready() -> void:
 	menu.settings = settings
 	add_child(menu)
 	model_index = maxi(0, Car.MODELS.find(start_model))
+	var game_state := get_node_or_null("/root/Game")
+	if use_garage_car and game_state and not game_state.get_car(game_state.selected).is_empty():
+		drive_uid = game_state.selected
 	var y: float = data.height_at(WL.SPAWN_X, WL.SPAWN_Z) + 1.2
 	# Départ au bord de la plage, vers le nord, le long du rivage : la caméra drone, côté
 	# dunes, voit la voiture, la plage et la mer d'un seul coup d'œil.
 	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
+	spotting = load("res://scripts/balade/spotting.gd").new()
+	spotting.name = "Spots"
+	add_child(spotting)
+	spotting.build(data, car, camera)
 	settings.apply_graphics(self)
 	settings.apply_controls(controls)
 	controls.set_drift_indicator(settings.mode == 0)
@@ -218,7 +233,13 @@ func _apply_quality(sun: DirectionalLight3D) -> void:
 
 
 func _spawn(pos: Vector3, yaw: float) -> void:
-	car = Car.create(Car.MODELS[model_index], controls)
+	var game_state := get_node_or_null("/root/Game")
+	var garage_car: Dictionary = game_state.get_car(drive_uid) if game_state and drive_uid >= 0 else {}
+	if garage_car.is_empty():
+		car = Car.create(Car.MODELS[model_index], controls)
+	else:
+		car = Car.create(CarModels.kit_for(String(garage_car["model"])), controls)
+		CarModels.repaint(car, CarModels.color_of(garage_car))
 	car.world_data = data
 	settings.apply_mode(car)
 	car_base.clear()
@@ -230,6 +251,8 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	camera.target = car
 	if life:
 		life.target = car
+	if spotting:
+		spotting.target = car
 	_add_car_lights()
 	settings.apply_halos(car)
 	_apply_varnish()
@@ -260,6 +283,9 @@ func _process(delta: float) -> void:
 		audio.shot("click")
 		rebuild_car()
 		return
+	if controls.garage_requested:
+		_go_garage()
+		return
 	if controls.settings_requested:
 		audio.shot("click")
 		menu.open()
@@ -267,7 +293,17 @@ func _process(delta: float) -> void:
 	if controls.camera_requested:
 		camera.next_mode()
 	if controls.next_car_requested:
-		model_index = (model_index + 1) % Car.MODELS.size()
+		# Voiture suivante du garage (ou du pack, sans partie).
+		var gs := get_node_or_null("/root/Game")
+		if drive_uid >= 0 and gs and gs.cars.size() > 0:
+			var i := 0
+			for k in gs.cars.size():
+				if int(gs.cars[k]["uid"]) == drive_uid:
+					i = k
+			drive_uid = int(gs.cars[(i + 1) % gs.cars.size()]["uid"])
+			gs.select(drive_uid)
+		else:
+			model_index = (model_index + 1) % Car.MODELS.size()
 		var pos := car.global_position + Vector3.UP * 0.5
 		var yaw := car.rotation.y
 		car.queue_free()
@@ -697,6 +733,15 @@ func _update_car_shadow() -> void:
 
 
 ## Refait la voiture actuelle sur place (changement de mode de conduite).
+## Retour au garage (la partie est sauvegardée ; les boutons du garage se touchent au doigt).
+func _go_garage() -> void:
+	var gs := get_node_or_null("/root/Game")
+	if gs:
+		gs.save_game(gs.now())
+	Input.emulate_mouse_from_touch = true
+	get_tree().change_scene_to_file("res://scenes/garage.tscn")
+
+
 func rebuild_car() -> void:
 	var pos := car.global_position + Vector3.UP * 0.3
 	var yaw := car.rotation.y

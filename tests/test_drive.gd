@@ -30,6 +30,7 @@ func _init() -> void:
 		mode = 0 if args[1] == "drift" else 1
 	balade = load("res://scenes/balade.tscn").instantiate()
 	balade.start_model = model
+	balade.use_garage_car = false
 	root.add_child(balade)
 	physics_frame.connect(_tick)
 
