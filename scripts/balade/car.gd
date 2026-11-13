@@ -322,6 +322,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 
 	for i in 4:
 		var c := _center(wheel_nodes[i], car)
+		car._wheel_rest.append(c)
 		var w := VehicleWheel3D.new()
 		w.name = WHEEL_NAMES[i][0]
 		w.position = c + Vector3.UP * WHEEL_REST * 0.6
@@ -422,6 +423,10 @@ func _ready() -> void:
 var _wheel_fix: Array[float] = [0.0, 0.0, 0.0, 0.0]
 # Recentrage du dessin de chaque roue sur son axe (certains modèles ont le pivot ailleurs).
 var _wheel_base: Array[Vector3] = []
+## Centre de chaque roue au repos, dans le repère de la caisse, et la place qu'il y a
+## au-dessus (m) avant de toucher l'aile.
+var _wheel_rest: Array[Vector3] = []
+const WHEEL_ARCH_ROOM := 0.05
 
 
 func _process(delta: float) -> void:
@@ -437,7 +442,18 @@ func _process(delta: float) -> void:
 			want = clampf(-gap - clampf(wheel_sink[i], 0.0, 0.12), -0.25, 0.25)
 		_wheel_fix[i] = lerpf(_wheel_fix[i], want, minf(1.0, delta * 20.0))
 		var base: Vector3 = _wheel_base[i] if i < _wheel_base.size() else Vector3.ZERO
-		mesh.position = base + w.global_basis.orthonormalized().inverse() * (up * _wheel_fix[i])
+		var shift := up * _wheel_fix[i]
+		# La roue dessinée ne remonte jamais dans l'aile : quand la suspension se tasse ou que
+		# la caisse penche, on la retient sous son passage de roue (elle s'enfonce un peu
+		# dans le sol à la place, invisible d'en haut). Les voitures du kit Kenney ont des
+		# passages de roue très serrés.
+		if body_node and i < _wheel_rest.size():
+			var center := w.global_position + shift
+			var in_body := body_node.global_transform.affine_inverse() * center
+			var excess := in_body.y - (_wheel_rest[i].y + WHEEL_ARCH_ROOM)
+			if excess > 0.0:
+				shift -= body_node.global_basis.orthonormalized().y * excess
+		mesh.position = base + w.global_basis.orthonormalized().inverse() * shift
 
 
 ## Caisse suspendue (visuel) : la caisse dessinée est une masse posée sur des ressorts très
