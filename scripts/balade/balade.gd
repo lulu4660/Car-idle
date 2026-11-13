@@ -12,7 +12,7 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.14.0"
+const VERSION := "0.14.1"
 
 @export var start_model := "bolide"
 ## Conduire la voiture choisie au garage (sinon `start_model`, pour les tests).
@@ -236,10 +236,11 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	var game_state := get_node_or_null("/root/Game")
 	var garage_car: Dictionary = game_state.get_car(drive_uid) if game_state and drive_uid >= 0 else {}
 	if garage_car.is_empty():
-		car = Car.create(Car.MODELS[model_index], controls)
+		# Sans partie : modèle du pack, ou du kit Kenney si demandé (tests).
+		car = Car.create(start_model if Car.KENNEY.has(start_model) else Car.MODELS[model_index], controls)
 	else:
 		car = Car.create(CarModels.kit_for(String(garage_car["model"])), controls)
-		CarModels.repaint(car, CarModels.color_of(garage_car))
+		CarModels.repaint(car, CarModels.color_of(garage_car), CarModels.kit_for(String(garage_car["model"])))
 	car.world_data = data
 	settings.apply_mode(car)
 	car_base.clear()

@@ -47,8 +47,22 @@ const WHEEL_TAGS: Array = [["_FL"], ["_FR"], ["_RL", "_BL", "R L"], ["_RR", "_BR
 const WHEEL_TAGS_FRONT: Array = [["F L"], ["F R"]]
 
 
-static func model_path(_model: String) -> String:
-	return PACK
+## « Car Kit » de Kenney (CC0, assets/cars/kenney/) : un fichier par véhicule, roues
+## « wheel-front-left »… ; longueur réelle (m). Voitures du garage et de la circulation.
+const KENNEY := {
+	"sedan": 4.6, "sedan-sports": 4.5, "hatchback-sports": 4.1, "suv": 4.6, "suv-luxury": 4.9,
+	"van": 5.0, "truck": 5.3, "truck-flat": 5.5, "delivery": 6.5, "delivery-flat": 6.5,
+	"race": 4.8, "race-future": 4.8, "taxi": 4.6, "police": 4.7, "ambulance": 5.8,
+	"firetruck": 8.5, "garbage-truck": 8.0,
+}
+
+
+static func model_path(model: String) -> String:
+	return "res://assets/cars/kenney/%s.glb" % model if KENNEY.has(model) else PACK
+
+
+static func length_of(model: String) -> float:
+	return float(KENNEY[model]) if KENNEY.has(model) else float(TOON[model][1])
 
 @export_group("Moteur et freins")
 @export var engine_force_total := 16500.0
@@ -187,8 +201,8 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	var scene: PackedScene = load(model_path(model))
 	var visual: Node3D = scene.instantiate()
 	# Pack de plusieurs véhicules : on ne garde que le nœud du véhicule demandé.
-	var keep := String(TOON[model][0])
-	var root := visual.find_child("Root", true, false)
+	var keep := "" if KENNEY.has(model) else String(TOON[model][0])
+	var root := visual.find_child("Root", true, false) if keep != "" else null
 	var vehicle: Node = null
 	if root:
 		for n in root.get_children():
@@ -270,7 +284,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	visual.rotate_y(fwd.signed_angle_to(Vector3.BACK, Vector3.UP))
 	# 2. Taille : longueur réelle d'une voiture.
 	var b := _bounds(visual, car)
-	var length: float = TOON[model][1]
+	var length: float = length_of(model)
 	var s := length / maxf(b.size.z, 0.01)
 	visual.scale *= s
 	visual.position *= s

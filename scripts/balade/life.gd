@@ -17,8 +17,9 @@ const Waves = preload("res://scripts/balade/waves.gd")
 
 const ACTIVE := 150.0
 const PEOPLE := ["character-female-a", "character-female-b", "character-female-c", "character-female-d", "character-female-e", "character-female-f", "character-male-a", "character-male-b", "character-male-c", "character-male-d", "character-male-e", "character-male-f", "character-male-g", "character-worker"]
-const CIVIL := ["puce", "familiale", "coupe", "break", "fourgon", "berline", "berline_longue", "taxi", "puce_carbone"]
-const SERVICE := ["police", "police_break", "police_puce", "ambulance", "taxi"]
+## Circulation : voitures du « Car Kit » de Kenney (même style que les voitures du garage).
+const CIVIL := ["sedan", "hatchback-sports", "suv", "van", "truck", "sedan-sports", "suv-luxury", "taxi", "delivery"]
+const SERVICE := ["police", "ambulance", "taxi", "delivery-flat", "garbage-truck"]
 
 var data: RefCounted
 var town: Node
