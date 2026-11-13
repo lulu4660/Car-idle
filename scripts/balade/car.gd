@@ -84,6 +84,9 @@ static func model_path(_model: String) -> String:
 @export_range(0.0, 1.0) var throttle_angle := 0.3
 ## … et le volant fait pivoter la voiture en travers (on « dessine » la ligne au doigt).
 @export var drift_steer := 0.0
+## Aide à la stabilité (façon ESP) : garde la ligne droite et les petites corrections
+## sous contrôle ; s'efface quand on veut déraper (volant tenu, frein à main, en travers).
+@export_range(0.0, 2.0) var stability := 1.0
 @export_group("Roulis (physique)")
 ## Part de la force des pneus qui fait rouler le châssis (Godot : wheel_roll_influence).
 ## 0 = la voiture ne penche jamais, 1 = physique réelle : la force de virage au sol, sous le
@@ -128,6 +131,7 @@ var _last_ang := Vector3.ZERO
 var _motion_ready := false
 var _acc_f := Vector3.ZERO
 var _gas_s := 0.0
+var _steer_hold := 0.0
 var _brake_s := 0.0
 var _last_fwd := 0.0
 var _a_long_f := 0.0
@@ -534,7 +538,14 @@ func _physics_process(delta: float) -> void:
 	steer_deg = clampf(steer_deg, -max_steer_deg - 10.0, max_steer_deg + 10.0)
 
 	var rear_share := 1.0 if drive == Drivetrain.REAR_WHEEL else (0.0 if drive == Drivetrain.FRONT_WHEEL else awd_rear_share)
-	var power_oversteer := drift * rear_share * maxf(drive_in, 0.0) * clampf((kmh - 20.0) / 30.0, 0.0, 1.0)
+	# Intention de dérapage : volant tenu un moment, frein à main, ou déjà en travers.
+	# Une petite correction de trajectoire n'en est pas une.
+	if absf(steer) > 0.5:
+		_steer_hold += delta
+	else:
+		_steer_hold = maxf(0.0, _steer_hold - delta * 3.0)
+	var intent := clampf(smoothstep(0.2, 0.55, _steer_hold) + drifting * 1.5 + (1.0 if handbrake else 0.0), 0.0, 1.0)
+	var power_oversteer := drift * rear_share * maxf(drive_in, 0.0) * clampf((kmh - 20.0) / 30.0, 0.0, 1.0) * intent
 
 	var grounded := 0
 	for i in 4:
@@ -595,6 +606,16 @@ func _physics_process(delta: float) -> void:
 		if slide_keep > 0.0 and drive_in > 0.0 and flat.length() > 5.0:
 			var keep := slide_keep * 9.8 * clampf((absf(slip_angle) - 5.0) / 25.0, 0.0, 1.0) * drive_in
 			apply_central_force(flat.normalized() * keep * mass)
+		# Stabilité (façon ESP) : sans intention de dérapage, la voiture ne tourne pas plus vite
+		# que ne le demandent les roues avant ; les petites corrections restent des
+		# corrections. Elle s'efface dès qu'on tient le volant, qu'on tire le frein à main ou
+		# qu'on est déjà en travers.
+		var wheelbase := maxf(body_half.z * 1.4, 1.5)
+		var want_yaw := forward_speed * tan(deg_to_rad(steer_deg)) / wheelbase
+		var yaw_now := angular_velocity.dot(up)
+		var esp := stability * (1.0 - intent) * clampf((kmh - 10.0) / 20.0, 0.0, 1.0)
+		if esp > 0.0:
+			apply_torque(-up * (yaw_now - want_yaw) * esp * 5.0 * mass * YAW_INERTIA)
 		# Dérapage : frein à main ou gaz en propulsion font pivoter la voiture.
 		var kick := (1.0 if handbrake else 0.0) + power_oversteer * 0.6
 		if kick > 0.0 and kmh > 15.0:

@@ -124,6 +124,12 @@ func _layout() -> void:
 		t.set_meta("base", Vector2(x, y))
 		t.set_meta("size", bs)
 		var arrow: int = t.get_meta("arrow")
+		# Zone tactile un peu plus grande que le bouton dessiné (un doigt un peu à côté compte).
+		var hit := RectangleShape2D.new()
+		hit.size = bs * Vector2(1.08, 1.2)
+		t.shape = hit
+		t.shape_centered = true
+		t.shape_visible = false
 		t.texture_normal = _box(Vector2i(bs), Color(0.07, 0.065, 0.07, 0.42), arrow)
 		t.texture_pressed = _box(Vector2i(bs), Color(1.0, 0.52, 0.12, 0.85), arrow)
 		var lbl := t.get_child(0) as Label

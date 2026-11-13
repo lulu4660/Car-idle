@@ -179,25 +179,44 @@ def water(sr=22050, seconds=2.5):
     save("water", x, sr)
 
 
-def crickets(sr=22050, seconds=4.0):
-    """Nuit : grillons (trains de petits cris aigus) sur un fond très doux."""
+def crickets(sr=22050, seconds=12.0):
+    """Nuit d'été : un chœur de grillons des champs. Chaque grillon chante par « chirps »
+    de 3 ou 4 pulsations (15 ms chacune, porteuse vers 4,5 kHz qui glisse un peu), un chirp
+    toutes les 0,5 à 0,9 s, avec de petites irrégularités ; les plus lointains sont plus
+    doux et plus ternes. Placés en boucle circulaire : aucun raccord audible. Plus un fond
+    de nuit très doux (souffle d'air)."""
     n = int(seconds * sr)
-    t = np.arange(n) / sr
     x = np.zeros(n)
-    for fc, rate, gain, ph in [(4300, 14, 1.0, 0.0), (4900, 17, 0.6, 0.4), (3700, 11, 0.45, 0.9)]:
-        chirp = (np.sin(2 * np.pi * rate * t + ph) > 0.2).astype(float)
-        group = (np.sin(2 * np.pi * (rate / 28.0) * t + ph * 3) > -0.3).astype(float)
-        k = np.hanning(int(sr * 0.012))
-        env = np.convolve(chirp * group, k / k.sum(), mode="same")
-        x += gain * env * np.sin(2 * np.pi * fc * t)
-    # Raccord : fondu des deux extrémités.
-    fade = int(sr * 0.05)
-    ramp = np.linspace(0, 1, fade)
-    x[:fade] *= ramp
-    x[-fade:] *= ramp[::-1]
-    bed = noise_loop(n, sr, lambda f: band(f, 2500, 7000))
-    save("crickets", x + bed / np.max(np.abs(bed)) * 0.04, sr, peak=0.6)
-
+    for c in range(9):
+        dist = rng.uniform(0.25, 1.0)          # 1 = proche
+        f0 = rng.uniform(4100, 5200)
+        period = rng.uniform(0.5, 0.95)
+        pulses = int(rng.integers(3, 5))
+        pulse_len = rng.uniform(0.012, 0.018)
+        gap = rng.uniform(0.010, 0.016)
+        t0 = rng.uniform(0, period)
+        pl = int(pulse_len * sr)
+        tt = np.arange(pl) / sr
+        env = np.sin(np.pi * np.arange(pl) / pl) ** 1.5
+        while t0 < seconds:
+            if rng.random() < 0.92:             # parfois un chirp sauté
+                amp = dist * rng.uniform(0.8, 1.1)
+                f = f0 * rng.uniform(0.99, 1.01)
+                for k in range(pulses):
+                    start = int((t0 + k * (pulse_len + gap)) * sr)
+                    sweep = f * (1.0 + 0.03 * tt / pulse_len)
+                    tone = np.sin(2 * np.pi * np.cumsum(sweep) / sr) + 0.18 * np.sin(4 * np.pi * np.cumsum(sweep) / sr)
+                    x[(start + np.arange(pl)) % n] += tone * env * amp * (0.85 + 0.15 * (k == 0))
+            t0 += period * rng.uniform(0.95, 1.06)
+    # Les lointains : un peu étouffés (passe-bas doux dans le domaine des fréquences).
+    spec = np.fft.rfft(x)
+    f = np.fft.rfftfreq(n, 1.0 / sr)
+    spec *= 1.0 / (1.0 + (f / 7000.0) ** 4)
+    x = np.fft.irfft(spec, n)
+    x /= np.max(np.abs(x)) + 1e-9
+    bed = noise_loop(n, sr, lambda f: band(f, 80, 1200) / np.maximum(f, 80) ** 0.7)
+    x += bed / (np.max(np.abs(bed)) + 1e-9) * 0.06
+    save("crickets", x, sr, peak=0.5)
 
 def shot(name, seconds, sr, build, peak=0.9):
     n = int(seconds * sr)

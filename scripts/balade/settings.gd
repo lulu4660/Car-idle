@@ -50,6 +50,7 @@ const CAR := [
 	["downforce", "Appui", 0.0, 6.0, 0.1],
 	["upright_assist", "Anti-tonneau", 0.0, 6.0, 0.1],
 	["throttle_angle", "Angle réglé aux gaz (en glisse)", 0.0, 1.0, 0.01],
+	["stability", "Aide à la stabilité (ligne droite)", 0.0, 2.0, 0.05],
 	["drift_steer", "Volant qui pivote en glisse", 0.0, 2.0, 0.05],
 	["roll_physics", "Roulis physique (force des pneus)", 0.0, 1.0, 0.01],
 	["com_height", "Hauteur du centre de gravité (m)", 0.1, 0.8, 0.01],

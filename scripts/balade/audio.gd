@@ -146,7 +146,9 @@ func _process(delta: float) -> void:
 	var near_sea := 1.0 - clampf((shore - p.x) / 140.0, 0.0, 1.0)
 	_loop("sea", near_sea * 0.55, delta, 1.0, 1.5)
 	var night: float = game.lighting.glow if game.lighting else 0.0
-	_loop("crickets", night * (1.0 - near_sea * 0.7) * 0.3, delta, 1.0, 1.0)
+	# Grillons : dans les champs, la forêt et les dunes ; presque pas en ville ni au bord de l'eau.
+	var rural := lerpf(0.15, 1.0, clampf((p.x - WL.CITY_END) / 90.0, 0.0, 1.0))
+	_loop("crickets", night * rural * (1.0 - near_sea * 0.75) * 0.28, delta, 1.0, 1.0)
 
 
 ## Réception de saut (0 à 1).
