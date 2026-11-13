@@ -21,6 +21,7 @@ const GRAPHICS := [
 	["shadows", "Ombres temps réel (m, 0 = précalculées seules)", 0.0, 150.0, 10.0, [0.0, 0.0, 0.0, 0.0, 80.0]],
 	["water", "Vagues simulées autour de la voiture", 0.0, 1.0, 0.0, [0.0, 1.0, 1.0, 1.0, 1.0]],
 	["halos", "Halos des lumières", 0.0, 1.0, 0.0, [0.0, 1.0, 1.0, 1.0, 1.0]],
+	["tilt", "Effet maquette (flou en haut et en bas)", 0.0, 1.0, 0.0, [0.0, 1.0, 1.0, 1.0, 1.0]],
 	["glow", "Bloom plein écran (coûteux)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 1.0, 1.0]],
 	["ssao", "Occlusion ambiante (PC)", 0.0, 1.0, 0.0, [0.0, 0.0, 0.0, 0.0, 1.0]],
 	["varnish", "Vernis brillant sur la carrosserie", 0.0, 1.0, 0.0, [0.0, 0.0, 1.0, 1.0, 1.0]],
@@ -170,6 +171,8 @@ func apply_graphics(game: Node) -> void:
 	if sh > 0.0:
 		sun.directional_shadow_max_distance = sh
 	game.lighting.no_glow = g["glow"] < 0.5
+	if game.lighting.tilt_shift:
+		game.lighting.tilt_shift.get_parent().visible = float(g.get("tilt", 1.0)) > 0.5
 	game.lighting.fog_amount = float(g["fog"])
 	RenderingServer.global_shader_parameter_set("head_power", float(g["headlights"]))
 	game.lighting.cycle_minutes = float(g["cycle"])

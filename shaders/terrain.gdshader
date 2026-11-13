@@ -226,6 +226,9 @@ void fragment() {
 		vec3 water = c * 0.45;
 		c = mix(c, water, pud);
 	}
+	// Creux et pied des objets plus sombres (volume, comme Art of Rally), un peu lavande.
+	float ao = ground_ao(wpos, world_size);
+	c *= mix(vec3(1.0), vec3(0.62, 0.6, 0.72), ao * 0.85);
 	ALBEDO = c;
 	sun_vis = sun_visibility(wpos, world_size);
 	EMISSION = c * (lamp_glow(wpos, world_size) * (1.0 + wet_k * 1.2 + pud * 2.0) + head_color * headlight(wpos, vec3(0.0, 1.0, 0.0)) * (1.4 + pud * 1.5));

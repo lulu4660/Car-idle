@@ -100,6 +100,7 @@ func setup(environment: Environment, sun_light: DirectionalLight3D, parent: Node
 	moon.light_angular_distance = 0.6
 	moon.shadow_enabled = false
 	parent.add_child(moon)
+	_build_tilt_shift(parent)
 	_build_vignette(parent)
 	_apply()
 
@@ -260,6 +261,23 @@ func _apply() -> void:
 static func _grey(c: Color, k: float) -> Color:
 	var l := c.get_luminance()
 	return c.lerp(Color(l, l, l * 1.04) * 0.92, clampf(k, 0.0, 1.0))
+
+
+## Effet maquette (shaders/tilt_shift.gdshader) : posé sous le vignettage et l'affichage.
+var tilt_shift: ColorRect
+
+
+func _build_tilt_shift(parent: Node) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = -2
+	parent.add_child(layer)
+	tilt_shift = ColorRect.new()
+	tilt_shift.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tilt_shift.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/tilt_shift.gdshader")
+	tilt_shift.material = m
+	layer.add_child(tilt_shift)
 
 
 ## Vignettage : un dégradé radial posé sur l'image (presque gratuit, pas de passe en plus).

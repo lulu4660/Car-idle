@@ -31,6 +31,8 @@ func _tick() -> void:
 		if "nospot" in args:
 			for l in balade._car_lights:
 				l.visible = false
+		if "notilt" in args and balade.lighting.tilt_shift:
+			balade.lighting.tilt_shift.get_parent().visible = false
 		if "noglow" in args:
 			balade.lighting.env.glow_enabled = false
 	if frames == 30:

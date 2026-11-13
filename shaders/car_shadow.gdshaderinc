@@ -34,6 +34,8 @@ float cloud_shadow(vec2 p) {
 }
 // Nuit : lumière des réverbères au sol, précalculée (tools/bake_shadows.gd -> lights.png).
 uniform sampler2D night_light_tex : filter_linear, repeat_disable;
+// Ombrage des creux précalculé (tools/bake_ao.gd) : pied des objets, fonds de vallon.
+uniform sampler2D ao_tex : filter_linear, repeat_disable;
 uniform vec3 lamp_color : source_color = vec3(1.0, 0.72, 0.42);
 #include "res://shaders/night_light.gdshaderinc"
 uniform mat4 car_inv = mat4(0.0);          // monde -> repère de la voiture
@@ -72,6 +74,12 @@ float sun_visibility(vec3 wp, float ws) {
 		car = max(box_through(p, l, box1_min, box1_max), box_through(p, l, box2_min, box2_max));
 	}
 	return (1.0 - max(m, car) * shadow_strength) * (1.0 - cloud_shadow(wp.xz));
+}
+
+
+// Ombrage des creux (0 = dégagé, 1 = au pied d'un objet ou au fond d'un creux).
+float ground_ao(vec3 wp, float ws) {
+	return texture(ao_tex, (wp.xz + vec2(ws * 0.5)) / ws).r;
 }
 
 

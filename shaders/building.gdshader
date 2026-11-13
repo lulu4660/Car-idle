@@ -25,6 +25,13 @@ void fragment() {
 		discard;
 	}
 	vec3 c = texture(albedo_tex, UV).rgb;
+	// Ville façon Art of Rally : les gris du kit tirent vers le crème et la terre cuite,
+	// le pied des murs est plus sombre.
+	float l = dot(c, vec3(0.3, 0.59, 0.11));
+	float sat = max(max(c.r, c.g), c.b) - min(min(c.r, c.g), c.b);
+	vec3 warm = mix(vec3(0.78, 0.47, 0.36), vec3(1.0, 0.92, 0.8), smoothstep(0.25, 0.75, l)) * (0.55 + 0.6 * l);
+	c = mix(c, warm, (1.0 - smoothstep(0.05, 0.2, sat)) * 0.85);
+	c *= mix(0.72, 1.0, smoothstep(0.0, 2.5, wpos.y - MODEL_MATRIX[3].y));
 	ALBEDO = c;
 	ROUGHNESS = 1.0;
 	if (night > 0.01) {

@@ -158,6 +158,23 @@ func _layout() -> void:
 	_apply_menu()
 
 
+## Retire un bouton (ex. GARAGE quand la partie idle est mise de côté).
+func hide_action(action: String) -> void:
+	for t in _buttons:
+		if t.action == action:
+			t.visible = false
+			t.set_meta("hidden", true)
+	# Sans GARAGE, le bouton Drift remonte dans le coin.
+	if action == "ci_garage":
+		for t in _buttons:
+			if t.action == "ci_mode":
+				t.set_meta("zone", Rect2(0.025, 0.025, 0.09, 0.072))
+		_layout()
+		for t in _buttons:
+			if t.has_meta("hidden"):
+				t.visible = false
+
+
 ## Montre ou cache les boutons du MENU.
 func _apply_menu() -> void:
 	for t in _buttons:

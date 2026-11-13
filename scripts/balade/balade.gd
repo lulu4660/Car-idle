@@ -12,9 +12,14 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.16.0"
+const VERSION := "0.17.0"
 
-@export var start_model := "bolide"
+@export var start_model := "sedan-sports"
+## Partie idle (garage, voitures à spotter) branchée ou non. Mise de côté pour l'instant
+## (choix de l'auteur) : le jeu s'ouvre sur la balade, voitures du Car Kit au choix.
+const IDLE_ENABLED := false
+## Voitures conduites sans partie idle (bouton VOITURE).
+const FREE_MODELS: Array[String] = ["sedan-sports", "hatchback-sports", "sedan", "suv", "suv-luxury", "truck", "van", "race-future", "taxi"]
 ## Conduire la voiture choisie au garage (sinon `start_model`, pour les tests).
 @export var use_garage_car := true
 ## Voiture du garage conduite (uid), -1 : modèle du pack.
@@ -186,16 +191,19 @@ func _ready() -> void:
 	add_child(menu)
 	model_index = maxi(0, Car.MODELS.find(start_model))
 	var game_state := get_node_or_null("/root/Game")
-	if use_garage_car and game_state and not game_state.get_car(game_state.selected).is_empty():
+	if IDLE_ENABLED and use_garage_car and game_state and not game_state.get_car(game_state.selected).is_empty():
 		drive_uid = game_state.selected
 	var y: float = data.height_at(WL.SPAWN_X, WL.SPAWN_Z) + 1.2
 	# Départ au bord de la plage, vers le nord, le long du rivage : la caméra drone, côté
 	# dunes, voit la voiture, la plage et la mer d'un seul coup d'œil.
 	_spawn(Vector3(WL.SPAWN_X, y, WL.SPAWN_Z), PI)
-	spotting = load("res://scripts/balade/spotting.gd").new()
-	spotting.name = "Spots"
-	add_child(spotting)
-	spotting.build(data, car, camera)
+	if IDLE_ENABLED:
+		spotting = load("res://scripts/balade/spotting.gd").new()
+		spotting.name = "Spots"
+		add_child(spotting)
+		spotting.build(data, car, camera)
+	else:
+		controls.hide_action("ci_garage")
 	settings.apply_graphics(self)
 	settings.apply_controls(controls)
 	controls.set_drift_indicator(settings.mode == 0)
@@ -284,7 +292,7 @@ func _process(delta: float) -> void:
 		audio.shot("click")
 		rebuild_car()
 		return
-	if controls.garage_requested:
+	if IDLE_ENABLED and controls.garage_requested:
 		_go_garage()
 		return
 	if controls.settings_requested:
@@ -303,6 +311,8 @@ func _process(delta: float) -> void:
 					i = k
 			drive_uid = int(gs.cars[(i + 1) % gs.cars.size()]["uid"])
 			gs.select(drive_uid)
+		elif Car.KENNEY.has(start_model):
+			start_model = FREE_MODELS[(FREE_MODELS.find(start_model) + 1) % FREE_MODELS.size()]
 		else:
 			model_index = (model_index + 1) % Car.MODELS.size()
 		var pos := car.global_position + Vector3.UP * 0.5
@@ -673,9 +683,11 @@ func _setup_shadows() -> void:
 	if decor.grass_material:
 		_shadow_mats.append(decor.grass_material)
 	var night_tex: Texture2D = load("res://assets/balade/lights.png")
+	var ao_tex: Texture2D = load("res://assets/balade/ao.png")
 	for m in _shadow_mats:
 		m.set_shader_parameter("static_shadow_tex", tex)
 		m.set_shader_parameter("night_light_tex", night_tex)
+		m.set_shader_parameter("ao_tex", ao_tex)
 	lighting.shadow_materials = _shadow_mats
 	sun_shadows.materials = _shadow_mats
 	lighting.refresh()
