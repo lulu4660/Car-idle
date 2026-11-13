@@ -156,7 +156,7 @@ func _process(delta: float) -> void:
 	# fois par seconde, ce qui ne se voit pas et coûte peu.
 	_apply_timer -= delta
 	if _apply_timer <= 0.0:
-		_apply_timer = 0.5
+		_apply_timer = 1.0
 		_apply()
 	# Éclair d'orage : la scène s'illumine un instant (sans attendre le recalcul).
 	if weather and (weather.flash > 0.0 or _flashing):

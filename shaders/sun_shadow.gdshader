@@ -1,6 +1,6 @@
 // Ombres du décor pour la position du soleil (ou de la lune) du moment, calculées par la
-// carte graphique dans une image de 2048² (50 cm par pixel) qui couvre toute la carte
-// (scripts/balade/sun_shadows.gd la refait par morceaux, en continu).
+// carte graphique dans une fenêtre de 256 m autour de la voiture (50 cm par pixel ;
+// scripts/balade/sun_shadows.gd la refait par morceaux, en continu).
 // Pour chaque point du sol, on remonte le rayon vers l'astre pas à pas dans la carte des
 // obstacles (tools/bake_shadows.gd : haut et bas des objets depuis leur pied, part de la
 // case couverte) : le rayon est bloqué s'il passe entre le bas et le haut d'un objet.
@@ -17,6 +17,8 @@ uniform int steps = 32;
 uniform float step_len = 0.5;
 uniform float map_px = 2048.0;
 uniform float texel = 0.5;
+// Coin de la fenêtre calculée, en pixels de la carte des obstacles.
+uniform vec2 origin_px = vec2(0.0);
 
 varying vec2 px;
 
@@ -25,7 +27,7 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 uv0 = px / map_px;
+	vec2 uv0 = (origin_px + px + vec2(0.0)) / map_px;
 	vec2 duv = sun_xz * (step_len / texel / map_px);
 	float span = float(steps) * step_len;
 	float m = 0.0;

@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.12.0"
+const VERSION := "0.12.1"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -640,6 +640,7 @@ func _setup_shadows() -> void:
 		m.set_shader_parameter("static_shadow_tex", tex)
 		m.set_shader_parameter("night_light_tex", night_tex)
 	lighting.shadow_materials = _shadow_mats
+	sun_shadows.materials = _shadow_mats
 	lighting.refresh()
 
 
@@ -651,7 +652,10 @@ func _update_sun_shadows(force_full: bool) -> void:
 	var fast: bool = lighting.is_scrubbing()
 	var full := force_full or (gap > 0.25 and not fast)
 	_shadow_hour = h
-	sun_shadows.update(lighting.light_direction(), car.global_position, full, fast)
+	# Fenêtre centrée un peu devant la voiture (la caméra regarde devant).
+	var v := car.linear_velocity * 1.5
+	var lead := Vector3(v.x, 0.0, v.z).limit_length(50.0)
+	sun_shadows.update(lighting.light_direction(), car.global_position + lead, full, fast)
 
 
 ## Ombre de la voiture : sa position, son orientation et deux boîtes (bas de caisse,

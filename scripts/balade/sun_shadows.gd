@@ -1,111 +1,121 @@
 ## Ombres du décor qui suivent le soleil (et la lune) en continu.
-## La carte graphique les calcule dans une image de 2048² qui couvre toute la carte
-## (shaders/sun_shadow.gdshader, à partir des obstacles précalculés
-## assets/balade/occluders.png) ; le terrain et l'herbe la lisent comme avant
-## (static_shadow_tex). Pour ne rien coûter, l'image est refaite par morceaux de 64 m, un
-## par image : deux fois sur trois autour de la voiture (les 9 voisins se relaient : chacun
-## refait environ 5 fois par seconde), sinon ailleurs sur la carte (toute la carte en une
-## dizaine de secondes, hors de vue). Le soleil avance d'un quart de degré par seconde : les morceaux
-## refaits l'un après l'autre ne se voient pas. Quand l'heure saute, tout est refait d'un
-## coup.
+## La carte graphique les calcule (shaders/sun_shadow.gdshader, à partir des obstacles
+## précalculés assets/balade/occluders.png) dans une fenêtre de 256 m autour de la voiture
+## (512², 50 cm par pixel) ; le terrain et l'herbe la lisent (static_shadow_tex, zone
+## donnée par le paramètre global shadow_rect ; au-delà, les ombres s'effacent).
+## Deux images se relaient : pendant qu'on regarde l'une, l'autre est refaite par
+## morceaux de 64 m (un par image, toute la fenêtre en 16 images), centrée sur la voiture
+## et un peu devant elle, pour la position de l'astre du moment ; puis elles s'échangent.
+## Petites images : sur iPhone, la carte graphique recharge toute l'image qu'on retouche,
+## même pour un petit morceau (une image de toute la carte, 16 Mo, faisait saccader).
+## Quand l'heure saute, toute la fenêtre est refaite d'un coup.
 extends Node
 
 const WL = preload("res://scripts/core/world_layout.gd")
 
-const RES := 2048
+const RES := 2048                    # carte des obstacles (toute la carte)
+const TEXEL := WL.SIZE / RES         # 0,5 m
+const WIN := 512                     # fenêtre calculée (256 m)
 const TILE := 128
-const TILES := RES / TILE
-const TEXEL := WL.SIZE / RES
+const TILES := WIN / TILE            # 4 × 4 morceaux
 ## Portée maximale d'une ombre (soleil bas) et pas du calcul.
 const MAX_REACH := 60.0
 const STEP := 0.5
 const MAX_TOP := 25.5
 
-var _vp: SubViewport
-var _rects: Array[ColorRect] = []
-var _full: ColorRect
+## Matériaux qui lisent les ombres (terrain, ornières, herbe).
+var materials: Array = []
+var _vp: Array[SubViewport] = []
+var _rects: Array = []
+var _fulls: Array = []
 var _mat: ShaderMaterial
-var _cycle := 0
-var _near := 0
-var _turn := 0
-var _dir := Vector3.ZERO
-## Morceaux refaits depuis le dernier changement de direction (arrêt quand tout est à jour).
-var _clean := 0
+var _front := 0
+var _tile := -1                      # morceau en cours de la passe (-1 : aucune passe)
+var _origin := Vector2i.ZERO         # coin de la fenêtre en cours de calcul (pixels de la carte)
+var _shown_origin := Vector2i(-100000, 0)
+var _shown_dir := Vector3.ZERO
+var _pass_dir := Vector3.ZERO
 
 
 func build() -> void:
-	_vp = SubViewport.new()
-	_vp.size = Vector2i(RES, RES)
-	_vp.disable_3d = true
-	_vp.transparent_bg = false
-	_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
-	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_mat = ShaderMaterial.new()
 	_mat.shader = load("res://shaders/sun_shadow.gdshader")
 	_mat.set_shader_parameter("occ_tex", load("res://assets/balade/occluders.png"))
 	_mat.set_shader_parameter("map_px", float(RES))
 	_mat.set_shader_parameter("texel", TEXEL)
 	_mat.set_shader_parameter("step_len", STEP)
-	for i in 10:
-		var r := ColorRect.new()
-		r.size = Vector2(TILE, TILE)
-		r.material = _mat
-		r.visible = false
-		_vp.add_child(r)
-		_rects.append(r)
-	_full = ColorRect.new()
-	_full.size = Vector2(RES, RES)
-	_full.material = _mat
-	_full.visible = false
-	_vp.add_child(_full)
-	add_child(_vp)
+	for i in 2:
+		var vp := SubViewport.new()
+		vp.size = Vector2i(WIN, WIN)
+		vp.disable_3d = true
+		vp.transparent_bg = false
+		vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
+		vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		var rs: Array[ColorRect] = []
+		for k in 4:
+			var r := ColorRect.new()
+			r.size = Vector2(TILE, TILE)
+			r.material = _mat
+			r.visible = false
+			vp.add_child(r)
+			rs.append(r)
+		var full := ColorRect.new()
+		full.size = Vector2(WIN, WIN)
+		full.material = _mat
+		full.visible = false
+		vp.add_child(full)
+		add_child(vp)
+		_vp.append(vp)
+		_rects.append(rs)
+		_fulls.append(full)
 
 
 func texture() -> Texture2D:
-	return _vp.get_texture()
+	return _vp[_front].get_texture()
 
 
-## `light` : direction vers l'astre qui éclaire ; `focus` : la voiture ; `full` : tout
-## refaire (l'heure a sauté) ; `fast` : l'heure défile vite (bouton NUIT/JOUR).
+## `light` : direction vers l'astre qui éclaire ; `focus` : où centrer (la voiture, un peu
+## devant) ; `full` : tout refaire d'un coup (l'heure a sauté) ; `fast` : l'heure défile
+## vite (bouton NUIT/JOUR), 4 morceaux par image.
 func update(light: Vector3, focus: Vector3, full: bool, fast: bool) -> void:
-	if light.distance_squared_to(_dir) > 1e-9:
-		_dir = light
-		_clean = 0
-		_set_light(light)
-	elif not full and _clean >= TILES * TILES:
+	var back := 1 - _front
+	for r in _rects[back]:
+		(r as ColorRect).visible = false
+	(_fulls[back] as ColorRect).visible = false
+	if full:
+		_start_pass(light, focus)
+		(_fulls[back] as ColorRect).visible = true
+		_vp[back].render_target_update_mode = SubViewport.UPDATE_ONCE
+		_swap()
 		return
-	for r in _rects:
-		r.visible = false
-	_full.visible = full
-	if not full:
-		var ft := Vector2i(clampi(int((focus.x + WL.SIZE / 2.0) / TEXEL) / TILE, 0, TILES - 1), clampi(int((focus.z + WL.SIZE / 2.0) / TEXEL) / TILE, 0, TILES - 1))
-		if fast:
-			# L'heure défile : les 9 morceaux autour de la voiture à chaque image.
-			for j in 9:
-				_place(j, ft + Vector2i(j % 3 - 1, j / 3 - 1))
-		else:
-			# Un seul morceau par image : deux fois sur trois autour de la voiture.
-			_turn = (_turn + 1) % 3
-			if _turn < 2:
-				_place(0, ft + Vector2i(_near % 3 - 1, _near / 3 - 1))
-				_near = (_near + 1) % 9
-			else:
-				_place(0, Vector2i(_cycle % TILES, _cycle / TILES))
-				_cycle = (_cycle + 1) % (TILES * TILES)
-				_clean += 1
-	else:
-		_clean = TILES * TILES
-	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	if _tile < 0:
+		# Rien à refaire si l'astre n'a pas bougé et que la voiture reste au milieu.
+		var c := Vector2(focus.x, focus.z) - _rect_center(_shown_origin)
+		if light.distance_squared_to(_shown_dir) < 1e-10 and maxf(absf(c.x), absf(c.y)) < WIN * TEXEL * 0.2:
+			return
+		_start_pass(light, focus)
+	var count := 4 if fast else 1
+	for k in count:
+		var t := _tile
+		var r := _rects[back][k] as ColorRect
+		r.position = Vector2((t % TILES) * TILE, (t / TILES) * TILE)
+		r.visible = true
+		_tile += 1
+		if _tile >= TILES * TILES:
+			break
+	_vp[back].render_target_update_mode = SubViewport.UPDATE_ONCE
+	if _tile >= TILES * TILES:
+		# Les morceaux de cette image seront dessinés avant que la mer et le terrain ne la
+		# lisent : l'échange peut se faire tout de suite.
+		_swap()
 
 
-func _place(k: int, t: Vector2i) -> void:
-	if t.x < 0 or t.y < 0 or t.x >= TILES or t.y >= TILES:
-		return
-	_rects[k].position = Vector2(t * TILE)
-	_rects[k].visible = true
-
-
-func _set_light(light: Vector3) -> void:
+func _start_pass(light: Vector3, focus: Vector3) -> void:
+	_tile = 0
+	_pass_dir = light
+	var px := Vector2((focus.x + WL.SIZE / 2.0) / TEXEL, (focus.z + WL.SIZE / 2.0) / TEXEL)
+	_origin = Vector2i(clampi(int(px.x) - WIN / 2, 0, RES - WIN) & ~1, clampi(int(px.y) - WIN / 2, 0, RES - WIN) & ~1)
+	_mat.set_shader_parameter("origin_px", Vector2(_origin))
 	var flat := Vector2(light.x, light.z)
 	var l := flat.length()
 	var rise := maxf(light.y, 0.02) / maxf(l, 1e-4)
@@ -113,3 +123,19 @@ func _set_light(light: Vector3) -> void:
 	_mat.set_shader_parameter("sun_xz", flat / maxf(l, 1e-4))
 	_mat.set_shader_parameter("rise", rise)
 	_mat.set_shader_parameter("steps", maxi(1, int(ceil(reach / STEP))))
+
+
+func _swap() -> void:
+	_front = 1 - _front
+	_tile = -1
+	_shown_origin = _origin
+	_shown_dir = _pass_dir
+	var tex := _vp[_front].get_texture()
+	for m in materials:
+		(m as ShaderMaterial).set_shader_parameter("static_shadow_tex", tex)
+	var o := Vector2(_origin) * TEXEL - Vector2.ONE * WL.SIZE / 2.0
+	RenderingServer.global_shader_parameter_set("shadow_rect", Vector4(o.x, o.y, WIN * TEXEL, 0.0))
+
+
+func _rect_center(origin: Vector2i) -> Vector2:
+	return (Vector2(origin) + Vector2.ONE * WIN / 2.0) * TEXEL - Vector2.ONE * WL.SIZE / 2.0
