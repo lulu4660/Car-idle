@@ -4,6 +4,7 @@ shader_type spatial;
 render_mode specular_disabled;
 
 #include "res://shaders/night_light.gdshaderinc"
+#include "res://shaders/see_through.gdshaderinc"
 global uniform float weather_wet;
 global uniform vec3 weather_wind;
 uniform sampler2D night_light_tex : filter_linear, repeat_disable;
@@ -29,6 +30,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (see_fade(wpos, INV_VIEW_MATRIX[3].xyz) > see_bayer(FRAGCOORD.xy)) {
+		discard;
+	}
 	ALBEDO = COLOR.rgb * mix(1.0, 0.78, weather_wet);
 	ROUGHNESS = 1.0;
 	if (night > 0.01) {

@@ -16,7 +16,8 @@ const SHOTS := {
 	# de l'écran et le virage suivant bien visible devant elle.
 	Mode.RALLY: [9.0, 10.0, 30.0, 38.0, 0.0, 30.0],
 	# Drone : haut et loin, presque à la verticale, comme une vidéo de drone.
-	Mode.DRONE: [15.0, 19.0, 17.0, 21.0, -40.0, 50.0],
+	# (plus près qu'avant : la voiture était minuscule sur un téléphone tenu droit)
+	Mode.DRONE: [10.5, 14.0, 11.5, 15.0, -40.0, 48.0],
 	Mode.CHASE: [10.0, 15.0, 4.6, 6.5, 22.0, 48.0],
 	Mode.SIDE: [13.0, 16.0, 4.0, 5.0, 95.0, 45.0],
 	Mode.TOP: [6.0, 10.0, 26.0, 32.0, 25.0, 50.0],

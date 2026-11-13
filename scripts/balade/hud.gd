@@ -253,7 +253,8 @@ func _draw_info(top_center: Vector2, u: float, car: VehicleBody3D) -> void:
 	var a := 0.55 * clampf(_intro * 2.0 - 0.6, 0.0, 1.0)
 	_text_center(_text, t, top_center + Vector2(0, fs * 0.9), fs, Color(INK.r, INK.g, INK.b, a), fs * 0.25)
 	# Temps par image, en plus petit sur une seconde ligne.
-	var pt := _perf_text()
+	# (seulement dans l'éditeur et les versions de test : illisible et inutile au joueur)
+	var pt := _perf_text() if OS.is_debug_build() else ""
 	if pt != "":
 		_text_center(_text, pt, top_center + Vector2(0, fs * 1.95), int(fs * 0.85), Color(INK.r, INK.g, INK.b, a * 0.8), fs * 0.2)
 	if _best > 0:

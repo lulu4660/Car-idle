@@ -4,6 +4,7 @@ shader_type spatial;
 render_mode specular_disabled;
 
 #include "res://shaders/night_light.gdshaderinc"
+#include "res://shaders/see_through.gdshaderinc"
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
 uniform vec3 window_light : source_color = vec3(1.0, 0.76, 0.42);
 
@@ -20,6 +21,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (see_fade(wpos, INV_VIEW_MATRIX[3].xyz) > see_bayer(FRAGCOORD.xy)) {
+		discard;
+	}
 	vec3 c = texture(albedo_tex, UV).rgb;
 	ALBEDO = c;
 	ROUGHNESS = 1.0;

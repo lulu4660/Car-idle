@@ -38,6 +38,7 @@ var camera_requested := false
 var night_requested := false
 var settings_requested := false
 var garage_requested := false
+var menu_open := false
 var mode_requested := false
 
 var _steer_smooth := 0.0
@@ -51,15 +52,19 @@ const BUTTONS := [
 	["ci_gas", "GAZ", Vector2(1, 1), Rect2(0.035, 0.035, 0.19, 0.24)],
 	["ci_brake", "FREIN", Vector2(1, 1), Rect2(0.24, 0.035, 0.16, 0.15)],
 	["ci_drift", "DÉRAPAGE", Vector2(1, 1), Rect2(0.035, 0.29, 0.19, 0.095)],
-	["ci_reset", "REPLACER", Vector2(0, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
-	["ci_night", "NUIT", Vector2(0, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
-	# Petit bouton façon « ESP » : allume ou coupe le mode Drift (icône dessinée).
-	["ci_mode", "", Vector2(0, 0), Rect2(0.025, 0.189, 0.09, 0.072)],
-	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
-	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
-	["ci_settings", "RÉGLAGES", Vector2(1, 0), Rect2(0.025, 0.189, 0.2, 0.072)],
-	["ci_garage", "GARAGE", Vector2(1, 0), Rect2(0.025, 0.271, 0.2, 0.072)],
+	# À gauche : retour au garage et petit bouton façon « ESP » (mode Drift, icône dessinée).
+	["ci_garage", "GARAGE", Vector2(0, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
+	["ci_mode", "", Vector2(0, 0), Rect2(0.025, 0.107, 0.09, 0.072)],
+	# À droite : MENU, qui déroule les boutons moins utiles (cachés le reste du temps).
+	["ci_menu", "MENU", Vector2(1, 0), Rect2(0.025, 0.025, 0.2, 0.072)],
+	["ci_reset", "REPLACER", Vector2(1, 0), Rect2(0.025, 0.107, 0.2, 0.072)],
+	["ci_night", "NUIT", Vector2(1, 0), Rect2(0.025, 0.189, 0.2, 0.072)],
+	["ci_camera", "CAMÉRA", Vector2(1, 0), Rect2(0.025, 0.271, 0.2, 0.072)],
+	["ci_car", "VOITURE", Vector2(1, 0), Rect2(0.025, 0.353, 0.2, 0.072)],
+	["ci_settings", "RÉGLAGES", Vector2(1, 0), Rect2(0.025, 0.435, 0.2, 0.072)],
 ]
+## Boutons rangés dans le MENU.
+const MENU_ITEMS: Array[String] = ["ci_reset", "ci_night", "ci_camera", "ci_car", "ci_settings"]
 
 const KEYS := {
 	"ci_left": [KEY_LEFT, KEY_A, KEY_Q],
@@ -74,6 +79,7 @@ const KEYS := {
 	"ci_settings": [KEY_ESCAPE, KEY_P],
 	"ci_mode": [KEY_G],
 	"ci_garage": [KEY_TAB],
+	"ci_menu": [KEY_M],
 }
 
 var _buttons: Array[TouchScreenButton] = []
@@ -149,6 +155,16 @@ func _layout() -> void:
 		# Flèches seulement en mode flèches.
 		if t.action == "ci_left" or t.action == "ci_right":
 			t.visible = steer_mode == SteerMode.ARROWS
+	_apply_menu()
+
+
+## Montre ou cache les boutons du MENU.
+func _apply_menu() -> void:
+	for t in _buttons:
+		if MENU_ITEMS.has(t.action):
+			t.visible = menu_open
+		elif t.action == "ci_menu":
+			(t.get_child(0) as Label).text = "FERMER" if menu_open else "MENU"
 
 
 ## Fond du bouton (cadre) ; `arrow` = -1 ou 1 : flèche gauche ou droite dessinée dedans
@@ -247,6 +263,13 @@ func _process(delta: float) -> void:
 	settings_requested = Input.is_action_just_pressed("ci_settings")
 	garage_requested = Input.is_action_just_pressed("ci_garage")
 	mode_requested = Input.is_action_just_pressed("ci_mode")
+	if Input.is_action_just_pressed("ci_menu"):
+		menu_open = not menu_open
+		_apply_menu()
+	elif menu_open and (reset_requested or next_car_requested or camera_requested or night_requested or settings_requested):
+		# Le menu se referme dès qu'on a choisi.
+		menu_open = false
+		_apply_menu()
 
 
 ## Masque ou montre les boutons (écran des réglages) ; relâche tout ce qui était appuyé.

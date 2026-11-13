@@ -12,7 +12,7 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.13.1"
+const VERSION := "0.14.0"
 
 @export var start_model := "bolide"
 ## Conduire la voiture choisie au garage (sinon `start_model`, pour les tests).
@@ -719,6 +719,8 @@ func _update_car_shadow() -> void:
 	var fwd: Vector3 = xf.basis.z.normalized()
 	var head := xf * Vector3(c.x, bottom + 0.35, c.z + h.z + 0.2)
 	RenderingServer.global_shader_parameter_set("head_pos", head)
+	# Le décor s'efface entre la caméra et la voiture (shaders/see_through.gdshaderinc).
+	RenderingServer.global_shader_parameter_set("see_pos", xf.origin + Vector3.UP * 0.8)
 	RenderingServer.global_shader_parameter_set("head_dir", (fwd - Vector3.UP * 0.12).normalized())
 	# Deux phares, au même écart que les feux dessinés (add_lamps_to).
 	RenderingServer.global_shader_parameter_set("head_side", xf.basis.x.normalized() * h.x * 0.62)

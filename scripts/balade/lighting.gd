@@ -34,11 +34,13 @@ const DUSK := {
 	"shadow": 0.75, "vignette": 0.36,
 }
 const NIGHT := {
-	"sun_color": Color(0.62, 0.72, 1.0), "sun_energy": 0.7,
-	"ambient": Color(0.32, 0.36, 0.58), "ambient_energy": 0.95,
-	"sky_top": Color(0.02, 0.03, 0.10), "sky_horizon": Color(0.10, 0.12, 0.24),
-	"ground_horizon": Color(0.08, 0.08, 0.15), "ground_bottom": Color(0.04, 0.04, 0.08),
-	"fog": Color(0.10, 0.12, 0.20), "fog_density": 0.0028, "exposure": 1.35,
+	# Nuit sans bleu dominant (direction artistique : charbon, orange, or) : lune d'un
+	# blanc froid à peine teinté, ombres lavande sombres, ciel et brume presque neutres.
+	"sun_color": Color(0.86, 0.86, 0.92), "sun_energy": 0.65,
+	"ambient": Color(0.40, 0.36, 0.44), "ambient_energy": 0.9,
+	"sky_top": Color(0.025, 0.022, 0.035), "sky_horizon": Color(0.12, 0.09, 0.10),
+	"ground_horizon": Color(0.09, 0.07, 0.08), "ground_bottom": Color(0.04, 0.035, 0.04),
+	"fog": Color(0.13, 0.10, 0.11), "fog_density": 0.0028, "exposure": 1.35,
 	"glow": 0.7, "glow_bloom": 0.08, "glow_threshold": 0.8, "contrast": 1.12, "saturation": 1.05,
 	"shadow": 0.35, "vignette": 0.5,
 }
@@ -92,7 +94,7 @@ func setup(environment: Environment, sun_light: DirectionalLight3D, parent: Node
 	env.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	moon = DirectionalLight3D.new()
 	moon.name = "Lune"
-	moon.light_color = Color(0.62, 0.72, 1.0)
+	moon.light_color = Color(0.86, 0.86, 0.92)
 	moon.light_angular_distance = 0.6
 	moon.shadow_enabled = false
 	parent.add_child(moon)
@@ -204,7 +206,8 @@ func _apply() -> void:
 		moon.look_at_from_position(Vector3.ZERO, -md, Vector3.UP)
 	# Reflet sur l'eau : le soleil, ou la lune la nuit (voilés par les nuages, sans
 	# disparaître : on voit encore la tache claire derrière un ciel couvert).
-	var veil := 1.0 - 0.5 * cl
+	# Ciel couvert : le reflet pâlit nettement (sinon une tache blanche sous la pluie).
+	var veil := 1.0 - 0.88 * cl
 	if sun_k > 0.001:
 		RenderingServer.global_shader_parameter_set("sun_dir", sd)
 		var sc: Color = sun.light_color
