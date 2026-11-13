@@ -32,7 +32,10 @@ const DISPLAY_NAMES := {
 	"bolide": "Bolide", "bolide_gt": "Bolide GT", "puce": "Puce", "puce_carbone": "Puce Carbone",
 	"familiale": "Familiale", "coupe": "Coupé", "break": "Break", "fourgon": "Fourgon",
 	"berline": "Berline", "berline_longue": "Berline longue", "taxi": "Taxi", "police": "Police",
-	"police_break": "Police", "police_puce": "Police", "ambulance": "Ambulance"}
+	"police_break": "Police", "police_puce": "Police", "ambulance": "Ambulance",
+	"rgs:sports": "Sportive", "rgs:muscle": "Muscle", "rgs:muscle_2": "Muscle II", "rgs:roadster": "Roadster",
+	"rgs:hatchback": "Citadine", "rgs:sedan": "Berline", "rgs:suv": "SUV", "rgs:pickup": "Pick-up",
+	"rgs:van": "Van", "rgs:taxi": "Taxi", "rgs:monster_truck": "Monster truck", "rgs:limousine": "Limousine"}
 ## Roues du pack : repère dans le nom du nœud, dans l'ordre AvG, AvD, ArG, ArD.
 const WHEEL_CODES: Array[String] = ["_WhFL", "_WhFR", "_WhBL", "_WhBR"]
 ## Noms possibles des roues, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.

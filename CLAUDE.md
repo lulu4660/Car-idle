@@ -53,7 +53,7 @@ Le prototype 2D (dépôt lulu4660/garage-spotter) sert de référence : formules
 - Capture rapide d'un plan : `tools/pose.gd -- sortie.png [plan] [x z cap°] [low]`.
 - Changement visible : `xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-method gl_compatibility --resolution 1280x720 -s tools/shot.gd -- dossier [secondes_de_gaz] [plan_caméra]`, puis relire les captures (rendu logiciel : lent, compter quelques minutes).
 - Vérifier la version en ligne : `node tools/web_check.js [url] [capture.png] [secondes]` (Chromium au format iPhone : capture + erreurs de la console).
-- Version web : `.github/workflows/web.yml` exporte et met en ligne sur https://lulu4660.github.io/Car-idle/ à chaque envoi sur `main` (aucune licence à fournir).
+- Version web : `.github/workflows/web.yml` exporte et met en ligne sur https://lulu4660.github.io/Car-idle/ à chaque envoi sur `main` (aucune licence à fournir). Le jeu est publié sous un nom unique (`index-<8 premiers caractères du commit>.pck`, option `mainPack` du moteur) : GitHub Pages laisse les navigateurs garder les fichiers 10 minutes, un nom nouveau évite de rejouer l'ancienne version.
 
 ## Roadmap (GDD)
 1. Socle : règles du jeu et tests. (fait)

@@ -50,6 +50,13 @@ jobs:
           mkdir -p build/web
           ./godot --headless --path . --export-release "Web" build/web/index.html
           test -f build/web/index.wasm
+      - name: Nom unique pour le jeu (le navigateur ne ressert jamais l'ancien depuis son cache)
+        run: |
+          cd build/web
+          V="${GITHUB_SHA::8}"
+          mv index.pck "index-$V.pck"
+          sed -i "s/\"fileSizes\":{\"index.pck\"/\"mainPack\":\"index-$V.pck\",\"fileSizes\":{\"index-$V.pck\"/" index.html
+          grep -q "\"mainPack\":\"index-$V.pck\"" index.html
       - name: Archive téléchargeable
         uses: actions/upload-artifact@v4
         with:

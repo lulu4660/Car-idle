@@ -12,7 +12,7 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.18.0"
+const VERSION := "0.18.1"
 
 @export var start_model := "rgs:sports"
 ## Partie idle (garage, voitures à spotter) branchée ou non. Mise de côté pour l'instant
