@@ -1,15 +1,25 @@
-## Lumière et post-traitement de la balade, de jour comme de nuit.
-## - Jour : soleil doré d'après-midi, ombres lavande, brume chaude, halo doux (glow) sur
-##   les reflets, étalonnage (contraste, saturation), vignettage.
-## - Nuit : lune froide, ciel bleu nuit, brume sombre ; réverbères, fenêtres et phares
-##   s'allument (paramètre global « night » lu par les shaders), halo plus fort.
-## Passage de l'un à l'autre en douceur (set_night).
+## Lumière et post-traitement de la balade, au fil d'une vraie journée.
+## - Heure qui avance (cycle réglable, figé possible) : le soleil se lève sur la mer à l'est,
+##   passe au sud et se couche derrière les montagnes à l'ouest ; la lune suit le même
+##   chemin douze heures plus tard. Les deux sont des lumières directionnelles qui dessinent
+##   leur disque dans le ciel ; seule celle qui est levée éclaire (l'autre est éteinte).
+## - Couleurs selon la hauteur du soleil : jour (soleil doré, ombres lavande, brume chaude),
+##   aube et crépuscule (soleil orangé, ciel rose), nuit (lune froide, ciel bleu nuit) ;
+##   réverbères, fenêtres et phares s'allument (paramètre global « night »).
+## - Ombres du décor précalculées pour 4 positions du soleil (tools/bake_shadows.gd, une
+##   par canal de shadows.png) : mélangées selon l'heure (paramètre global « shadow_mix »).
 extends Node
 
 const WorldBuilder = preload("res://scripts/balade/world_builder.gd")
 
+## Hauteur maximale du soleil (midi) et de la lune.
+const SUN_MAX_ELEV := 58.0
+const MOON_MAX_ELEV := 50.0
+## Heures des 4 cartes d'ombres précalculées (une par canal R, G, B, A).
+const SHADOW_HOURS: Array[float] = [7.5, 10.5, 13.5, 16.5]
+
 const DAY := {
-	"sun_color": Color(1.0, 0.86, 0.70), "sun_energy": 1.9, "elev": 34.0, "azim": 225.0,
+	"sun_color": Color(1.0, 0.86, 0.70), "sun_energy": 1.9,
 	"ambient": Color(0.60, 0.60, 0.80), "ambient_energy": 0.75,
 	"sky_top": Color(0.22, 0.42, 0.58), "sky_horizon": Color(0.86, 0.78, 0.72),
 	"ground_horizon": Color(0.80, 0.70, 0.55), "ground_bottom": Color(0.70, 0.58, 0.42),
@@ -17,8 +27,17 @@ const DAY := {
 	"glow": 0.35, "glow_bloom": 0.04, "glow_threshold": 1.0, "contrast": 1.06, "saturation": 0.95,
 	"shadow": 0.92, "vignette": 0.28,
 }
+const DUSK := {
+	"sun_color": Color(1.0, 0.55, 0.32), "sun_energy": 1.5,
+	"ambient": Color(0.58, 0.48, 0.66), "ambient_energy": 0.65,
+	"sky_top": Color(0.24, 0.30, 0.52), "sky_horizon": Color(1.0, 0.62, 0.44),
+	"ground_horizon": Color(0.86, 0.56, 0.42), "ground_bottom": Color(0.50, 0.38, 0.34),
+	"fog": Color(0.96, 0.64, 0.52), "fog_density": 0.0026, "exposure": 0.95,
+	"glow": 0.5, "glow_bloom": 0.06, "glow_threshold": 0.9, "contrast": 1.1, "saturation": 1.08,
+	"shadow": 0.75, "vignette": 0.36,
+}
 const NIGHT := {
-	"sun_color": Color(0.55, 0.66, 1.0), "sun_energy": 0.32, "elev": 42.0, "azim": 150.0,
+	"sun_color": Color(0.55, 0.66, 1.0), "sun_energy": 0.32,
 	"ambient": Color(0.20, 0.23, 0.42), "ambient_energy": 0.55,
 	"sky_top": Color(0.01, 0.02, 0.07), "sky_horizon": Color(0.07, 0.08, 0.18),
 	"ground_horizon": Color(0.06, 0.06, 0.12), "ground_bottom": Color(0.03, 0.03, 0.06),
@@ -29,98 +48,192 @@ const NIGHT := {
 
 var env: Environment
 var sun: DirectionalLight3D
+var moon: DirectionalLight3D
 var sky: ProceduralSkyMaterial
 var shadow_materials: Array = []
+## Heure (0 à 24).
+var hour := 15.0
+## Durée d'une journée complète en minutes réelles (0 = heure figée).
+var cycle_minutes := 24.0
+## Facteur de nuit (0 jour, 1 nuit) et allumage des lumières (valeur donnée aux shaders).
 var night := 0.0
-## Allumage des lumières de nuit (0 à 1), la valeur donnée aux shaders.
 var glow := 0.0
-var _target := 0.0
+var _scrub_to := -1.0
 var _vignette: TextureRect
 ## iPhone et web : pas de halo plein écran (glow), trop coûteux (28 ms la nuit au banc
 ## d'essai) ; les lumières ont leurs propres petits halos (shaders/halo.gdshader).
 var no_glow := false
-## Brouillard (réglages) : 1 = brume d'origine, 0 = aucune, jusqu'à 8 = brouillard épais
-## (plus gris et plus blanc quand il s'épaissit).
+## Brouillard (réglages) : 1 = brume d'origine, 0 = aucune, jusqu'à 8 = brouillard épais.
 var fog_amount := 1.0
+var _apply_timer := 0.0
+
+
+## Direction vers le soleil à une heure donnée (repère Godot : nord = -Z, est = +X).
+static func sun_dir_at(h: float) -> Vector3:
+	var t := (h - 6.0) / 12.0
+	var az := deg_to_rad(90.0 + 180.0 * t)
+	var el := deg_to_rad(SUN_MAX_ELEV * sin(PI * t))
+	return Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)).normalized()
+
+
+static func moon_dir_at(h: float) -> Vector3:
+	var t := (fposmod(h + 12.0, 24.0) - 6.0) / 12.0
+	var az := deg_to_rad(90.0 + 180.0 * t)
+	var el := deg_to_rad(MOON_MAX_ELEV * sin(PI * t))
+	return Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)).normalized()
+
+
+## Poids des 4 cartes d'ombres pour une heure de soleil (6 h à 18 h).
+static func shadow_mix_at(h: float) -> Vector4:
+	var w := [0.0, 0.0, 0.0, 0.0]
+	if h <= SHADOW_HOURS[0]:
+		w[0] = 1.0
+	elif h >= SHADOW_HOURS[3]:
+		w[3] = 1.0
+	else:
+		for i in 3:
+			if h <= SHADOW_HOURS[i + 1]:
+				var k := (h - SHADOW_HOURS[i]) / (SHADOW_HOURS[i + 1] - SHADOW_HOURS[i])
+				w[i] = 1.0 - k
+				w[i + 1] = k
+				break
+	return Vector4(w[0], w[1], w[2], w[3])
 
 
 func setup(environment: Environment, sun_light: DirectionalLight3D, parent: Node) -> void:
 	env = environment
 	sun = sun_light
 	sky = env.sky.sky_material as ProceduralSkyMaterial
+	# Le ciel change avec l'heure : ses reflets sont recalculés par étapes, sans à-coup.
+	env.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+	moon = DirectionalLight3D.new()
+	moon.name = "Lune"
+	moon.light_color = Color(0.62, 0.72, 1.0)
+	moon.light_angular_distance = 0.6
+	moon.shadow_enabled = false
+	parent.add_child(moon)
 	_build_vignette(parent)
-	_apply(0.0)
+	_apply()
 
 
+## Bouton NUIT / JOUR : fait défiler le temps jusqu'à la nuit (22 h 30) ou jusqu'à
+## l'après-midi (15 h). `instant` : tout de suite.
 func set_night(on: bool, instant := false) -> void:
-	_target = 1.0 if on else 0.0
+	var target := 22.5 if on else 15.0
 	if instant:
-		night = _target
-		_apply(night)
+		hour = target
+		_scrub_to = -1.0
+		_apply()
+	else:
+		_scrub_to = target
+
+
+func is_night() -> bool:
+	var h := _scrub_to if _scrub_to >= 0.0 else hour
+	return sun_dir_at(h).y < 0.0
+
+
+func set_hour(h: float) -> void:
+	hour = fposmod(h, 24.0)
+	_scrub_to = -1.0
+	_apply()
 
 
 ## Réapplique l'éclairage (après un changement de réglage graphique).
 func refresh() -> void:
-	_apply(night)
-
-
-func is_night() -> bool:
-	return _target > 0.5
+	_apply()
 
 
 ## Direction vers la source de lumière principale (soleil ou lune) en ce moment.
 func light_direction() -> Vector3:
-	var el := deg_to_rad(lerpf(DAY["elev"], NIGHT["elev"], night))
-	var az := deg_to_rad(lerpf(DAY["azim"], NIGHT["azim"], night))
-	return Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)).normalized()
+	var s := sun_dir_at(hour)
+	return s if s.y > -0.02 else moon_dir_at(hour)
 
 
 func _process(delta: float) -> void:
-	if not is_equal_approx(night, _target):
-		night = move_toward(night, _target, delta / 2.5)
-		_apply(night)
+	if _scrub_to >= 0.0:
+		# Défilement rapide (6 heures par seconde), par le chemin le plus court en avant.
+		var gap := fposmod(_scrub_to - hour, 24.0)
+		var step := delta * 6.0
+		if gap <= step:
+			hour = _scrub_to
+			_scrub_to = -1.0
+		else:
+			hour = fposmod(hour + step, 24.0)
+		_apply()
+		return
+	if cycle_minutes > 0.0:
+		hour = fposmod(hour + delta * 24.0 / (cycle_minutes * 60.0), 24.0)
+		# Le soleil bouge lentement (une journée = plusieurs minutes) : l'éclairage et le ciel
+		# sont recalculés une fois par seconde, ce qui ne se voit pas et coûte peu.
+		_apply_timer -= delta
+		if _apply_timer <= 0.0:
+			_apply_timer = 1.0
+			_apply()
 
 
-func _v(key: String, k: float) -> Variant:
+func _mix(key: String, dusk: float, k_night: float) -> Variant:
 	var a: Variant = DAY[key]
-	var b: Variant = NIGHT[key]
+	var b: Variant = DUSK[key]
+	var c: Variant = NIGHT[key]
 	if a is Color:
-		return (a as Color).lerp(b, k)
-	return lerpf(a, b, k)
+		return (a as Color).lerp(b, dusk).lerp(c, k_night)
+	return lerpf(lerpf(a, b, dusk), c, k_night)
 
 
-func _apply(k: float) -> void:
-	# Le ciel et la lumière basculent un peu avant le reste (crépuscule).
-	var e := smoothstep(0.0, 1.0, k)
-	glow = smoothstep(0.25, 0.9, k)
+func _apply() -> void:
+	var sd := sun_dir_at(hour)
+	var md := moon_dir_at(hour)
+	var sun_el := rad_to_deg(asin(sd.y))
+	var moon_el := rad_to_deg(asin(md.y))
+	# Nuit quand le soleil passe sous l'horizon ; aube et crépuscule autour.
+	night = smoothstep(2.0, -10.0, sun_el)
+	var dusk := 1.0 - smoothstep(3.0, 22.0, sun_el)
+	glow = smoothstep(0.25, 0.9, night)
 	RenderingServer.global_shader_parameter_set("night", glow)
-	sun.light_color = _v("sun_color", e)
-	sun.light_energy = _v("sun_energy", e)
-	sun.look_at_from_position(Vector3.ZERO, -light_direction(), Vector3.UP)
-	env.ambient_light_color = _v("ambient", e)
-	env.ambient_light_energy = _v("ambient_energy", e)
-	sky.sky_top_color = _v("sky_top", e)
-	sky.sky_horizon_color = _v("sky_horizon", e)
-	sky.ground_horizon_color = _v("ground_horizon", e)
-	sky.ground_bottom_color = _v("ground_bottom", e)
-	sky.sun_angle_max = lerpf(20.0, 4.0, e)
+	# Soleil : éclaire tant qu'il est levé, s'éteint en se couchant.
+	var sun_k := smoothstep(-3.0, 6.0, sun_el)
+	sun.visible = sun_k > 0.001
+	if sun.visible:
+		sun.light_color = (DAY["sun_color"] as Color).lerp(DUSK["sun_color"], dusk)
+		sun.light_energy = lerpf(DAY["sun_energy"], DUSK["sun_energy"], dusk) * sun_k
+		sun.look_at_from_position(Vector3.ZERO, -sd, Vector3.UP)
+	# Lune : prend le relais la nuit (éteinte de jour).
+	var moon_k := smoothstep(-3.0, 8.0, moon_el) * night
+	moon.visible = moon_k > 0.001
+	if moon.visible:
+		moon.light_energy = NIGHT["sun_energy"] * moon_k
+		moon.look_at_from_position(Vector3.ZERO, -md, Vector3.UP)
+	env.ambient_light_color = _mix("ambient", dusk, night)
+	env.ambient_light_energy = _mix("ambient_energy", dusk, night)
+	sky.sky_top_color = _mix("sky_top", dusk, night)
+	sky.sky_horizon_color = _mix("sky_horizon", dusk, night)
+	sky.ground_horizon_color = _mix("ground_horizon", dusk, night)
+	sky.ground_bottom_color = _mix("ground_bottom", dusk, night)
+	sky.sun_angle_max = lerpf(20.0, 4.0, night)
 	var thick := clampf((fog_amount - 1.0) / 3.0, 0.0, 1.0)
-	var fog_grey := Color(0.78, 0.78, 0.8).lerp(Color(0.1, 0.1, 0.13), e)
+	var fog_grey := Color(0.78, 0.78, 0.8).lerp(Color(0.1, 0.1, 0.13), night)
 	env.fog_enabled = fog_amount > 0.01
-	env.fog_light_color = (_v("fog", e) as Color).lerp(fog_grey, thick * 0.7)
-	env.fog_density = _v("fog_density", e) * fog_amount
+	env.fog_light_color = (_mix("fog", dusk, night) as Color).lerp(fog_grey, thick * 0.7)
+	env.fog_density = _mix("fog_density", dusk, night) * fog_amount
 	env.fog_sky_affect = lerpf(0.35, 1.0, thick)
-	env.tonemap_exposure = _v("exposure", e)
+	env.tonemap_exposure = _mix("exposure", dusk, night)
 	env.glow_enabled = not no_glow
-	env.glow_intensity = _v("glow", e)
-	env.glow_bloom = _v("glow_bloom", e)
-	env.glow_hdr_threshold = _v("glow_threshold", e)
-	env.adjustment_contrast = _v("contrast", e)
-	env.adjustment_saturation = _v("saturation", e)
+	env.glow_intensity = _mix("glow", dusk, night)
+	env.glow_bloom = _mix("glow_bloom", dusk, night)
+	env.glow_hdr_threshold = _mix("glow_threshold", dusk, night)
+	env.adjustment_contrast = _mix("contrast", dusk, night)
+	env.adjustment_saturation = _mix("saturation", dusk, night)
+	# Ombres du décor : cartes mélangées selon la position de la lumière (le soleil, ou la
+	# lune la nuit, qui suit le même chemin douze heures plus tard) ; plus douces quand la
+	# lumière est basse.
+	var light_hour := hour if sd.y > -0.02 else fposmod(hour + 12.0, 24.0)
+	RenderingServer.global_shader_parameter_set("shadow_mix", shadow_mix_at(light_hour))
+	var low := smoothstep(2.0, 12.0, rad_to_deg(asin(light_direction().y)))
 	for m in shadow_materials:
-		(m as ShaderMaterial).set_shader_parameter("shadow_strength", _v("shadow", e))
+		(m as ShaderMaterial).set_shader_parameter("shadow_strength", _mix("shadow", dusk, night) * lerpf(0.4, 1.0, low))
 	if _vignette:
-		_vignette.modulate.a = _v("vignette", e)
+		_vignette.modulate.a = _mix("vignette", dusk, night)
 
 
 ## Vignettage : un dégradé radial posé sur l'image (presque gratuit, pas de passe en plus).

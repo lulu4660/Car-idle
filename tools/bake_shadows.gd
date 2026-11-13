@@ -38,28 +38,6 @@ func _init() -> void:
 	var rng_hills := RandomNumberGenerator.new()
 	rng_hills.seed = 78
 	veg._foothills(rng_hills)
-	mask.resize(RES * RES)
-	fine.resize(RES * SUB * RES * SUB)
-	var sun := WorldBuilder.sun_direction()
-	var dir := -Vector2(sun.x, sun.z).normalized()
-	var reach := Vector2(sun.x, sun.z).length() / sun.y   # recul de l'ombre par mètre de hauteur
-	var n := 0
-	for key in veg._cells:
-		var kind: String = key[1]
-		var p: Array = veg._proto[kind]
-		for xf in veg._cells[key]:
-			var t := xf as Transform3D
-			var s: float = t.basis.get_scale().y
-			# Pied de l'objet : là où vegetation._add l'a posé (un peu enfoncé).
-			var ground: float = t.origin.y + 0.15 + float(p[2]) * s
-			_project_mesh(p[0], t, ground, dir, reach)
-			n += 1
-	# Grands rochers posés par world_builder (mêmes places qu'en jeu).
-	var rocks: Array = WorldBuilder.rock_placements(data)
-	for k in (rocks[0] as Array).size():
-		for xf in rocks[1][k]:
-			_project_mesh(rocks[0][k], xf, (xf as Transform3D).origin.y + (xf as Transform3D).basis.get_scale().y * 0.25, dir, reach)
-			n += 1
 	# Ville, fermes, plage : bâtiments (boîtes), arbres des jardins et parasols.
 	var town = load("res://scripts/balade/town.gd").new()
 	town.data = data
@@ -69,17 +47,62 @@ func _init() -> void:
 	town._city(trng)
 	town._farms(trng)
 	town._beach(trng)
-	for key in town._cells:
-		var path: String = key[1]
-		var box: AABB = town._proto[path][1]
-		for xf in town._cells[key]:
-			var t := xf as Transform3D
-			if path.contains("/building"):
-				_box_shadow(t, box, dir, reach)
+	var rocks: Array = WorldBuilder.rock_placements(data)
+	# Une carte d'ombres par position du soleil (lighting.SHADOW_HOURS), une par canal :
+	# le jeu les mélange selon l'heure.
+	var Lighting = load("res://scripts/balade/lighting.gd")
+	var maps: Array[PackedFloat32Array] = []
+	var n := 0
+	for hour in Lighting.SHADOW_HOURS:
+		var sun: Vector3 = Lighting.sun_dir_at(hour)
+		var dir := -Vector2(sun.x, sun.z).normalized()
+		var reach := Vector2(sun.x, sun.z).length() / sun.y   # recul de l'ombre par mètre de hauteur
+		mask = PackedFloat32Array()
+		mask.resize(RES * RES)
+		fine = PackedByteArray()
+		fine.resize(RES * SUB * RES * SUB)
+		n = 0
+		for key in veg._cells:
+			var kind: String = key[1]
+			var p: Array = veg._proto[kind]
+			for xf in veg._cells[key]:
+				var t := xf as Transform3D
+				var s: float = t.basis.get_scale().y
+				# Pied de l'objet : là où vegetation._add l'a posé (un peu enfoncé).
+				var ground: float = t.origin.y + 0.15 + float(p[2]) * s
+				_project_mesh(p[0], t, ground, dir, reach)
 				n += 1
-			elif path.ends_with("tree-large") or path.contains("parasol"):
-				_project_mesh(town._proto[path][0], t, t.origin.y, dir, reach)
+		# Grands rochers posés par world_builder (mêmes places qu'en jeu).
+		for k in (rocks[0] as Array).size():
+			for xf in rocks[1][k]:
+				_project_mesh(rocks[0][k], xf, (xf as Transform3D).origin.y + (xf as Transform3D).basis.get_scale().y * 0.25, dir, reach)
 				n += 1
+		for key in town._cells:
+			var path: String = key[1]
+			var box: AABB = town._proto[path][1]
+			for xf in town._cells[key]:
+				var t := xf as Transform3D
+				if path.contains("/building"):
+					_box_shadow(t, box, dir, reach)
+					n += 1
+				elif path.ends_with("tree-large") or path.contains("parasol"):
+					_project_mesh(town._proto[path][0], t, t.origin.y, dir, reach)
+					n += 1
+		# Échantillons fins -> couverture de chaque pixel (0, 1/4, 1/2, 3/4, 1).
+		var fw := RES * SUB
+		for z in RES:
+			for x in RES:
+				var o := z * SUB * fw + x * SUB
+				var cover := (fine[o] + fine[o + 1] + fine[o + fw] + fine[o + fw + 1]) * 0.25
+				if cover > 0.0:
+					mask[z * RES + x] = maxf(mask[z * RES + x], cover)
+		maps.append(mask)
+		print("ombres de %s h : %d objets" % [hour, n])
+	var img := Image.create(RES, RES, false, Image.FORMAT_RGBA8)
+	for i in RES * RES:
+		img.set_pixel(i % RES, i / RES, Color(clampf(maps[0][i], 0.0, 1.0), clampf(maps[1][i], 0.0, 1.0), clampf(maps[2][i], 0.0, 1.0), clampf(maps[3][i], 0.0, 1.0)))
+	img.save_png(OUT)
+	print("%s écrit en %d ms" % [OUT, Time.get_ticks_msec() - t0])
 	# Nuit : la lumière des réverbères au sol (assets/balade/lights.png).
 	var lamps: Array = load("res://scripts/balade/lamps.gd").positions(data, town)
 	var light := PackedFloat32Array()
@@ -96,25 +119,9 @@ func _init() -> void:
 		limg.set_pixel(i % RES, i / RES, Color(v, v, v))
 	limg.save_png(LIGHTS)
 	print("%d réverbères, %s écrit" % [lamps.size(), LIGHTS])
-	# Échantillons fins -> couverture de chaque pixel (0, 1/4, 1/2, 3/4, 1).
-	var fw := RES * SUB
-	for z in RES:
-		for x in RES:
-			var o := z * SUB * fw + x * SUB
-			var cover := (fine[o] + fine[o + 1] + fine[o + fw] + fine[o + fw + 1]) * 0.25
-			if cover > 0.0:
-				mask[z * RES + x] = maxf(mask[z * RES + x], cover)
-	var img := Image.create(RES, RES, false, Image.FORMAT_L8)
-	for i in RES * RES:
-		var v := clampf(mask[i], 0.0, 1.0)
-		img.set_pixel(i % RES, i / RES, Color(v, v, v))
-	img.save_png(OUT)
-	print("%d objets, %s écrit en %d ms" % [n, OUT, Time.get_ticks_msec() - t0])
 	quit()
 
 
-## Ombre d'un objet : des disques le long de sa hauteur, chacun projeté au sol dans la
-## direction opposée au soleil (profil de rayon selon le type d'objet).
 ## Ombre portée de la vraie forme d'un objet : chaque triangle de son maillage est projeté
 ## au sol le long des rayons du soleil (un point à y mètres au-dessus du pied recule de
 ## y × reach), puis rempli dans la carte. La silhouette de l'ombre est celle de l'objet.

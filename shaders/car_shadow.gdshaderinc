@@ -3,6 +3,7 @@
 // Le bord s'adoucit avec la longueur de traversée : ombre lisse à toute résolution.
 // + ombres du décor fixe précalculées (tools/bake_shadows.gd).
 uniform sampler2D static_shadow_tex : filter_linear, repeat_disable;
+global uniform vec4 shadow_mix;
 // Nuit : lumière des réverbères au sol, précalculée (tools/bake_shadows.gd -> lights.png).
 uniform sampler2D night_light_tex : filter_linear, repeat_disable;
 uniform vec3 lamp_color : source_color = vec3(1.0, 0.72, 0.42);
@@ -31,7 +32,8 @@ float box_through(vec3 p, vec3 l, vec3 bmin, vec3 bmax) {
 float sun_visibility(vec3 wp, float ws) {
 	// Carte d'ombres à 50 cm par pixel : la valeur interpolée est resserrée en un contour
 	// net mais lisse (pas d'escalier, pas de flou), comme une ombre de soleil.
-	float m = smoothstep(0.18, 0.62, texture(static_shadow_tex, (wp.xz + vec2(ws * 0.5)) / ws).r);
+	// Quatre cartes (une par canal, 4 positions du soleil) mélangées selon l'heure.
+	float m = smoothstep(0.18, 0.62, dot(texture(static_shadow_tex, (wp.xz + vec2(ws * 0.5)) / ws), shadow_mix));
 	float car = 0.0;
 	if (distance(wp, car_pos) < 22.0) {
 		vec3 p = (car_inv * vec4(wp, 1.0)).xyz;

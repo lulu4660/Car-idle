@@ -91,13 +91,13 @@ def engine(name, rpm, on_load, sr=22050, cycles=None):
     # Admission et souffle, hachés par les explosions.
     env = np.fft.irfft(np.fft.rfft(pulses) * np.fft.rfft(np.pad(np.exp(-np.arange(int(sr * 0.01)) / (sr * 0.004)), (0, n - int(sr * 0.01)))), n)
     env = env / (np.max(env) + 1e-9)
-    air = noise_loop(n, sr, lambda f: band(f, 400, 3200 + rpm * 0.4))
+    air = noise_loop(n, sr, lambda f: band(f, 300, 1800 + rpm * 0.15))
     air /= np.max(np.abs(air)) + 1e-9
-    x += air * (0.12 + 0.5 * env) * (0.22 if on_load else 0.4)
+    x += air * (0.06 + 0.3 * env) * (0.14 if on_load else 0.22)
     # Mécanique (soupapes, distribution) : cliquetis aigus discrets.
     mech = noise_loop(n, sr, lambda f: band(f, 3000, 8000))
     mech /= np.max(np.abs(mech)) + 1e-9
-    x += mech * env * 0.06
+    x += mech * env * 0.015
     # Lever de pied à haut régime : petits claquements dans l'échappement.
     if False:  # claquements retirés (jugés peu réalistes)
         for _ in range(int(cycles / fire * 5)):
@@ -107,6 +107,12 @@ def engine(name, rpm, on_load, sr=22050, cycles=None):
             x[(i0 + np.arange(ln)) % n] += pop * 0.6
     # Grave d'ensemble (bloc moteur) : renforce la fondamentale.
     x += 0.25 * np.sin(2 * np.pi * fire * np.arange(n) / sr)
+    # Coupe les aigus (au-delà de ~5 kHz) : rejoué plus vite dans les tours, le son ne
+    # grésille plus.
+    spec = np.fft.rfft(x)
+    fr = np.fft.rfftfreq(n, 1.0 / sr)
+    spec *= 1.0 / (1.0 + (fr / (3800.0 + rpm * 0.15)) ** 6)
+    x = np.fft.irfft(spec, n)
     save(name, x, sr)
 
 

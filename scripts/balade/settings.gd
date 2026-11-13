@@ -29,6 +29,7 @@ const GRAPHICS := [
 	["fog", "Brouillard", 0.0, 8.0, 0.1, null],
 	["volume", "Volume du son", 0.0, 1.0, 0.05, null],
 	["headlights", "Puissance des phares", 0.3, 2.5, 0.05, null],
+	["cycle", "Durée d'une journée (minutes, 0 = heure figée)", 0.0, 60.0, 1.0, null],
 ]
 
 ## Conduite : clé (propriété de car.gd, ou mass / susp_* pour la caisse et les roues),
@@ -70,6 +71,8 @@ const CAR := [
 	["susp_travel", "Débattement (m)", 0.1, 0.5, 0.01],
 ]
 
+## Valeurs de départ des réglages d'ambiance (hors préréglages).
+const AMBIANCE_DEFAULTS := {"cycle": 24.0}
 var preset := 2
 var graphics := {}
 ## Mode de conduite : 0 = Drift (réglages de car.gd), 1 = Grip (pneus qui accrochent).
@@ -104,7 +107,7 @@ func set_preset(i: int) -> void:
 		if g[5] != null:
 			graphics[g[0]] = float(g[5][preset])
 		elif not graphics.has(g[0]):
-			graphics[g[0]] = 1.0
+			graphics[g[0]] = AMBIANCE_DEFAULTS.get(g[0], 1.0)
 
 
 ## Le préréglage dont toutes les valeurs correspondent, ou -1 (réglage personnalisé).
@@ -168,6 +171,7 @@ func apply_graphics(game: Node) -> void:
 	game.lighting.no_glow = g["glow"] < 0.5
 	game.lighting.fog_amount = float(g["fog"])
 	RenderingServer.global_shader_parameter_set("head_power", float(g["headlights"]))
+	game.lighting.cycle_minutes = float(g["cycle"])
 	var vol := float(g["volume"])
 	AudioServer.set_bus_mute(0, vol < 0.01)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.01)))

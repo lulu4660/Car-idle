@@ -47,6 +47,10 @@ head_pos={
 "type": "vec3",
 "value": Vector3(0, -1000, 0)
 }
+shadow_mix={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 1)
+}
 head_power={
 "type": "float",
 "value": 1.0

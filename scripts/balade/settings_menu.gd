@@ -215,10 +215,16 @@ func _fill_graphics(u: float) -> void:
 	_content.add_child(_label("Réglages fins", true))
 	for g in Settings.GRAPHICS:
 		_add_row(g[0], g[1], g[2], g[3], g[4], float(settings.graphics[g[0]]), _on_graphic, u)
+	# Heure du jour (le soleil et la lune se placent en direct).
+	_add_row("hour", "Heure", 0.0, 24.0, 0.25, game.lighting.hour, _on_hour, u)
 	var hint := _label("Le plus efficace pour gagner des images/s : baisser la résolution 3D, puis la distance d'affichage et l'herbe.", false)
 	hint.add_theme_color_override("font_color", Color(0.7, 0.66, 0.6))
 	_content.add_child(hint)
 	_refresh_presets()
+
+
+func _on_hour(_key: String, v: float) -> void:
+	game.lighting.set_hour(v)
 
 
 func _choose_preset(i: int) -> void:
@@ -380,6 +386,10 @@ func _show(key: String, v: float, step: float) -> String:
 			return ["4x4", "Propulsion", "Traction"][clampi(int(v), 0, 2)]
 		"msaa":
 			return ["Non", "×2", "×4"][clampi(int(v), 0, 2)]
+		"hour":
+			return "%02d:%02d" % [int(v) % 24, int(fmod(v, 1.0) * 60.0)]
+		"cycle":
+			return "Figée" if v < 0.5 else "%d min" % roundi(v)
 		"fog":
 			return "Aucun" if v < 0.05 else "×%.1f" % v
 		"scale", "range", "grass", "life", "volume", "button_scale", "headlights":

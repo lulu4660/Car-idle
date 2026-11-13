@@ -11,7 +11,7 @@ const Car = preload("res://scripts/balade/car.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.9.3"
+const VERSION := "0.10.0"
 
 @export var start_model := "bolide"
 ## Qualité : 1 = PC (tout), 0 = iPhone et web (réglée pour 60 images/s). -1 = automatique.
@@ -26,6 +26,8 @@ var car_base := {}
 var water_sim_enabled := true
 ## Post-traitement « cinéma » (réglages Haut et Ultra) : rectangle collé à la caméra.
 var post_level := 0
+var _night_label := "NUIT"
+var _sun_timer := 0.0
 ## Résolution dynamique : la résolution 3D baisse un peu (jusqu'à 60 % du réglage) quand
 ## l'image prend plus de 18 ms, et remonte dès que ça redevient fluide.
 var dynres_on := true
@@ -258,7 +260,16 @@ func _process(delta: float) -> void:
 	_update_car_shadow()
 	if controls.night_requested:
 		lighting.set_night(not lighting.is_night())
-		controls.set_label("ci_night", "JOUR" if lighting.is_night() else "NUIT")
+	# Le bouton indique où il emmène : vers la nuit le jour, vers le jour la nuit.
+	var nlabel := "JOUR" if lighting.is_night() else "NUIT"
+	if nlabel != _night_label:
+		_night_label = nlabel
+		controls.set_label("ci_night", nlabel)
+	# Poussière à contre-jour : suit le soleil (ou la lune).
+	_sun_timer -= delta
+	if _sun_timer <= 0.0:
+		_sun_timer = 0.25
+		effects.set_sun(lighting.light_direction(), lighting.sun.light_color if lighting.sun.visible else lighting.moon.light_color)
 
 	for m in _sea_materials:
 		m.set_shader_parameter("now", Waves.now())
@@ -600,7 +611,7 @@ func _setup_shadows() -> void:
 		m.set_shader_parameter("static_shadow_tex", tex)
 		m.set_shader_parameter("night_light_tex", night_tex)
 	lighting.shadow_materials = _shadow_mats
-	lighting._apply(lighting.night)
+	lighting.refresh()
 
 
 ## Ombre de la voiture : sa position, son orientation et deux boîtes (bas de caisse,
