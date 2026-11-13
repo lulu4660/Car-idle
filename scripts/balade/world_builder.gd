@@ -289,8 +289,9 @@ static func build_rocks(parent: Node, data: RefCounted) -> void:
 	var meshes: Array = r[0]
 	var placed: Array = r[1]
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.66, 0.55, 0.46)
+	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.9
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	var body := StaticBody3D.new()
 	body.name = "Rochers"
 	# Collision pour les rochers assez gros (même choix qu'avant le partage du placement).
@@ -316,9 +317,11 @@ static func build_rocks(parent: Node, data: RefCounted) -> void:
 ## Places des grands rochers : [maillages, positions par maillage, gros rochers à collision]. Partagé avec le calcul
 ## des ombres (tools/bake_shadows.gd).
 static func rock_placements(data: RefCounted) -> Array:
+	# Rochers du Stylized Nature MegaKit (Quaternius, CC0), à la taille des anciens rochers
+	# générés ; couleur par sommet.
 	var meshes: Array[ArrayMesh] = []
-	for i in 4:
-		meshes.append(_rock_mesh(500 + i))
+	for name in ["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3", "Rock_Medium_2"]:
+		meshes.append(load("res://scripts/balade/megakit.gd").unit_rock(name))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var half := WL.SIZE / 2.0 - 20.0

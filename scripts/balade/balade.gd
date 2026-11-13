@@ -12,14 +12,14 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.17.0"
+const VERSION := "0.18.0"
 
-@export var start_model := "sedan-sports"
+@export var start_model := "rgs:sports"
 ## Partie idle (garage, voitures à spotter) branchée ou non. Mise de côté pour l'instant
 ## (choix de l'auteur) : le jeu s'ouvre sur la balade, voitures du Car Kit au choix.
 const IDLE_ENABLED := false
 ## Voitures conduites sans partie idle (bouton VOITURE).
-const FREE_MODELS: Array[String] = ["sedan-sports", "hatchback-sports", "sedan", "suv", "suv-luxury", "truck", "van", "race-future", "taxi"]
+const FREE_MODELS: Array[String] = ["rgs:sports", "rgs:muscle", "rgs:roadster", "rgs:hatchback", "rgs:sedan", "rgs:muscle_2", "rgs:suv", "rgs:pickup", "rgs:van", "rgs:taxi", "rgs:monster_truck", "rgs:limousine"]
 ## Conduire la voiture choisie au garage (sinon `start_model`, pour les tests).
 @export var use_garage_car := true
 ## Voiture du garage conduite (uid), -1 : modèle du pack.
@@ -245,7 +245,7 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	var garage_car: Dictionary = game_state.get_car(drive_uid) if game_state and drive_uid >= 0 else {}
 	if garage_car.is_empty():
 		# Sans partie : modèle du pack, ou du kit Kenney si demandé (tests).
-		car = Car.create(start_model if Car.KENNEY.has(start_model) else Car.MODELS[model_index], controls)
+		car = Car.create(start_model if Car.is_single_file(start_model) else Car.MODELS[model_index], controls)
 	else:
 		car = Car.create(CarModels.kit_for(String(garage_car["model"])), controls)
 		CarModels.repaint(car, CarModels.color_of(garage_car), CarModels.kit_for(String(garage_car["model"])))
@@ -311,7 +311,7 @@ func _process(delta: float) -> void:
 					i = k
 			drive_uid = int(gs.cars[(i + 1) % gs.cars.size()]["uid"])
 			gs.select(drive_uid)
-		elif Car.KENNEY.has(start_model):
+		elif Car.is_single_file(start_model):
 			start_model = FREE_MODELS[(FREE_MODELS.find(start_model) + 1) % FREE_MODELS.size()]
 		else:
 			model_index = (model_index + 1) % Car.MODELS.size()

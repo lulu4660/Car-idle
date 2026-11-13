@@ -11,6 +11,13 @@ extends Node3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 const Town = preload("res://scripts/balade/town.gd")
+const Megakit = preload("res://scripts/balade/megakit.gd")
+## Rochers du kit Kenney remplacés par ceux du Stylized Nature MegaKit (même place, même
+## taille visée ; plus beaux, toujours en couleur par sommet).
+const MEGAKIT_ROCKS := {
+	"rock_largeA": "Rock_Medium_1", "rock_largeC": "Rock_Medium_2", "rock_largeE": "Rock_Medium_3",
+	"rock_tallB": "Rock_Medium_3", "rock_tallE": "Rock_Medium_1", "rock_smallC": "Pebble_Round_1",
+}
 
 const DIR := "res://assets/props/nature/"
 const CELL := 96.0
@@ -197,6 +204,9 @@ func _add(kind: String, x: float, z: float, rng: RandomNumberGenerator, collide 
 ## Le modèle en une seule surface (couleur du matériau dans chaque sommet), sa hauteur, son bas.
 func _prototype(kind: String) -> Array:
 	if _proto.has(kind):
+		return _proto[kind]
+	if MEGAKIT_ROCKS.has(kind):
+		_proto[kind] = Megakit.vertex_colored(MEGAKIT_ROCKS[kind])
 		return _proto[kind]
 	var root: Node3D = (load(DIR + kind + ".glb") as PackedScene).instantiate()
 	var out_v := PackedVector3Array()

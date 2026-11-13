@@ -1,10 +1,10 @@
 # Graph Report - car-idle  (2026-11-13)
 
 ## Corpus Check
-- 6 files · ~8,114 words
+- 6 files · ~8,468 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 139 file(s) not represented in the graph (top: .uid 66, .gd 43, .gdshader 16)
-- WARNING: 139 of 146 files seen (95%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
+- Unclassified: 145 file(s) not represented in the graph (top: .uid 69, .gd 45, .gdshader 17)
+- WARNING: 145 of 152 files seen (95%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
 
 ## Summary
 - 170 nodes · 167 edges · 68 communities (6 shown, 62 thin omitted)
@@ -12,7 +12,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0e98fc36`
+- Built from commit: `bb27fe55`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

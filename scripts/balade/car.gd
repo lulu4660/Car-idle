@@ -57,12 +57,34 @@ const KENNEY := {
 }
 
 
+## « Free Low Poly Vehicles Pack » de Rgsdev (CC0, assets/cars/rgsdev/) : un peu plus
+## détaillé (proportions réalistes, phares, calandres), couleurs unies nommées (« body red »…),
+## roues « … wheel front left »… Voitures conduites et circulation. Longueur réelle (m).
+const RGSDEV := {
+	"sedan": 4.7, "hatchback": 4.1, "muscle": 4.8, "muscle_2": 4.8, "sports": 4.5,
+	"roadster": 4.1, "suv": 4.8, "pickup": 5.3, "van": 5.0, "taxi": 4.7, "police_sedan": 4.8,
+	"ambulance": 5.8, "limousine": 7.2, "monster_truck": 5.0, "truck": 7.0, "bus": 11.5,
+	"firetruck": 8.5,
+}
+## Noms des roues Rgsdev, dans l'ordre avant gauche, avant droite, arrière gauche, arrière droite.
+const RGSDEV_WHEELS: Array[String] = ["wheel front left", "wheel front right", "wheel rear left", "wheel rear right"]
+
+
 static func model_path(model: String) -> String:
+	if model.begins_with("rgs:"):
+		return "res://assets/cars/rgsdev/%s.fbx" % model.substr(4)
 	return "res://assets/cars/kenney/%s.glb" % model if KENNEY.has(model) else PACK
 
 
 static func length_of(model: String) -> float:
+	if model.begins_with("rgs:"):
+		return float(RGSDEV[model.substr(4)])
 	return float(KENNEY[model]) if KENNEY.has(model) else float(TOON[model][1])
+
+
+## Le modèle est-il dans un fichier à lui (Kenney, Rgsdev) plutôt que dans le pack commun ?
+static func is_single_file(model: String) -> bool:
+	return KENNEY.has(model) or model.begins_with("rgs:")
 
 @export_group("Moteur et freins")
 @export var engine_force_total := 16500.0
@@ -201,7 +223,7 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 	var scene: PackedScene = load(model_path(model))
 	var visual: Node3D = scene.instantiate()
 	# Pack de plusieurs véhicules : on ne garde que le nœud du véhicule demandé.
-	var keep := "" if KENNEY.has(model) else String(TOON[model][0])
+	var keep := "" if is_single_file(model) else String(TOON[model][0])
 	var root := visual.find_child("Root", true, false) if keep != "" else null
 	var vehicle: Node = null
 	if root:
@@ -262,6 +284,12 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 			found = visual.find_child(n, true, false) as Node3D
 			if found:
 				break
+		if found == null:
+			# Rgsdev : « Sedan wheel front left »…
+			for m in visual.find_children("*", "MeshInstance3D", true, false):
+				if String(m.name).containsn(RGSDEV_WHEELS[k]):
+					found = m
+					break
 		if found == null:
 			# Sinon : maillage dont le nom contient « Wheel » (ou « Tire ») et le repère de la roue.
 			var tags: Array = WHEEL_TAGS[k] + (WHEEL_TAGS_FRONT[k] if k < 2 else [])

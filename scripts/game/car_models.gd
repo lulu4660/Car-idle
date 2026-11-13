@@ -126,6 +126,10 @@ static func color_of(car: Dictionary) -> Color:
 static func is_paint(mat: Material) -> bool:
 	if not mat is BaseMaterial3D:
 		return false
+	# Rgsdev : couleurs unies nommées « body … » (le noir et le blanc sont des détails).
+	var nm := mat.resource_name
+	if nm.begins_with("body "):
+		return not nm in ["body black", "body white"]
 	var tex := (mat as BaseMaterial3D).albedo_texture
 	return tex != null and not tex.resource_path.ends_with("cars_0.png") and (mat as BaseMaterial3D).albedo_color.a > 0.9
 
@@ -158,12 +162,13 @@ static func oriented(kit: String) -> Array:
 		return _oriented[kit]
 	var scene: Node3D = (load(Car.model_path(kit)) as PackedScene).instantiate()
 	var kenney := Car.KENNEY.has(kit)
-	var node: Node3D = scene if kenney else scene.find_child(String(Car.TOON[kit][0]), true, false)
+	var rgs := kit.begins_with("rgs:")
+	var node: Node3D = scene if (kenney or rgs) else scene.find_child(String(Car.TOON[kit][0]), true, false)
 	var wheels: Array[Vector3] = []
 	for k in 4:
 		for c in node.find_children("*", "Node3D", true, false):
 			var nm := String(c.name)
-			if (kenney and nm == Car.WHEEL_NAMES[k][0]) or (not kenney and nm.contains(Car.WHEEL_CODES[k])):
+			if (kenney and nm == Car.WHEEL_NAMES[k][0]) or (rgs and nm.containsn(Car.RGSDEV_WHEELS[k])) or (not kenney and not rgs and nm.contains(Car.WHEEL_CODES[k])):
 				wheels.append(Car._center(c, node))
 				break
 	var paint := main_paint(node.find_children("*", "MeshInstance3D", true, false))
