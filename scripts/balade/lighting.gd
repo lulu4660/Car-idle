@@ -16,12 +16,14 @@ const SUN_MAX_ELEV := 58.0
 const MOON_MAX_ELEV := 50.0
 
 const DAY := {
-	"sun_color": Color(1.0, 0.86, 0.70), "sun_energy": 1.9,
-	"ambient": Color(0.60, 0.60, 0.80), "ambient_energy": 0.75,
-	"sky_top": Color(0.22, 0.42, 0.58), "sky_horizon": Color(0.86, 0.78, 0.72),
-	"ground_horizon": Color(0.80, 0.70, 0.55), "ground_bottom": Color(0.70, 0.58, 0.42),
-	"fog": Color(0.90, 0.78, 0.72), "fog_density": 0.0022, "exposure": 0.9,
-	"glow": 0.35, "glow_bloom": 0.04, "glow_threshold": 1.0, "contrast": 1.06, "saturation": 0.95,
+	# Style « Art of Rally » : soleil chaud de fin de journée, ombres lavande claires, ciel
+	# crème et pêche, brume de profondeur douce, contraste et saturation retenus (pastel).
+	"sun_color": Color(1.0, 0.88, 0.72), "sun_energy": 1.75,
+	"ambient": Color(0.68, 0.64, 0.84), "ambient_energy": 0.85,
+	"sky_top": Color(0.55, 0.62, 0.66), "sky_horizon": Color(0.98, 0.86, 0.74),
+	"ground_horizon": Color(0.93, 0.8, 0.66), "ground_bottom": Color(0.8, 0.66, 0.52),
+	"fog": Color(0.97, 0.86, 0.76), "fog_density": 0.0016, "exposure": 0.94,
+	"glow": 0.35, "glow_bloom": 0.04, "glow_threshold": 1.0, "contrast": 1.08, "saturation": 1.02,
 	"shadow": 0.92, "vignette": 0.28,
 }
 const DUSK := {

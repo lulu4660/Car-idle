@@ -1,6 +1,7 @@
-// Terrain de la balade, style low poly : la grille est déformée par la carte des hauteurs
-// (1 texel = 1 m, lue sans filtrage), les sols mélangés par la carte des sols sont en
-// couleurs unies avec de légères variations, et le relief est légèrement facetté.
+// Terrain de la balade, style « Art of Rally » (choix de l'auteur) : la grille est déformée
+// par la carte des hauteurs (1 texel = 1 m, lue sans filtrage) ; relief lisse (normales
+// calculées aux sommets et interpolées, plus de facettes) ; grands aplats pastel par sol
+// avec de lentes variations de teinte ; lumière enveloppante (ombres claires et douces).
 // Aucune texture photo : très léger pour l'iPhone.
 shader_type spatial;
 render_mode cull_back, depth_draw_opaque;
@@ -22,7 +23,7 @@ uniform sampler2D rut_tex : filter_linear, repeat_disable;
 // Piste de rallye : distance à l'axe (octet, 0,05 m par unité ; 1 = 12,75 m).
 uniform sampler2D road_tex : filter_linear, repeat_disable;
 uniform float road_half = 5.0;
-uniform vec3 road_color : source_color = vec3(0.50, 0.32, 0.25);
+uniform vec3 road_color : source_color = vec3(0.95, 0.84, 0.68);
 uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
 #include "res://shaders/car_shadow.gdshaderinc"
 #include "res://shaders/sun_glint.gdshaderinc"
@@ -31,22 +32,25 @@ uniform float rut_depth = 0.3;
 uniform float rut_berm = 0.12;
 
 // Couleurs unies du style low poly, par sol.
-uniform vec3 sand_light : source_color = vec3(0.82, 0.62, 0.49);
-uniform vec3 sand_dark : source_color = vec3(0.73, 0.53, 0.43);
-uniform vec3 dirt_light : source_color = vec3(0.62, 0.42, 0.32);
-uniform vec3 dirt_dark : source_color = vec3(0.52, 0.35, 0.27);
-uniform vec3 asphalt_color : source_color = vec3(0.30, 0.30, 0.33);
-uniform vec3 wet_color : source_color = vec3(0.70, 0.55, 0.39);
+// Palette pastel (aplats doux, un peu poudrés).
+uniform vec3 sand_light : source_color = vec3(0.93, 0.76, 0.57);
+uniform vec3 sand_dark : source_color = vec3(0.86, 0.67, 0.5);
+uniform vec3 dirt_light : source_color = vec3(0.76, 0.56, 0.42);
+uniform vec3 dirt_dark : source_color = vec3(0.66, 0.47, 0.36);
+uniform vec3 asphalt_color : source_color = vec3(0.45, 0.43, 0.45);
+uniform vec3 wet_color : source_color = vec3(0.82, 0.68, 0.52);
 // Biomes : prairie (entre la ville et la forêt), roche et neige des montagnes.
-uniform vec3 grass_light : source_color = vec3(0.52, 0.58, 0.30);
-uniform vec3 grass_dark : source_color = vec3(0.40, 0.48, 0.25);
-uniform vec3 rock_light : source_color = vec3(0.56, 0.50, 0.50);
-uniform vec3 rock_dark : source_color = vec3(0.42, 0.37, 0.39);
-uniform vec3 snow_color : source_color = vec3(0.93, 0.92, 0.95);
+uniform vec3 grass_light : source_color = vec3(0.68, 0.78, 0.44);
+uniform vec3 grass_dark : source_color = vec3(0.54, 0.67, 0.37);
+uniform vec3 rock_light : source_color = vec3(0.76, 0.69, 0.66);
+uniform vec3 rock_dark : source_color = vec3(0.63, 0.57, 0.57);
+uniform vec3 snow_color : source_color = vec3(0.98, 0.96, 0.94);
 // Couleur du ciel reflétée par les flaques (réglée par lighting.gd).
 uniform vec3 sky_reflect : source_color = vec3(0.55, 0.62, 0.72);
 
 varying vec3 wpos;
+// Pente lissée (dérivées de la hauteur), calculée aux sommets.
+varying vec2 vgrad;
 
 // Hasard sans sinus (moins cher et stable sur les GPU mobiles).
 float hash2(vec2 p) {
@@ -99,8 +103,22 @@ float rut(vec2 p) {
 	return (r.g * rut_berm - r.r * rut_depth) * edge;
 }
 
+// Pente lissée en un point de la grille : différences centrées sur ±2 m.
+vec2 smooth_grad(ivec2 g) {
+	return vec2(hgt(g + ivec2(2, 0)) - hgt(g - ivec2(2, 0)), hgt(g + ivec2(0, 2)) - hgt(g - ivec2(0, 2))) * 0.25;
+}
+
 void vertex() {
 	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	if (is_patch) {
+		// Pièce fine (30 cm) : pente lissée interpolée entre les 4 points de la grille.
+		vec2 g = w.xz + vec2(world_size * 0.5);
+		ivec2 i = ivec2(floor(g));
+		vec2 f = g - vec2(i);
+		vgrad = mix(mix(smooth_grad(i), smooth_grad(i + ivec2(1, 0)), f.x), mix(smooth_grad(i + ivec2(0, 1)), smooth_grad(i + ivec2(1, 1)), f.x), f.y);
+	} else {
+		vgrad = smooth_grad(ivec2(round(w.xz + vec2(world_size * 0.5))));
+	}
 	if (is_patch) {
 		float h0 = tri_height_grad(w.xz).x + rut(w.xz);
 		VERTEX.y = h0;
@@ -163,16 +181,21 @@ void fragment() {
 	float rd = texture(road_tex, (wpos.xz + vec2(world_size * 0.5)) / world_size).r * 12.75;
 	float on_road = smoothstep(road_half + 0.6, road_half - 0.8, rd + (vnoise(wpos.xz * 0.7) - 0.5) * 1.2);
 	if (on_road > 0.0) {
-		vec3 rc = road_color * (0.94 + 0.12 * macro);
+		// Piste de gravier clair, deux traces de roues plus sombres, bord tassé plus foncé :
+		// elle se lit d'un coup d'œil, comme dans les jeux de rallye vus d'en haut.
+		vec3 rc = road_color * (0.95 + 0.1 * macro);
 		float ruts = smoothstep(0.55, 0.15, abs(rd - 1.1)) + smoothstep(0.35, 0.1, abs(rd - 2.4)) * 0.4;
-		rc *= 1.0 - 0.18 * clamp(ruts, 0.0, 1.0);
+		rc *= 1.0 - 0.22 * clamp(ruts, 0.0, 1.0);
+		float edge = smoothstep(road_half - 1.6, road_half - 0.3, rd);
+		rc *= 1.0 - 0.18 * edge;
 		c = mix(c, rc, on_road);
 	}
 	// Sable mouillé au bord de l'eau : plus sombre et un peu luisant.
 	float wet_band = smoothstep(sea_level + 0.6, sea_level + 0.05, wpos.y);
 	c *= mix(1.0, 0.72, wet_band);
 	// Ornières : relief fin et fond tassé un peu plus sombre (pièce fine seulement).
-	vec2 grad = tg.yz;
+	// Relief lisse : la pente interpolée depuis les sommets (pas celle du triangle).
+	vec2 grad = vgrad;
 	if (is_patch) {
 		float e = 0.05;
 		float r0 = rut(wpos.xz);
@@ -212,8 +235,6 @@ void fragment() {
 		float fres = 0.25 + 0.75 * pow(1.0 - clamp(vdir.y, 0.0, 1.0), 3.0);
 		EMISSION += sky_reflect * pud * fres * (1.0 - night * 0.85);
 	}
-	// Facettes low poly : la normale est celle du triangle de 1 m (calculée, pas dérivée de
-	// l'écran : identique sur le terrain, la pièce des ornières et les niveaux de détail).
 	vec3 nw = normalize(vec3(-grad.x, 1.0, -grad.y));
 	// Reflet du soleil (ou de la lune) : miroir dans les flaques (la surface de l'eau est
 	// plate, seuls les ronds de pluie la rident), éclat étalé sur le sol mouillé ; masqué
@@ -235,5 +256,7 @@ void fragment() {
 void light() {
 	// Les ombres précalculées ne valent que pour le soleil (ou la lune) ; les phares, non.
 	float vis = LIGHT_IS_DIRECTIONAL ? sun_vis : ATTENUATION;
-	DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * LIGHT_COLOR / PI * vis;
+	// Lumière enveloppante : les pentes à l'ombre restent claires et douces.
+	float wrap = clamp((dot(NORMAL, LIGHT) + 0.3) / 1.3, 0.0, 1.0);
+	DIFFUSE_LIGHT += wrap * LIGHT_COLOR / PI * vis;
 }

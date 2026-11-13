@@ -24,7 +24,10 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = COLOR.rgb * mix(1.0, 0.75, weather_wet);
+	vec3 base = COLOR.rgb;
+	float lum = dot(base, vec3(0.3, 0.55, 0.15));
+	base = mix(vec3(lum), base, 0.8) * 1.12 + vec3(0.03, 0.02, 0.0);
+	ALBEDO = base * mix(1.0, 0.75, weather_wet);
 	ROUGHNESS = mix(0.9, 0.5, weather_wet);
 	SPECULAR = 0.0;
 	BACKLIGHT = COLOR.rgb * 0.25;

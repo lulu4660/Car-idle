@@ -33,7 +33,11 @@ void fragment() {
 	if (see_fade(wpos, INV_VIEW_MATRIX[3].xyz) > see_bayer(FRAGCOORD.xy)) {
 		discard;
 	}
-	ALBEDO = COLOR.rgb * mix(1.0, 0.78, weather_wet);
+	// Pastel : un peu moins saturé, plus clair, réchauffé (style « Art of Rally »).
+	vec3 base = COLOR.rgb;
+	float lum = dot(base, vec3(0.3, 0.55, 0.15));
+	base = mix(vec3(lum), base, 0.8) * 1.12 + vec3(0.03, 0.02, 0.0);
+	ALBEDO = base * mix(1.0, 0.78, weather_wet);
 	ROUGHNESS = 1.0;
 	if (night > 0.01) {
 		vec3 nw = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
