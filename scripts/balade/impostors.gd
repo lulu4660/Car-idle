@@ -10,11 +10,16 @@ const SIZE := 256
 const PITCH := 35.0
 const CAPTURE := preload("res://shaders/impostor_capture.gdshader")
 const SHADER := preload("res://shaders/impostor.gdshader")
+const SHADOW := preload("res://shaders/impostor_shadow.gdshader")
 
 ## modèle -> ShaderMaterial (textures remplies une fois les photos prises).
 var materials := {}
-## modèle -> copies du matériau (une par case, pour le fondu) : elles reçoivent aussi les photos.
+## modèle -> matériau de l'ombre lointaine (la photo couchée au sol).
+var shadow_materials := {}
+## modèle -> copies des matériaux (une par case, pour le fondu) : elles reçoivent aussi les photos.
 var copies := {}
+## Texture des hauteurs du terrain (pour poser les ombres sur le relief).
+var height_tex: Texture2D
 var done := false
 var _jobs := []
 
@@ -37,6 +42,13 @@ func prepare(kinds: Dictionary) -> void:
 		mat.set_shader_parameter("center_y", c.y)
 		materials[kind] = mat
 		copies[kind] = []
+		var sm := ShaderMaterial.new()
+		sm.shader = SHADOW
+		sm.set_shader_parameter("quad_size", size)
+		sm.set_shader_parameter("center_y", c.y)
+		sm.set_shader_parameter("foot_y", b.position.y)
+		sm.set_shader_parameter("height_tex", height_tex)
+		shadow_materials[kind] = sm
 		var shots := []
 		for mode in 2:
 			var vp := SubViewport.new()
@@ -86,6 +98,8 @@ func _finish() -> void:
 			var tex := ImageTexture.create_from_image(img)
 			var pname := "albedo_tex" if mode == 0 else "normal_tex"
 			mat.set_shader_parameter(pname, tex)
+			if mode == 0:
+				(shadow_materials[job[0]] as ShaderMaterial).set_shader_parameter(pname, tex)
 			for m in copies[job[0]]:
 				(m as ShaderMaterial).set_shader_parameter(pname, tex)
 			vp.queue_free()

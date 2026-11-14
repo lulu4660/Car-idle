@@ -125,6 +125,10 @@ func _start_pass(light: Vector3, focus: Vector3) -> void:
 	_mat.set_shader_parameter("steps", maxi(1, int(ceil(reach / STEP))))
 
 
+## Fenêtre affichée (x, z, taille), aussi lue par vegetation.gd (ombres lointaines).
+var rect := Vector4(0, 0, 1, 0)
+
+
 func _swap() -> void:
 	_front = 1 - _front
 	_tile = -1
@@ -134,7 +138,8 @@ func _swap() -> void:
 	for m in materials:
 		(m as ShaderMaterial).set_shader_parameter("static_shadow_tex", tex)
 	var o := Vector2(_origin) * TEXEL - Vector2.ONE * WL.SIZE / 2.0
-	RenderingServer.global_shader_parameter_set("shadow_rect", Vector4(o.x, o.y, WIN * TEXEL, 0.0))
+	rect = Vector4(o.x, o.y, WIN * TEXEL, 0.0)
+	RenderingServer.global_shader_parameter_set("shadow_rect", rect)
 
 
 func _rect_center(origin: Vector2i) -> Vector2:

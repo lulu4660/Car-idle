@@ -34,6 +34,9 @@ var lod_near := LOD_NEAR
 const LOD_HYST := 10.0
 const LOD_FADE_TIME := 0.25
 const IMP_RANGE := 420.0
+## Ombres lointaines (impostor_shadow.gdshader) jusqu'à cette distance (centre de case) : plus
+## loin, la brume les efface presque et chaque case coûte des appels de dessin.
+const SHADOW_RANGE := 280.0
 
 ## Couleur de chaque matériau du kit (par nom), dans la palette de la balade.
 const PALETTE := {
@@ -60,8 +63,14 @@ var _proto := {}        # modèle -> [maillage, hauteur, bas]
 var _material: ShaderMaterial
 var _tree_material: ShaderMaterial
 var impostors: Node
+## Hauteurs du terrain (balade.gd, avant build) : les ombres des arbres lointains s'y posent.
+var height_tex: Texture2D
+## Fenêtre des ombres précalculées et lumière (balade.gd) : où les ombres lointaines servent.
+var sun_shadows: Node
+var lighting: Node
 var _lod_cells := []    # par case d'arbres : centre, MultiMesh modèle et imposteur, état
 var lod_freeze := false
+var _shadow_timer := 0.0
 ## Arbres dessinés deux fois (pendant un fondu), pour la vue de débogage.
 var twice := 0
 var _cells := {}        # [case, modèle] -> Array[Transform3D]
@@ -293,6 +302,7 @@ func _commit() -> void:
 			lod_kinds[kind] = [_proto[kind][0], float(spec[0]) / maxf(_proto[kind][1], 0.01)]
 	impostors = load("res://scripts/balade/impostors.gd").new()
 	impostors.name = "Imposteurs"
+	impostors.height_tex = height_tex
 	add_child(impostors)
 	impostors.prepare(lod_kinds)
 	var by_cell := {}
@@ -325,7 +335,7 @@ func _commit() -> void:
 		# Un matériau par case : son fondu de niveau de détail lui est propre (les « uniformes
 		# par instance » du moteur sont limités à 4 096 et il y a trop de cases).
 		if not by_cell.has(cell):
-			by_cell[cell] = {"center": Vector2(origin.x, origin.z), "near": [], "imp": [], "mats": [], "count": 0, "lod": -1, "t": 1.0}
+			by_cell[cell] = {"center": Vector2(origin.x, origin.z), "near": [], "imp": [], "shadow": [], "mats": [], "count": 0, "lod": -1, "t": 1.0}
 			by_cell[cell]["near_mat"] = _tree_material.duplicate()
 			by_cell[cell]["mats"].append(by_cell[cell]["near_mat"])
 		mmi.material_override = by_cell[cell]["near_mat"]
@@ -350,6 +360,28 @@ func _commit() -> void:
 		imi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		FarFade.setup(imi, IMP_RANGE, CELL * FarFade.CELL_MARGIN, 80.0)
 		add_child(imi)
+		# Ombres des arbres lointains (hors de la fenêtre des ombres précalculées) : la photo
+		# de l'imposteur couchée au sol dans l'axe du soleil.
+		var sh := MultiMesh.new()
+		sh.transform_format = MultiMesh.TRANSFORM_3D
+		sh.mesh = _shadow_plane()
+		sh.instance_count = list.size()
+		for i in list.size():
+			var xf: Transform3D = list[i]
+			xf.origin -= origin
+			sh.set_instance_transform(i, xf)
+		sh.custom_aabb = aabb.grow(aabb.size.y * 4.0)
+		var shi := MultiMeshInstance3D.new()
+		shi.multimesh = sh
+		shi.position = origin
+		var smat: ShaderMaterial = impostors.shadow_materials[kind].duplicate()
+		impostors.copies[kind].append(smat)
+		by_cell[cell]["mats"].append(smat)
+		shi.material_override = smat
+		shi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		FarFade.setup(shi, IMP_RANGE, CELL * FarFade.CELL_MARGIN, 80.0)
+		add_child(shi)
+		by_cell[cell]["shadow"].append(shi)
 		by_cell[cell]["near"].append(mmi)
 		by_cell[cell]["imp"].append(imi)
 		by_cell[cell]["count"] += list.size()
@@ -362,6 +394,17 @@ static func _has_impostor(kind: String) -> bool:
 
 
 var _quad: QuadMesh
+var _plane: PlaneMesh
+## Rectangle à plat (1 × 1 m, découpé pour suivre le relief) : l'ombre d'un arbre lointain.
+func _shadow_plane() -> PlaneMesh:
+	if _plane == null:
+		_plane = PlaneMesh.new()
+		_plane.size = Vector2.ONE
+		_plane.subdivide_width = 2
+		_plane.subdivide_depth = 4
+	return _plane
+
+
 func _impostor_quad() -> QuadMesh:
 	if _quad == null:
 		_quad = QuadMesh.new()
@@ -383,6 +426,18 @@ func _process(delta: float) -> void:
 		return
 	var p := Vector2(cam.global_position.x, cam.global_position.z)
 	twice = 0
+	# Ombres lointaines : seulement pour les cases d'imposteurs entièrement hors de la fenêtre
+	# des ombres précalculées, et quand le soleil (ou la lune) éclaire. Revu 4 fois par seconde.
+	_shadow_timer -= delta
+	var shadow_check := _shadow_timer <= 0.0
+	var win := Rect2()
+	var lit := false
+	if shadow_check:
+		_shadow_timer = 0.25
+		var r: Vector4 = sun_shadows.rect if sun_shadows else Vector4(0, 0, 1, 0)
+		var m := r.z * 0.08 + CELL * 0.5
+		win = Rect2(r.x + m, r.y + m, maxf(r.z - 2.0 * m, 0.0), maxf(r.z - 2.0 * m, 0.0))
+		lit = lighting == null or float(lighting.glint) > 0.01
 	for c in _lod_cells:
 		var d: float = p.distance_to(c["center"])
 		var want: int = c["lod"]
@@ -413,13 +468,18 @@ func _process(delta: float) -> void:
 					(n as Node3D).visible = c["lod"] == 1
 			else:
 				twice += int(c["count"])
+		if shadow_check:
+			var show: bool = lit and (c["lod"] == 1 or c["t"] < 1.0) and d < SHADOW_RANGE and not win.has_point(c["center"])
+			for n in c["shadow"]:
+				if (n as Node3D).visible != show:
+					(n as Node3D).visible = show
 
 
 ## Préchauffage (balade.gd) : les deux versions affichées pour compiler tous les shaders.
 func set_lod_freeze(on: bool) -> void:
 	lod_freeze = on
 	for c in _lod_cells:
-		for n in c["near"] + c["imp"]:
+		for n in c["near"] + c["imp"] + c["shadow"]:
 			(n as Node3D).visible = true
 		if not on:
 			c["lod"] = -1

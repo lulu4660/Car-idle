@@ -48,6 +48,8 @@ const NIGHT := {
 }
 
 var env: Environment
+## Force du soleil ou de la lune (0 = aucun astre ne porte d'ombre), lue par vegetation.gd.
+var glint := 1.0
 var sun: DirectionalLight3D
 var moon: DirectionalLight3D
 var sky: ProceduralSkyMaterial
@@ -216,12 +218,15 @@ func _apply() -> void:
 		var sc: Color = sun.light_color
 		var sk := sun_k * veil * lerpf(1.0, 1.4, dusk)
 		RenderingServer.global_shader_parameter_set("sun_glint", Vector3(sc.r, sc.g, sc.b) * sk)
+		glint = sk
 	elif moon_k > 0.001:
 		RenderingServer.global_shader_parameter_set("sun_dir", md)
 		var mc: Color = moon.light_color
 		RenderingServer.global_shader_parameter_set("sun_glint", Vector3(mc.r, mc.g, mc.b) * moon_k * veil * 0.75)
+		glint = moon_k * veil * 0.75
 	else:
 		RenderingServer.global_shader_parameter_set("sun_glint", Vector3.ZERO)
+		glint = 0.0
 	env.ambient_light_color = (_mix("ambient", dusk, night) as Color).lerp(Color(0.62, 0.64, 0.7) * (1.0 - night * 0.7), cl * 0.5)
 	_base_ambient = _mix("ambient_energy", dusk, night) * (1.0 + 0.35 * cl)
 	env.ambient_light_energy = _base_ambient

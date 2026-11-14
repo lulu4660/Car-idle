@@ -12,7 +12,7 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.21.0"
+const VERSION := "0.22.0"
 
 @export var start_model := "sedan-sports"
 ## Partie idle (garage, voitures à spotter) branchée ou non. Mise de côté pour l'instant
@@ -182,6 +182,9 @@ func _ready() -> void:
 	vegetation = load("res://scripts/balade/vegetation.gd").new()
 	vegetation.name = "Vegetation"
 	add_child(vegetation)
+	vegetation.height_tex = terrain.height_texture()
+	vegetation.sun_shadows = sun_shadows
+	vegetation.lighting = lighting
 	vegetation.build(data)
 
 	_build_hud()
