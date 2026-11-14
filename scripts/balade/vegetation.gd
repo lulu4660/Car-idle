@@ -9,6 +9,8 @@
 ## Troncs, rochers et cactus arrêtent la voiture (formes simples) ; les buissons non.
 extends Node3D
 
+const FarFade = preload("res://scripts/balade/far_fade.gd")
+
 const WL = preload("res://scripts/core/world_layout.gd")
 const Town = preload("res://scripts/balade/town.gd")
 const Megakit = preload("res://scripts/balade/megakit.gd")
@@ -284,6 +286,7 @@ func _commit() -> void:
 		mmi.multimesh = mm
 		mmi.material_override = _material
 		mmi.position = origin
-		mmi.visibility_range_end = RANGE
+		# Fondu en distance (pas d'arbres qui surgissent) ; la case reste affichée un peu plus loin.
+		FarFade.setup(mmi, RANGE, CELL * FarFade.CELL_MARGIN)
 		add_child(mmi)
 	_cells.clear()

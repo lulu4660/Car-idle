@@ -5,6 +5,7 @@ render_mode specular_disabled;
 
 #include "res://shaders/night_light.gdshaderinc"
 #include "res://shaders/see_through.gdshaderinc"
+#include "res://shaders/far_fade.gdshaderinc"
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
 uniform vec3 window_light : source_color = vec3(1.0, 0.76, 0.42);
 
@@ -18,9 +19,17 @@ float hash3(vec3 p) {
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_far = far_amount(MODEL_MATRIX, INV_VIEW_MATRIX);
+	v_far_seed = far_seed(MODEL_MATRIX);
+	if (v_far >= 1.0) {
+		VERTEX = vec3(0.0);   // trop loin : objet replié, aucun pixel
+	}
 }
 
 void fragment() {
+	if (v_far > far_bayer(FRAGCOORD.xy, v_far_seed)) {
+		discard;
+	}
 	if (see_fade(wpos, INV_VIEW_MATRIX[3].xyz) > see_bayer(FRAGCOORD.xy)) {
 		discard;
 	}

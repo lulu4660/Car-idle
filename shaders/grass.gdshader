@@ -6,6 +6,7 @@ render_mode cull_disabled;
 uniform float wind = 0.16;
 uniform float world_size = 1024.0;
 #include "res://shaders/car_shadow.gdshaderinc"
+#include "res://shaders/far_fade.gdshaderinc"
 varying vec3 wpos;
 varying float sun_vis;
 
@@ -21,9 +22,17 @@ void vertex() {
 	VERTEX.x += bend.x * k * k;
 	VERTEX.z += bend.y * k * k;
 	wpos = w;
+	v_far = far_amount(MODEL_MATRIX, INV_VIEW_MATRIX);
+	v_far_seed = far_seed(MODEL_MATRIX);
+	if (v_far >= 1.0) {
+		VERTEX = vec3(0.0);   // trop loin : objet replié, aucun pixel
+	}
 }
 
 void fragment() {
+	if (v_far > far_bayer(FRAGCOORD.xy, v_far_seed)) {
+		discard;
+	}
 	vec3 base = COLOR.rgb;
 	float lum = dot(base, vec3(0.3, 0.55, 0.15));
 	base = mix(vec3(lum), base, 0.8) * 1.12 + vec3(0.03, 0.02, 0.0);

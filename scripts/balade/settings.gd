@@ -3,6 +3,8 @@
 ## Enregistrés dans user://settings.cfg. Données et application ; l'écran est settings_menu.gd.
 extends RefCounted
 
+const FarFade = preload("res://scripts/balade/far_fade.gd")
+
 const PATH := "user://settings.cfg"
 const PRESETS: Array[String] = ["Très bas", "Bas", "Moyen", "Haut", "Ultra"]
 const HALO = preload("res://shaders/halo.gdshader")
@@ -232,7 +234,9 @@ static func _scale_ranges(n: Node, f: float) -> void:
 	for c in n.get_children():
 		if c is GeometryInstance3D:
 			var gi := c as GeometryInstance3D
-			if gi.visibility_range_end > 0.0:
+			if gi.has_meta("fade_end"):
+				FarFade.apply(gi, f)
+			elif gi.visibility_range_end > 0.0:
 				if not gi.has_meta("base_range"):
 					gi.set_meta("base_range", gi.visibility_range_end)
 				gi.visibility_range_end = float(gi.get_meta("base_range")) * f

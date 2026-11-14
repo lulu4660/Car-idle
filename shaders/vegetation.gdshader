@@ -5,6 +5,7 @@ render_mode specular_disabled;
 
 #include "res://shaders/night_light.gdshaderinc"
 #include "res://shaders/see_through.gdshaderinc"
+#include "res://shaders/far_fade.gdshaderinc"
 global uniform float weather_wet;
 global uniform vec3 weather_wind;
 uniform sampler2D night_light_tex : filter_linear, repeat_disable;
@@ -30,9 +31,17 @@ void vertex() {
 		float s2 = dot(MODEL_MATRIX[0].xyz, MODEL_MATRIX[0].xyz);
 		VERTEX += vec3(dot(MODEL_MATRIX[0].xyz, off), dot(MODEL_MATRIX[1].xyz, off), dot(MODEL_MATRIX[2].xyz, off)) / s2;
 	}
+	v_far = far_amount(MODEL_MATRIX, INV_VIEW_MATRIX);
+	v_far_seed = far_seed(MODEL_MATRIX);
+	if (v_far >= 1.0) {
+		VERTEX = vec3(0.0);   // trop loin : objet replié, aucun pixel
+	}
 }
 
 void fragment() {
+	if (v_far > far_bayer(FRAGCOORD.xy, v_far_seed)) {
+		discard;
+	}
 	if (see_fade(wpos, INV_VIEW_MATRIX[3].xyz) > see_bayer(FRAGCOORD.xy)) {
 		discard;
 	}

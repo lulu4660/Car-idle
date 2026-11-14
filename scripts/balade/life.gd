@@ -9,6 +9,8 @@
 ## Tout ce qui est loin de la voiture est mis en pause (ni animation, ni déplacement).
 extends Node3D
 
+const FarFade = preload("res://scripts/balade/far_fade.gd")
+
 const WL = preload("res://scripts/core/world_layout.gd")
 const Car = preload("res://scripts/balade/car.gd")
 const MeshMerge = preload("res://scripts/balade/mesh_merge.gd")
@@ -61,7 +63,7 @@ func _vehicle(model: String, kinematic: bool) -> Node3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = v[0]
 	mi.transform = v[1]
-	mi.visibility_range_end = 180.0 if kinematic else 120.0
+	FarFade.setup(mi, 180.0 if kinematic else 120.0, 3.0, 25.0, true)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mi)
 	var cs := CollisionShape3D.new()
@@ -178,7 +180,7 @@ func _add_person(a: Vector3, b: Vector3, anim: String) -> void:
 	node.scale = Vector3.ONE * 2.6
 	add_child(node)
 	for m in node.find_children("*", "MeshInstance3D", true, false):
-		(m as MeshInstance3D).visibility_range_end = 110.0
+		FarFade.setup(m as MeshInstance3D, 110.0, 2.0, 20.0, true)
 		(m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var player: AnimationPlayer = node.find_children("*", "AnimationPlayer", true, false)[0] if node.find_children("*", "AnimationPlayer", true, false).size() > 0 else null
 	if player and player.has_animation(anim):
@@ -204,7 +206,7 @@ func _boats_on_sea() -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = mesh
 		mi.scale = Vector3.ONE * s
-		mi.visibility_range_end = 260.0
+		FarFade.setup(mi, 260.0, 3.0, 40.0, true)
 		add_child(mi)
 		_boats.append([mi, x, z, _rng.randf() * TAU, _rng.randf_range(-1.2, 1.2) if k < 4 else 0.0])
 

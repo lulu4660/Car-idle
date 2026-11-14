@@ -8,6 +8,8 @@
 ## par case de 120 m (un appel de dessin par modèle et par case), collisions simples.
 extends Node3D
 
+const FarFade = preload("res://scripts/balade/far_fade.gd")
+
 const WL = preload("res://scripts/core/world_layout.gd")
 const MeshMerge = preload("res://scripts/balade/mesh_merge.gd")
 
@@ -277,6 +279,7 @@ func _commit() -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.position = origin
-		mmi.visibility_range_end = RANGE
+		# Fondu en distance (pas de maisons qui surgissent) ; la case reste affichée un peu plus loin.
+		FarFade.setup(mmi, RANGE - 10.0, CELL * FarFade.CELL_MARGIN)
 		add_child(mmi)
 	_cells.clear()

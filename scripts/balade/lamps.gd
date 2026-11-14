@@ -9,6 +9,8 @@
 ## (tools/bake_shadows.gd -> lights.png), avec une portée propre à chaque modèle.
 extends Node3D
 
+const FarFade = preload("res://scripts/balade/far_fade.gd")
+
 const WL = preload("res://scripts/core/world_layout.gd")
 const Town = preload("res://scripts/balade/town.gd")
 
@@ -91,7 +93,7 @@ func build(data: RefCounted, town: Node) -> void:
 		mmi.multimesh = mm
 		mmi.material_override = mat
 		mmi.position = origin
-		mmi.visibility_range_end = 220.0
+		FarFade.setup(mmi, 200.0, CELL * FarFade.CELL_MARGIN)
 		add_child(mmi)
 		# Halos des lampes (la nuit).
 		var hm := MultiMesh.new()
@@ -107,7 +109,7 @@ func build(data: RefCounted, town: Node) -> void:
 		hmi.multimesh = hm
 		hmi.material_override = halo_mat
 		hmi.position = origin
-		hmi.visibility_range_end = 220.0
+		hmi.visibility_range_end = 200.0 + CELL * FarFade.CELL_MARGIN
 		hmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(hmi)
 

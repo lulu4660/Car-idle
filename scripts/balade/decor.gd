@@ -2,6 +2,8 @@
 ## vent, avec leurs ombres), mouettes qui tournent au-dessus de la plage et de la voiture.
 extends Node3D
 
+const FarFade = preload("res://scripts/balade/far_fade.gd")
+
 const WL = preload("res://scripts/core/world_layout.gd")
 
 const GRASS_COUNT := 11000
@@ -100,7 +102,7 @@ func _build_grass() -> void:
 		mmi.material_override = mat
 		mmi.position = center
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mmi.visibility_range_end = GRASS_RANGE * (0.75 if low_quality else 1.0)
+		FarFade.setup(mmi, GRASS_RANGE * (0.75 if low_quality else 1.0), GRASS_CELL * FarFade.CELL_MARGIN, 30.0)
 		add_child(mmi)
 		_grass_nodes.append(mmi)
 

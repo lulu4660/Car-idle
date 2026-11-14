@@ -18,12 +18,12 @@ const MOON_MAX_ELEV := 50.0
 const DAY := {
 	# Style « Art of Rally » : soleil chaud de fin de journée, ombres lavande claires, ciel
 	# crème et pêche, brume de profondeur douce, contraste et saturation retenus (pastel).
-	"sun_color": Color(1.0, 0.88, 0.72), "sun_energy": 1.75,
-	"ambient": Color(0.68, 0.64, 0.84), "ambient_energy": 0.85,
+	"sun_color": Color(1.0, 0.87, 0.7), "sun_energy": 1.95,
+	"ambient": Color(0.66, 0.62, 0.86), "ambient_energy": 0.7,
 	"sky_top": Color(0.55, 0.62, 0.66), "sky_horizon": Color(0.98, 0.86, 0.74),
 	"ground_horizon": Color(0.93, 0.8, 0.66), "ground_bottom": Color(0.8, 0.66, 0.52),
 	"fog": Color(0.97, 0.86, 0.76), "fog_density": 0.0016, "exposure": 0.94,
-	"glow": 0.35, "glow_bloom": 0.04, "glow_threshold": 1.0, "contrast": 1.08, "saturation": 1.02,
+	"glow": 0.35, "glow_bloom": 0.04, "glow_threshold": 1.0, "contrast": 1.1, "saturation": 1.1,
 	"shadow": 0.92, "vignette": 0.28,
 }
 const DUSK := {
@@ -250,8 +250,14 @@ func _apply() -> void:
 	var low := smoothstep(2.0, 12.0, rad_to_deg(asin(light_direction().y)))
 	for m in shadow_materials:
 		(m as ShaderMaterial).set_shader_parameter("shadow_strength", _mix("shadow", dusk, night) * lerpf(0.4, 1.0, low))
+	# Vignettage : dans la passe « maquette » quand elle est affichée, sinon le calque.
+	var vig: float = _mix("vignette", dusk, night)
+	var in_pass: bool = tilt_shift != null and tilt_shift.get_parent().visible
+	if tilt_shift:
+		(tilt_shift.material as ShaderMaterial).set_shader_parameter("vignette", vig)
 	if _vignette:
-		_vignette.modulate.a = _mix("vignette", dusk, night)
+		_vignette.modulate.a = vig
+		_vignette.get_parent().visible = not in_pass
 	# Couleur du ciel reflétée par les flaques.
 	for m in shadow_materials:
 		(m as ShaderMaterial).set_shader_parameter("sky_reflect", sky.sky_horizon_color.lerp(sky.sky_top_color, 0.4) * 0.7 * (1.0 - 0.55 * cl))

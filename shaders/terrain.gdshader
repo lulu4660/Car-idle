@@ -23,7 +23,7 @@ uniform sampler2D rut_tex : filter_linear, repeat_disable;
 // Piste de rallye : distance à l'axe (octet, 0,05 m par unité ; 1 = 12,75 m).
 uniform sampler2D road_tex : filter_linear, repeat_disable;
 uniform float road_half = 5.0;
-uniform vec3 road_color : source_color = vec3(0.95, 0.84, 0.68);
+uniform vec3 road_color : source_color = vec3(0.91, 0.79, 0.63);
 uniform vec4 rut_rect = vec4(0.0, 0.0, 0.0, 0.0);
 #include "res://shaders/car_shadow.gdshaderinc"
 #include "res://shaders/sun_glint.gdshaderinc"
@@ -190,12 +190,34 @@ void fragment() {
 		rc *= 1.0 - 0.18 * edge;
 		c = mix(c, rc, on_road);
 	}
+	// Détails de près, effacés au loin (sinon ils scintillent) : grain du sol, gravillons sur
+	// la piste et la terre, rides du sable que le vent dessine dans les dunes.
+	float cam_d = length(wpos - INV_VIEW_MATRIX[3].xyz);
+	float near_k = 1.0 - smoothstep(40.0, 80.0, cam_d);
+	float ripple_k = 0.0;
+	float ripple_ph = 0.0;
+	vec2 ripple_dir = vec2(0.8, 0.6);
+	if (near_k > 0.0) {
+		c *= 1.0 + (vnoise(wpos.xz * 1.4) - 0.5) * 0.07 * near_k;
+		vec2 sp = wpos.xz / 0.34;
+		float hs = hash2(floor(sp));
+		float stone = step(0.84, hs) * smoothstep(0.2, 0.08, length(fract(sp) - 0.5));
+		float stony = max(on_road, w.g * (1.0 - meadow));
+		c *= 1.0 - stone * (hs > 0.93 ? -0.1 : 0.17) * near_k * stony;
+		ripple_k = w.b * (1.0 - on_road) * (1.0 - rock_k) * near_k;
+		if (ripple_k > 0.01) {
+			ripple_ph = dot(wpos.xz, ripple_dir) * 3.4 + vnoise(wpos.xz * 0.21) * 7.0;
+			c *= 1.0 + sin(ripple_ph) * 0.03 * ripple_k;
+		}
+	}
 	// Sable mouillé au bord de l'eau : plus sombre et un peu luisant.
 	float wet_band = smoothstep(sea_level + 0.6, sea_level + 0.05, wpos.y);
 	c *= mix(1.0, 0.72, wet_band);
 	// Ornières : relief fin et fond tassé un peu plus sombre (pièce fine seulement).
 	// Relief lisse : la pente interpolée depuis les sommets (pas celle du triangle).
 	vec2 grad = vgrad;
+	// Rides du sable : seulement la lumière (le relief ne bouge pas).
+	grad += ripple_dir * cos(ripple_ph) * 0.16 * ripple_k;
 	if (is_patch) {
 		float e = 0.05;
 		float r0 = rut(wpos.xz);
