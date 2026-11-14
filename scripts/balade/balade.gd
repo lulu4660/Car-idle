@@ -12,7 +12,7 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.20.0"
+const VERSION := "0.21.0"
 
 @export var start_model := "sedan-sports"
 ## Partie idle (garage, voitures à spotter) branchée ou non. Mise de côté pour l'instant
@@ -333,6 +333,7 @@ func _process(delta: float) -> void:
 	_dynamic_resolution(delta)
 	_update_car_shadow()
 	_update_sun_shadows(false)
+	_update_lod_label()
 	if controls.night_requested:
 		lighting.set_night(not lighting.is_night())
 	# Le bouton indique où il emmène : vers la nuit le jour, vers le jour la nuit.
@@ -846,6 +847,7 @@ func _start_warmup() -> void:
 	_loading.add_child(lbl)
 	add_child(_loading)
 	_warm_saved.clear()
+	vegetation.set_lod_freeze(true)
 	for n in find_children("*", "GeometryInstance3D", true, false):
 		var gi := n as GeometryInstance3D
 		if gi.visibility_range_end > 0.0 or gi.visibility_range_begin > 0.0:
@@ -867,6 +869,7 @@ func _start_warmup() -> void:
 
 
 func _end_warmup() -> void:
+	vegetation.set_lod_freeze(false)
 	for e in _warm_saved:
 		var gi: GeometryInstance3D = e[0]
 		if is_instance_valid(gi):
@@ -951,3 +954,44 @@ func _build_hud() -> void:
 	hud = load("res://scripts/balade/hud.gd").new()
 	hud.game = self
 	add_child(hud)
+
+
+# ------------------------------------------------------------------ niveaux de détail (débogage)
+
+## Vue de débogage des niveaux de détail (touche L ou réglages) : arbres colorés (rouge =
+## modèle, violet = imposteur, trame des deux pendant un fondu) et compteur d'arbres dessinés
+## deux fois.
+var _lod_label: Label
+
+func set_lod_debug(on: bool) -> void:
+	RenderingServer.global_shader_parameter_set("lod_debug", 1.0 if on else 0.0)
+	if on and _lod_label == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 5
+		add_child(layer)
+		_lod_label = Label.new()
+		_lod_label.add_theme_font_override("font", load("res://assets/fonts/RussoOne-Regular.ttf"))
+		_lod_label.add_theme_font_size_override("font_size", 22)
+		_lod_label.add_theme_color_override("font_color", Color(1, 1, 1))
+		_lod_label.add_theme_color_override("font_outline_color", Color(0.1, 0.08, 0.12))
+		_lod_label.add_theme_constant_override("outline_size", 6)
+		_lod_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_lod_label.position.y = 150
+		layer.add_child(_lod_label)
+	if _lod_label:
+		_lod_label.get_parent().visible = on
+		set_process_unhandled_key_input(true)
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	var k := event as InputEventKey
+	if k and k.pressed and not k.echo and k.keycode == KEY_L:
+		var on := not (float(settings.graphics.get("lod_debug", 0.0)) > 0.5)
+		settings.graphics["lod_debug"] = 1.0 if on else 0.0
+		set_lod_debug(on)
+
+
+func _update_lod_label() -> void:
+	if _lod_label and _lod_label.get_parent().visible:
+		_lod_label.text = "%d arbres dessinés deux fois" % vegetation.twice
+		_lod_label.position.x = (get_viewport().get_visible_rect().size.x - _lod_label.size.x) / 2.0

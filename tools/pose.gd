@@ -1,5 +1,6 @@
 ## Capture rapide d'un plan fixe de la balade (pour relire le rendu) :
-##   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-method gl_compatibility --resolution 960x540 -s tools/pose.gd -- sortie.png [plan_caméra] [x z cap°] [low]
+##   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-method gl_compatibility --resolution 960x540 -s tools/pose.gd -- sortie.png [plan_caméra] [x z cap°] [low] [lod]
+## lod : vue de débogage des niveaux de détail des arbres.
 extends SceneTree
 
 var frames := 0
@@ -25,6 +26,10 @@ func _tick() -> void:
 	frames += 1
 	if frames == 3:
 		balade.camera.mode = cam_mode
+		if "lod" in OS.get_cmdline_user_args():
+			balade.set_lod_debug(true)
+		if "imp" in OS.get_cmdline_user_args():
+			balade.vegetation.lod_near = -100.0
 		if place.size() == 3:
 			balade.car.respawn(Vector3(place[0], 0, place[1]), deg_to_rad(place[2]))
 			balade.camera.snap()

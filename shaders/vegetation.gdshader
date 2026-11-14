@@ -11,6 +11,9 @@ global uniform vec3 weather_wind;
 uniform sampler2D night_light_tex : filter_linear, repeat_disable;
 uniform vec3 lamp_color : source_color = vec3(1.0, 0.72, 0.42);
 uniform float world_size = 1024.0;
+global uniform float lod_debug;
+// Part de l'imposteur pendant le fondu des niveaux de détail (vegetation.gd).
+uniform float lod_fade = 0.0;
 
 varying vec3 wpos;
 // Hauteur du point au-dessus du pied de l'objet (pied plus sombre).
@@ -39,6 +42,10 @@ void vertex() {
 }
 
 void fragment() {
+	// Niveaux de détail : trame complémentaire de celle de l'imposteur.
+	if (lod_fade > see_bayer(FRAGCOORD.xy)) {
+		discard;
+	}
 	if (v_far > far_bayer(FRAGCOORD.xy, v_far_seed)) {
 		discard;
 	}
@@ -51,7 +58,7 @@ void fragment() {
 	base = mix(vec3(lum), base, 0.8) * 1.12 + vec3(0.03, 0.02, 0.0);
 	// Pied plus sombre (ombrage de contact), haut un peu plus clair.
 	base *= mix(0.68, 1.06, smoothstep(0.0, 3.0, vh));
-	ALBEDO = base * mix(1.0, 0.78, weather_wet);
+	ALBEDO = mix(base * mix(1.0, 0.78, weather_wet), vec3(0.95, 0.32, 0.15), lod_debug);
 	ROUGHNESS = 1.0;
 	if (night > 0.01) {
 		vec3 nw = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);

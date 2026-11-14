@@ -24,6 +24,16 @@ const MEGAKIT_ROCKS := {
 const DIR := "res://assets/props/nature/"
 const CELL := 96.0
 const RANGE := 150.0
+## Niveaux de détail des arbres : modèle jusqu'à `LOD_NEAR` (centre de la case), imposteur
+## au-delà jusqu'à `IMP_RANGE` (fondu en distance au bout, dans la brume) ; passage en
+## `LOD_FADE_TIME` secondes. Les forêts se voient ainsi jusqu'à l'horizon pour deux triangles
+## par arbre.
+const LOD_NEAR := 125.0
+## Seuil en cours (outils : 0 = tout en imposteurs, pour les comparer aux modèles).
+var lod_near := LOD_NEAR
+const LOD_HYST := 10.0
+const LOD_FADE_TIME := 0.25
+const IMP_RANGE := 420.0
 
 ## Couleur de chaque matériau du kit (par nom), dans la palette de la balade.
 const PALETTE := {
@@ -48,6 +58,12 @@ const KINDS := {
 var data: RefCounted
 var _proto := {}        # modèle -> [maillage, hauteur, bas]
 var _material: ShaderMaterial
+var _tree_material: ShaderMaterial
+var impostors: Node
+var _lod_cells := []    # par case d'arbres : centre, MultiMesh modèle et imposteur, état
+var lod_freeze := false
+## Arbres dessinés deux fois (pendant un fondu), pour la vue de débogage.
+var twice := 0
 var _cells := {}        # [case, modèle] -> Array[Transform3D]
 var _body: StaticBody3D
 var count := 0
@@ -266,13 +282,28 @@ func _commit() -> void:
 	_material = ShaderMaterial.new()
 	_material.shader = load("res://shaders/vegetation.gdshader")
 	_material.set_shader_parameter("night_light_tex", load("res://assets/balade/lights.png"))
+	# Arbres à imposteur : même shader, sans fondu en distance (c'est le niveau de détail
+	# qui les remplace au loin).
+	_tree_material = _material.duplicate() as ShaderMaterial
+	var lod_kinds := {}
+	for key in _cells:
+		var kind: String = key[1]
+		if _has_impostor(kind) and not lod_kinds.has(kind):
+			var spec: Array = KINDS[kind]
+			lod_kinds[kind] = [_proto[kind][0], float(spec[0]) / maxf(_proto[kind][1], 0.01)]
+	impostors = load("res://scripts/balade/impostors.gd").new()
+	impostors.name = "Imposteurs"
+	add_child(impostors)
+	impostors.prepare(lod_kinds)
+	var by_cell := {}
 	for key in _cells:
 		var cell: Vector2i = key[0]
+		var kind: String = key[1]
 		var list: Array = _cells[key]
 		var origin := Vector3((cell.x + 0.5) * CELL, 0, (cell.y + 0.5) * CELL)
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = _proto[key[1]][0]
+		mm.mesh = _proto[kind][0]
 		mm.instance_count = list.size()
 		var aabb := AABB()
 		for i in list.size():
@@ -284,9 +315,112 @@ func _commit() -> void:
 		mm.custom_aabb = aabb
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
-		mmi.material_override = _material
 		mmi.position = origin
-		# Fondu en distance (pas d'arbres qui surgissent) ; la case reste affichée un peu plus loin.
-		FarFade.setup(mmi, RANGE, CELL * FarFade.CELL_MARGIN)
+		if not lod_kinds.has(kind):
+			mmi.material_override = _material
+			# Fondu en distance (pas de rochers qui surgissent) ; la case reste affichée un peu plus loin.
+			FarFade.setup(mmi, RANGE, CELL * FarFade.CELL_MARGIN)
+			add_child(mmi)
+			continue
+		# Un matériau par case : son fondu de niveau de détail lui est propre (les « uniformes
+		# par instance » du moteur sont limités à 4 096 et il y a trop de cases).
+		if not by_cell.has(cell):
+			by_cell[cell] = {"center": Vector2(origin.x, origin.z), "near": [], "imp": [], "mats": [], "count": 0, "lod": -1, "t": 1.0}
+			by_cell[cell]["near_mat"] = _tree_material.duplicate()
+			by_cell[cell]["mats"].append(by_cell[cell]["near_mat"])
+		mmi.material_override = by_cell[cell]["near_mat"]
 		add_child(mmi)
+		# Imposteurs de la case : mêmes places, deux triangles chacun.
+		var im := MultiMesh.new()
+		im.transform_format = MultiMesh.TRANSFORM_3D
+		im.mesh = _impostor_quad()
+		im.instance_count = list.size()
+		for i in list.size():
+			var xf: Transform3D = list[i]
+			xf.origin -= origin
+			im.set_instance_transform(i, xf)
+		im.custom_aabb = aabb.grow(aabb.size.y * 0.5)
+		var imi := MultiMeshInstance3D.new()
+		imi.multimesh = im
+		imi.position = origin
+		var imat: ShaderMaterial = impostors.materials[kind].duplicate()
+		impostors.copies[kind].append(imat)
+		by_cell[cell]["mats"].append(imat)
+		imi.material_override = imat
+		imi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		FarFade.setup(imi, IMP_RANGE, CELL * FarFade.CELL_MARGIN, 80.0)
+		add_child(imi)
+		by_cell[cell]["near"].append(mmi)
+		by_cell[cell]["imp"].append(imi)
+		by_cell[cell]["count"] += list.size()
+	_lod_cells = by_cell.values()
 	_cells.clear()
+
+
+static func _has_impostor(kind: String) -> bool:
+	return kind.begins_with("tree_") or kind == "cactus_tall"
+
+
+var _quad: QuadMesh
+func _impostor_quad() -> QuadMesh:
+	if _quad == null:
+		_quad = QuadMesh.new()
+	return _quad
+
+
+# ------------------------------------------------------------------ niveaux de détail
+
+## Chaque case d'arbres passe du modèle (LOD0) à l'imposteur quand son centre s'éloigne de
+## la caméra au-delà de `LOD_NEAR` (et revient en deçà, avec un écart pour ne pas hésiter).
+## Le passage est un fondu minuté de `LOD_FADE_TIME` (comme dans les jeux récents) : les deux
+## versions ne sont dessinées ensemble que pendant ce fondu, jamais tant que la caméra
+## stationne près du seuil (un fondu selon la distance les dessinerait deux fois tout ce temps).
+func _process(delta: float) -> void:
+	if lod_freeze or _lod_cells.is_empty() or not impostors.done:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var p := Vector2(cam.global_position.x, cam.global_position.z)
+	twice = 0
+	for c in _lod_cells:
+		var d: float = p.distance_to(c["center"])
+		var want: int = c["lod"]
+		if d > lod_near + LOD_HYST:
+			want = 1
+		elif d < lod_near - LOD_HYST:
+			want = 0
+		elif want < 0:
+			want = 0 if d < lod_near else 1
+		if want != c["lod"]:
+			# Premier tour : tout de suite ; ensuite, fondu.
+			c["t"] = 1.0 if c["lod"] < 0 else 0.0
+			c["lod"] = want
+			for n in c["near"] + c["imp"]:
+				(n as Node3D).visible = true
+		if c["t"] < 1.0 or c.get("dirty", true):
+			c["t"] = minf(1.0, c["t"] + delta / LOD_FADE_TIME)
+			var k: float = smoothstep(0.0, 1.0, c["t"])
+			var share := k if c["lod"] == 1 else 1.0 - k
+			for m in c["mats"]:
+				(m as ShaderMaterial).set_shader_parameter("lod_fade", share)
+			c["dirty"] = c["t"] < 1.0
+			if c["t"] >= 1.0:
+				# Fondu fini : une seule version reste dessinée.
+				for n in c["near"]:
+					(n as Node3D).visible = c["lod"] == 0
+				for n in c["imp"]:
+					(n as Node3D).visible = c["lod"] == 1
+			else:
+				twice += int(c["count"])
+
+
+## Préchauffage (balade.gd) : les deux versions affichées pour compiler tous les shaders.
+func set_lod_freeze(on: bool) -> void:
+	lod_freeze = on
+	for c in _lod_cells:
+		for n in c["near"] + c["imp"]:
+			(n as Node3D).visible = true
+		if not on:
+			c["lod"] = -1
+			c["dirty"] = true
