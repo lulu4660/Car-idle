@@ -7,6 +7,8 @@ extends VehicleBody3D
 
 const WL = preload("res://scripts/core/world_layout.gd")
 const Waves = preload("res://scripts/balade/waves.gd")
+const Cockpit = preload("res://scripts/balade/cockpit.gd")
+const Exhaust = preload("res://scripts/balade/exhaust.gd")
 
 enum Drivetrain { ALL_WHEEL, REAR_WHEEL, FRONT_WHEEL }
 const DRIVE_NAMES: Array[String] = ["4x4", "Propulsion", "Traction"]
@@ -205,6 +207,11 @@ var rpm := 0.0
 var gear := 1
 var engine_load := 0.0
 var shifted := false          # vrai pendant l'image d'un changement de rapport
+## Retour de flamme à faire entendre (force 0 à 1), remis à 0 par audio.gd.
+var backfire_pop := 0.0
+## Volant (pièce qui tourne) et conducteur, si la voiture a un habitacle (cockpit.gd).
+var steering_spin: Node3D
+var driver: Node3D
 var grounded_wheels := 0
 var _shift_t := 0.0
 ## Profondeur de l'ornière sous chaque roue (m), donnée par balade.gd : freine un peu plus.
@@ -382,6 +389,12 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		mesh.position -= c.get_center()
 		car._wheel_base.append(mesh.position)
 	_merge_body(car)
+	# Vitres, conducteur et volant (voitures du Car Kit : vitres reconnues par leur couleur).
+	var cab := Cockpit.build(car)
+	if cab.size() == 2:
+		car.steering_spin = cab[0]
+		car.driver = cab[1]
+	Exhaust.attach(car)
 
 	car.drive = _drivetrain_of(model)
 	if model in ["fourgon", "berline_longue"]:
@@ -462,6 +475,9 @@ const WHEEL_ARCH_ROOM := 0.05
 
 func _process(delta: float) -> void:
 	var up := global_basis.y
+	if steering_spin and wheels.size() > 0:
+		# Le volant suit le braquage des roues avant (vers la gauche : sens inverse des aiguilles).
+		steering_spin.rotation.y = wheels[0].steering * Cockpit.WHEEL_TURNS
 	for i in wheels.size():
 		var w := wheels[i]
 		var mesh := w.get_child(0) as Node3D

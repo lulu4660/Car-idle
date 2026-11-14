@@ -1,4 +1,5 @@
 ## Sons de la balade (tous synthétisés par tools/make_audio.py, assets/audio) :
+## - échappement : retours de flamme (claquements, exhaust.gd) ;
 ## - moteur : deux boucles (grave, aiguë) fondues selon le régime de la boîte simulée de
 ##   car.gd, plus fortes et plus claires sous les gaz ; « clac » au changement de rapport ;
 ## - pneus : crissement sur le bitume selon la glisse, roulage et cailloux sur terre et sable ;
@@ -38,9 +39,11 @@ func _ready() -> void:
 		p.play()
 		_loops[n] = p
 		_vol[n] = 0.0
-	for n in ["impact", "land", "splash", "shift", "click", "score", "thunder"]:
+	for n in ["impact", "land", "splash", "shift", "click", "score", "thunder", "backfire"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load(DIR + n + ".wav")
+		# Les claquements d'une salve se chevauchent.
+		p.max_polyphony = 3 if n == "backfire" else 1
 		add_child(p)
 		_shots[n] = p
 
@@ -105,6 +108,9 @@ func _process(delta: float) -> void:
 		_loop("engine_off_%d" % ENGINE_RPMS[i], gain * share * (1.0 - _load_s) * 0.8, delta, pitch, 20.0)
 	if car.shifted:
 		shot("shift", 0.5, randf_range(0.9, 1.1))
+	if car.backfire_pop > 0.0:
+		shot("backfire", lerpf(0.35, 0.9, car.backfire_pop) * alive, randf_range(0.85, 1.2))
+		car.backfire_pop = 0.0
 
 	# Pneus : glisse moyenne des roues au sol, bitume ou sol meuble.
 	var slip := 0.0

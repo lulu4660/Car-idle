@@ -1,10 +1,12 @@
 """Fabrique tous les sons de la balade par synthèse (aucun enregistrement, aucune licence) :
-    python3 tools/make_audio.py
+    python3 tools/make_audio.py            (tous les sons)
+    python3 tools/make_audio.py backfire   (seulement ceux nommés)
 Boucles sans raccord audible (bruits construits dans le domaine des fréquences, donc
 périodiques ; sons de moteur avec un nombre entier de cycles) et sons courts.
 Sortie : assets/audio/*.wav (mono 16 bits). Relancer `godot --headless --import` ensuite.
 """
 import os
+import sys
 import wave
 import numpy as np
 
@@ -273,8 +275,32 @@ def bp_noise(n, sr, lo, hi):
     return x / (np.max(np.abs(x)) + 1e-9)
 
 
+def backfire():
+    """Retour de flamme : claquement sec dans l'échappement (coup grave + éclat), suivi
+    d'un ou deux petits crépitements. Le même son, rejoué à des hauteurs différentes."""
+    sr = 22050
+    n = int(0.42 * sr)
+    t = np.arange(n) / sr
+    x = np.sin(2 * np.pi * (110 - 70 * np.minimum(t / 0.08, 1)) * t) * np.exp(-t * 32) * 1.2
+    x += bp_noise(n, sr, 250, 6000) * np.exp(-t * 75) * 1.1
+    x += bp_noise(n, sr, 80, 500) * np.exp(-t * 20) * 0.5
+    for t0, a in ((0.11, 0.45), (0.2, 0.28)):
+        k = np.maximum(t - t0, 0)
+        x += (t >= t0) * (bp_noise(n, sr, 400, 5000) * np.exp(-k * 110) * a
+                          + np.sin(2 * np.pi * 95 * k) * np.exp(-k * 45) * a * 0.8)
+    fade = int(sr * 0.02)
+    x[-fade:] *= np.linspace(1, 0, fade)
+    save("backfire", x, sr, peak=0.9)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    only = sys.argv[1:]
+    if only:
+        for name in only:
+            globals()[name]()
+        print("sons écrits dans", os.path.normpath(OUT))
+        return
     # Moteur : 5 régimes, en charge (on) et au lever de pied (off).
     for r in ENGINE_RPMS:
         engine("engine_on_%d" % r, r, True)
@@ -311,6 +337,7 @@ def main():
     shot("score", 0.4, 22050, lambda n, t, sr:
          (np.sin(2 * np.pi * 660 * t) * (t < 0.12) + np.sin(2 * np.pi * 990 * t) * (t >= 0.1)) * np.exp(-np.maximum(t - 0.1, 0) * 9)
          * np.minimum(1, t * 200), peak=0.5)
+    backfire()
     print("sons écrits dans", os.path.normpath(OUT))
 
 

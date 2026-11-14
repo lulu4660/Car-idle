@@ -12,14 +12,14 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.18.1"
+const VERSION := "0.19.0"
 
-@export var start_model := "rgs:sports"
+@export var start_model := "sedan-sports"
 ## Partie idle (garage, voitures à spotter) branchée ou non. Mise de côté pour l'instant
 ## (choix de l'auteur) : le jeu s'ouvre sur la balade, voitures du Car Kit au choix.
 const IDLE_ENABLED := false
 ## Voitures conduites sans partie idle (bouton VOITURE).
-const FREE_MODELS: Array[String] = ["rgs:sports", "rgs:muscle", "rgs:roadster", "rgs:hatchback", "rgs:sedan", "rgs:muscle_2", "rgs:suv", "rgs:pickup", "rgs:van", "rgs:taxi", "rgs:monster_truck", "rgs:limousine"]
+const FREE_MODELS: Array[String] = ["sedan-sports", "hatchback-sports", "race-future", "sedan", "suv", "suv-luxury", "truck", "van", "taxi", "police"]
 ## Conduire la voiture choisie au garage (sinon `start_model`, pour les tests).
 @export var use_garage_car := true
 ## Voiture du garage conduite (uid), -1 : modèle du pack.
