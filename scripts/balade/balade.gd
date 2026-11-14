@@ -12,7 +12,7 @@ const CarModels = preload("res://scripts/game/car_models.gd")
 const Settings = preload("res://scripts/balade/settings.gd")
 ## Numéro de version affiché (pour savoir quelle version tourne sur le téléphone : la
 ## version web peut rester en cache quelques minutes après une mise en ligne).
-const VERSION := "0.19.0"
+const VERSION := "0.19.1"
 
 @export var start_model := "sedan-sports"
 ## Partie idle (garage, voitures à spotter) branchée ou non. Mise de côté pour l'instant
@@ -102,6 +102,10 @@ var audio: Node
 
 
 func _ready() -> void:
+	# Interpolation physique (project.godot) : seule la voiture conduite en profite (`_spawn`).
+	# Le reste de la balade (circulation, piétons, oiseaux, caméra) est déplacé image par image
+	# dans _process : interpolé, il serait en retard d'un pas.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	data = WorldData.load_baked()
 	if data == null:
 		return
@@ -257,6 +261,10 @@ func _spawn(pos: Vector3, yaw: float) -> void:
 	settings.apply_car(car)
 	add_child(car)
 	car.global_transform = Transform3D(Basis(Vector3.UP, yaw), pos)
+	# Dessinée entre deux pas de physique : mouvement fluide quelle que soit la cadence
+	# d'affichage (iPhone sous 60 i/s, écrans 120 ou 144 Hz).
+	car.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
+	car.reset_physics_interpolation()
 	camera.target = car
 	if life:
 		life.target = car
@@ -718,7 +726,8 @@ func _update_car_shadow() -> void:
 			if c is CollisionShape3D:
 				_car_shape = c
 				break
-	var xf := car.global_transform
+	# Position dessinée (interpolée), sinon l'ombre et les phares tremblent d'un pas derrière.
+	var xf := car.get_global_transform_interpolated()
 	var inv := xf.affine_inverse()
 	var sun_l: Vector3 = (xf.basis.inverse() * lighting.light_direction()).normalized()
 	var c: Vector3 = _car_shape.position if _car_shape else Vector3(0, 0.9, 0)

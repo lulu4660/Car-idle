@@ -50,12 +50,13 @@ func shake(amount: float) -> void:
 	_shake = maxf(_shake, clampf(amount, 0.0, 1.0))
 
 
-func _physics_process(delta: float) -> void:
-	# La voiture bouge au rythme de la physique : la caméra aussi, sans saccade.
-	if target == null:
+func _process(delta: float) -> void:
+	# À chaque image affichée, sur la position dessinée de la voiture (interpolée entre deux
+	# pas de physique) : fluide même quand l'affichage ne tombe pas pile sur la physique.
+	if target == null or delta <= 0.0:
 		return
 	var shot: Array = SHOTS[mode]
-	var t := target.global_transform
+	var t := target.get_global_transform_interpolated()
 	var car_vel := target.linear_velocity
 	var heading := Vector3(t.basis.z.x, 0.0, t.basis.z.z).normalized()
 	var flat := Vector3(car_vel.x, 0.0, car_vel.z)

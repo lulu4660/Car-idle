@@ -103,6 +103,7 @@ static func build(car: VehicleBody3D, rng_seed: int = -1) -> Array:
 	wheel.scale = Vector3.ONE * clampf(s * 1.1, 0.6, 1.3)
 	var spin := Node3D.new()
 	spin.name = "Rotation"
+	spin.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # tourné dans _process
 	wheel.add_child(spin)
 	var black := StandardMaterial3D.new()
 	black.albedo_color = Color(0.08, 0.07, 0.07)

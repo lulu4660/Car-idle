@@ -54,6 +54,9 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# Tout le garage est animé image par image (pont, mécano, caméra) : pas d'interpolation
+	# physique (activée dans project.godot pour la voiture de la balade).
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	game = get_node("/root/Game")
 	_build_environment()
 	camera = Camera3D.new()

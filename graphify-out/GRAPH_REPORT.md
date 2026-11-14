@@ -1,10 +1,10 @@
 # Graph Report - car-idle  (2026-11-14)
 
 ## Corpus Check
-- 6 files · ~8,910 words
+- 6 files · ~9,059 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 151 file(s) not represented in the graph (top: .uid 72, .gd 47, .gdshader 18)
-- WARNING: 151 of 158 files seen (96%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
+- Unclassified: 152 file(s) not represented in the graph (top: .uid 72, .gd 48, .gdshader 18)
+- WARNING: 152 of 159 files seen (96%) have no supported extractor and are missing from this graph entirely. It may look complete while representing only part of the codebase.
 
 ## Summary
 - 173 nodes · 156 edges · 68 communities (6 shown, 62 thin omitted)
@@ -12,7 +12,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c0684375`
+- Built from commit: `b4b80371`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -31,11 +31,11 @@
 3. `band()` - 11 edges
 4. `noise_loop()` - 10 edges
 5. `Car Idle` - 9 edges
-6. `steps` - 7 edges
-7. `engine()` - 7 edges
+6. `engine()` - 7 edges
+7. `sea()` - 7 edges
 8. `skid()` - 7 edges
-9. `sea()` - 7 edges
-10. `water()` - 7 edges
+9. `water()` - 7 edges
+10. `Car Idle` - 7 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Code` --references--> `sea()`  [INFERRED]

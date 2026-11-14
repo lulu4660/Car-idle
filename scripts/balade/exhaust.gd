@@ -34,6 +34,7 @@ static func attach(c: VehicleBody3D) -> Node3D:
 	var b := body.get_aabb()
 	var ex: Node3D = load("res://scripts/balade/exhaust.gd").new()
 	ex.name = "Echappement"
+	ex.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # flamme animée dans _process
 	ex.car = c
 	# Côté droit (-X), bas de la caisse, dépasse un peu du pare-chocs : l'arrière est cherché
 	# parmi les sommets à cet endroit (une roue de secours ne doit pas reculer le pot).

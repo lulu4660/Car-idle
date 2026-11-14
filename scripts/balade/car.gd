@@ -381,6 +381,9 @@ static func create(model: String, controls_node: Node) -> VehicleBody3D:
 		wheel_nodes[i].get_parent().remove_child(wheel_nodes[i])
 		w.add_child(wheel_nodes[i])
 		wheel_nodes[i].transform = Transform3D(rel.basis, Vector3.ZERO)
+		# Recalé à chaque image dans _process (posé sur le sol) : pas d'interpolation propre ;
+		# il suit la roue physique, elle interpolée.
+		wheel_nodes[i].physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		car.wheels.append(w)
 	# Le dessin des roues est placé par rapport au centre de la roue physique.
 	for i in 4:
@@ -939,6 +942,8 @@ func respawn(pos: Vector3, yaw: float) -> void:
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
 	global_transform = Transform3D(Basis(Vector3.UP, yaw), Vector3(pos.x, maxf(ground, WL.SEA_LEVEL) + 1.2, pos.z))
+	# Téléportée : pas de glissement interpolé depuis l'ancienne place.
+	reset_physics_interpolation()
 	_upside_down = 0.0
 	_water_time = 0.0
 	_sunk_time = 0.0
